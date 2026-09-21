@@ -1,0 +1,12 @@
+[project]
+name = "soarm101-lab"
+version = "0.1.0"
+description = "SO-ARM101 experiments: teleoperation, datasets, and imitation learning"
+requires-python = ">=3.12,<3.13"
+dependencies = ["lerobot[core_scripts,feetech]==0.6.1"]
+
+[project.optional-dependencies]
+training = ["lerobot[training]==0.6.1"]
+
+[tool.uv]
+package = false

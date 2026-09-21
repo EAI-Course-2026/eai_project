@@ -1,0 +1,16 @@
+# Hardware inventory only; not a LeRobot CLI config.
+[follower]
+type = "so101_follower"
+id = ""
+port = ""
+calibrated = false
+
+[leader]
+type = "so101_leader"
+id = ""
+port = ""
+calibrated = false
+
+[camera]
+backend = "opencv"
+index_or_path = ""
