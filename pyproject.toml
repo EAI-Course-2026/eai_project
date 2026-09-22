@@ -1,11 +1,12 @@
 [project]
-name = "soarm101-lab"
+name = "eai-robot-lab"
 version = "0.1.0"
-description = "SO-ARM101 experiments: teleoperation, datasets, and imitation learning"
+description = "Embodied AI mobile manipulator course: servo experiments, teleoperation, and learning"
 requires-python = ">=3.12,<3.13"
-dependencies = ["lerobot[core_scripts,feetech]==0.6.1"]
+dependencies = ["lerobot[core_scripts,feetech]==0.6.1", "pyserial>=3.5,<4"]
 
 [project.optional-dependencies]
+experiments = ["matplotlib>=3.9,<4"]
 training = ["lerobot[training]==0.6.1"]
 
 [tool.uv]

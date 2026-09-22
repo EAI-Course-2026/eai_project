@@ -10,3 +10,6 @@ outputs/
 checkpoints/
 .cache/
 calibration/
+
+# Machine-specific hardware configuration
+configs/*.local.toml

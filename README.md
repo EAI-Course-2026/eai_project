@@ -1,43 +1,82 @@
-# SO-ARM101 Lab
+# 具身智能机械臂小车课程项目
 
-SO-ARM101 遥操作、数据采集与模仿学习实验项目。依赖 LeRobot 发布版本，不直接复制上游源码。
+目标：使用 LeRobot 和现有硬件，完成舵机实验、机械臂装配与遥操作、底盘整合，最终完成可复现的具身任务。
 
-## 环境准备
+当前阶段：舵机基础实验，用户已确认逐台完成 6 台编号，剩余 2 台待完成。尚未确认机械臂、小车或完整任务验收。LeRobot 以固定版本依赖使用，本仓库不是 LeRobot 源码克隆。参考源码继续保留在各自仓库中，不修改 `.venv/site-packages`。
 
-使用 Python 3.12 和 uv。LeRobot 固定为 0.6.1；完整传递依赖将在成功执行 uv sync 后记录在 uv.lock。
+## 环境
 
-```sh
-uv sync
-uv run --no-sync python scripts/check_env.py
-```
-
-需要训练时安装可选依赖：
+Python 3.12，使用 uv 管理：
 
 ```sh
-uv sync --extra training
+uv sync --locked --extra experiments
+.venv/bin/python scripts/check_env.py
 ```
 
-## 文件组织
+`experiments` 包含 matplotlib；训练时按需加 `--extra training`。所有命令从项目根目录运行；脚本输出路径不依赖终端所在位置。
 
-- `scripts/check_env.py`：软件导入、MPS 运算、FFmpeg 和候选串口检查；不打开摄像头，不驱动电机。
-- `docs/environment.md`：首次环境检查结果及待办。
-- `configs/hardware.example.toml`：硬件信息登记模板，不直接作为 LeRobot CLI 配置。
-- `data/`、`outputs/`、`checkpoints/`、`calibration/`：本地数据，已在 Git 中忽略。
+## 硬件配置
 
-## 首次硬件接入
+复制 `configs/hardware.example.toml` 为 `configs/hardware.local.toml`，填写本机实际参数。本机整理时已创建 local 文件并保留旧脚本值。
 
-1. 确认是否有 leader 和 follower 两只机械臂、装配及供电情况。
-2. 分别连接 USB，辨认各自串口，填写硬件登记表。
-3. 安装完成后按官方 SO-101 指南执行电机配置和校准。
-4. 确认摄像头权限及画面，先验证遥操作，再采集短 episode。
-5. 数据读写和视频解码验证通过后，再开始 ACT 训练与部署。
+- `serial`：端口、通信速率。
+- `single`：单舵机 ID、运动位置序列。
+- `numbering`：编号的旧 ID、新 ID；逐台编号只需改 `new_id`。
+- `pid`：起点、角度换算、PWM 方向。
+- `pair`：两台舵机的 ID、软件范围、方向。
 
-初始仓库不包含可直接执行的电机运动命令，端口与校准信息必须来自真实设备。
+local 文件不进入 Git。当前保存的编号和范围是操作默认值，不是验收结果，也不是已写入舵机的硬限位。具体实物信息见 [硬件登记](docs/hardware.md)。
 
-## 官方参考
+## 常用入口
 
-- https://huggingface.co/docs/lerobot/installation
-- https://huggingface.co/docs/lerobot/so101
-- https://pypi.org/project/lerobot/0.6.1/
+```sh
+# 查询电脑的串口
+.venv/bin/python -m serial.tools.list_ports -v
 
-主分支教程与发布版可能不同，执行具体命令前以本项目安装版本的 --help 为准。
+# 只读扫描 ID 1～8；未知编号加 --all
+.venv/bin/python scripts/servo_setup.py --scan
+
+# 逐台编号：总线上只连接当前一台
+.venv/bin/python scripts/servo_setup.py --old-id 1 --new-id 6
+
+# 只读位置查询
+.venv/bin/python experiments/servos/read_position.py --id 1
+
+# 实物单舵机、多位置运动
+.venv/bin/python experiments/servos/move_positions.py
+
+# 实物双舵机控制，输入两个 0～1 数字
+.venv/bin/python experiments/servos/two_servo_control.py
+
+# PID 离线示例（不接硬件）
+.venv/bin/python experiments/servos/pid_response.py --simulate --compare
+
+# PID 实物实验（会切换 PWM 模式）
+.venv/bin/python experiments/servos/pid_response.py --compare
+
+# 离线测试，不打开串口
+.venv/bin/python -m unittest discover -s tests -v
+```
+
+编号工具不带参数运行时，按 `numbering` 配置执行改号；它不是扫描默认入口。所有脚本的 `--help` 均不启动硬件。
+
+## 目录
+
+- `experiments/servos/`：原理学习和课堂实验。
+- `scripts/`：环境检查、编号等日常操作工具。
+- `src/eai_robot/`：目前只抽取配置读取、SCS 协议和归一化映射；机械臂、底盘接口等做到对应阶段再增加。
+- `configs/`：硬件配置示例和本机配置。
+- `tests/`：协议和控制映射的离线验证。
+- `docs/`：硬件登记、实验原理、迁移说明与阶段验收。
+- `outputs/`：图表、日志；原有 PID 实验数据保持原位。
+- `data/`、`calibration/`、`checkpoints/`：运行时按需创建，默认不提交大文件或本机数据。校准结果需随数据集/实验在别处备份，不能把 Git 忽略当作备份。
+
+## 实验与阶段
+
+- [舵机实验及原理](docs/experiments/servo_basics.md)
+- [PID 操作、风险与读图](docs/experiments/pid_response.md)
+- [阶段目标与验收](docs/milestones.md)
+- [旧脚本名称对照](docs/migration.md)
+- [原环境检查记录](docs/environment.md)
+
+运动实验前确认供电、接线、编号、行程及固定情况。PID 的 PWM 模式下断开 USB 不保证停机；需要能切断舵机电源。终端中的“已发送停止”也不等于已确认实物停止。

@@ -1,4 +1,35 @@
-# Hardware inventory only; not a LeRobot CLI config.
+# 保留旧脚本配置；并不代表这些 ID/限位已完成实物验收。
+[serial]
+port = ""
+baudrate = 1000000
+
+[single]
+id = 1
+positions = [300, 400, 500, 400, 300]
+pause_seconds = 2
+
+[numbering]
+old_id = 1
+new_id = 2 # 逐台编号时选择目标 ID。
+
+[pid]
+start_step = 300
+span_deg = 300
+pwm_sign = -1 # 这台 SCS215 的实测方向映射
+
+[pair.first]
+id = 2
+min_step = 0
+max_step = 512
+direction = 1
+
+[pair.second]
+id = 3
+min_step = 0
+max_step = 256
+direction = 1
+
+# 保留现有 LeRobot 硬件登记；不作为 LeRobot CLI 配置直接传入。
 [follower]
 type = "so101_follower"
 id = ""
