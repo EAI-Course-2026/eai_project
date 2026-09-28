@@ -1,5 +1,4 @@
 """Read-only software/serial check: does not open cameras or command motors."""
-import glob
 import importlib
 import importlib.metadata
 import platform
@@ -26,7 +25,11 @@ for package, module in [("lerobot", "lerobot"), ("torch", "torch"), ("opencv-pyt
 ffmpeg = shutil.which("ffmpeg")
 print(f"FFmpeg: {ffmpeg or 'MISSING'}")
 failed = failed or ffmpeg is None
-ports = sorted(glob.glob("/dev/cu.usb*") + glob.glob("/dev/cu.wch*"))
+try:
+    from serial.tools import list_ports
+    ports = sorted(port.device for port in list_ports.comports())
+except ImportError:
+    ports = []
 print(f"Candidate robot serial ports: {ports or 'none; hardware not verified'}")
-print("Camera capture and robot calibration/motion have NOT been tested.")
+print("This check does not test camera capture or robot calibration/motion.")
 sys.exit(1 if failed else 0)

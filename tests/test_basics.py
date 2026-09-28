@@ -38,7 +38,9 @@ class Basics(unittest.TestCase):
         self.assertIn('serial', load_config())
 
     def test_entry_imports_do_not_open_serial(self):
-        files = list((ROOT / 'experiments/servos').glob('*.py')) + [ROOT / 'scripts/servo_setup.py']
+        files = list((ROOT / 'experiments/servos').glob('*.py')) + [
+            ROOT / 'scripts' / name for name in ('servo_setup.py', 'arm_serial.py', 'arm_lerobot.py', 'arm_demo.py', 'arm_desk.py')
+        ]
         with patch('serial.Serial', side_effect=AssertionError('import opened serial')):
             for n, file in enumerate(files):
                 name = f'entry_{n}'
@@ -46,6 +48,15 @@ class Basics(unittest.TestCase):
                 module = importlib.util.module_from_spec(spec)
                 sys.modules[name] = module
                 spec.loader.exec_module(module)
+
+    def test_default_scan_contains_exactly_six_ids(self):
+        spec = importlib.util.spec_from_file_location('setup_six_test', ROOT / 'scripts/servo_setup.py')
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        with patch.object(sys, 'argv', ['servo_setup.py', '--scan']), \
+                patch('serial.Serial'), patch.object(mod, 'scan', return_value=0) as scan:
+            self.assertEqual(mod.main(), 0)
+        self.assertEqual(list(scan.call_args.args[1]), [1, 2, 3, 4, 5, 6])
 
     def test_scan_does_not_write(self):
         spec = importlib.util.spec_from_file_location('setup_test', ROOT / 'scripts/servo_setup.py')
@@ -57,7 +68,7 @@ class Basics(unittest.TestCase):
                     raise TimeoutError()
                 return sid
         with contextlib.redirect_stdout(io.StringIO()) as output:
-            self.assertEqual(mod.scan(Fake(), range(1,9)), 0)
+            self.assertEqual(mod.scan(Fake(), range(1,7)), 0)
         self.assertIn('[6]', output.getvalue())
 
 

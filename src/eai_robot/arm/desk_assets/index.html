@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#121d26">
+  <title>SO101 · 六关节控制台</title>
+  <link rel="stylesheet" href="/app.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand"><span class="brand-symbol">S<span class="brand-dot">●</span></span><span>SO101<span class="brand-sub">/ CONTROL DESK</span></span></div>
+      <div class="header-right"><span class="eyebrow">SCS215 · 6 AXES</span><span id="connection-badge" class="status-pill"><i></i> 未连接</span></div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div>
+          <p class="kicker">PHYSICAL INTELLIGENCE LAB / 02</p>
+          <h1>让六个关节，<br><em>听从你的指尖。</em></h1>
+          <p class="hero-copy">先连接，再进入已校准的统一起点。拖动六个滑杆设置目标，一次发送六台舵机；也可以直接播放已验证的演示动作。</p>
+        </div>
+        <div class="hero-meter" aria-label="当前连接摘要">
+          <div class="meter-mark">06<span> / 06</span></div>
+          <span class="meter-line"></span>
+          <p id="hero-state">等待连接机械臂</p>
+          <small>端口只在本机使用 · 页面关闭后自动释放扭矩</small>
+        </div>
+      </section>
+
+      <div class="status-ribbon" role="status" aria-live="polite"><span class="ribbon-bullet"></span><span id="status-text">等待连接</span><span id="motion-label">READ ONLY</span></div>
+
+      <section class="workspace-grid">
+        <div class="main-column">
+          <div class="section-head"><div><span class="section-index">01 / SETUP</span><h2>连接设备</h2></div><p>连接时只读取 ID、型号和状态，不会移动。</p></div>
+          <div class="panel connection-panel">
+            <div class="form-field port-field"><label for="device-port">串口设备</label><input id="device-port" type="text" spellcheck="false" autocomplete="off" placeholder="串口名称，例如 COM5"></div>
+            <div class="form-field"><label for="backend">控制后端</label><select id="backend"><option value="serial">原生串口 · pyserial</option><option value="lerobot">LeRobot · SCS215 适配</option></select></div>
+            <div class="form-field baud-field"><label for="baudrate">波特率</label><select id="baudrate"><option value="1000000">1,000,000</option><option value="500000">500,000</option><option value="250000">250,000</option><option value="115200">115,200</option></select></div>
+            <button id="connect-btn" class="button button-dark">连接机械臂 <span aria-hidden="true">↗</span></button>
+            <button id="disconnect-btn" class="button button-ghost" disabled>断开</button>
+          </div>
+
+          <div class="section-head control-head"><div><span class="section-index">02 / LIVE CONTROL</span><h2>六关节控制</h2></div><p>滑杆为校准后的 0–1 数值，并限于本台机械臂的演示入口范围。</p></div>
+          <div class="panel arm-panel">
+            <div class="arm-panel-top"><div><span class="mini-eyebrow">CURRENT CONFIGURATION</span><strong>先归位，再控制</strong></div><div class="arm-panel-actions"><button id="home-btn" class="button button-light" disabled>◎ 进入统一起点</button><button id="reset-target-btn" class="button button-plain" disabled>目标 ← 当前反馈</button></div></div>
+            <div class="axis-header"><span>关节 / ID</span><span>校准范围内目标</span><span>反馈刻度</span></div>
+            <div id="axis-list" class="axis-list"></div>
+            <div class="arm-panel-bottom"><p>一次同步发送六个目标。控制范围在校准端点内缩 20 刻度；进入起点前不会启用滑杆运动。</p><button id="send-btn" class="button button-primary" disabled>发送六关节目标 <span aria-hidden="true">→</span></button></div>
+          </div>
+
+          <div class="section-head"><div><span class="section-index">03 / CHOREOGRAPHY</span><h2>一键演示</h2></div><p>每次都先从当前姿态归位，再开始动作。</p></div>
+          <div class="demo-grid">
+            <article class="demo-card"><span class="demo-number">01</span><span class="demo-glyph">↔</span><h3>夹爪开合</h3><p>两端往返，约 310 刻度目标跨度。每步停留，方便近景拍摄。</p><button data-demo="gripper" class="button demo-button" disabled>开始演示 <span>↗</span></button></article>
+            <article class="demo-card"><span class="demo-number">02</span><span class="demo-glyph">⤨</span><h3>左右展示</h3><p>底座与腕部左右转动，配合明显的夹爪变化。</p><button data-demo="showcase" class="button demo-button" disabled>开始演示 <span>↗</span></button></article>
+            <article class="demo-card"><span class="demo-number">03</span><span class="demo-glyph">⌁</span><h3>空载转运</h3><p>A 侧探出、模拟夹持、转到 B 侧并模拟释放。</p><button data-demo="transfer" class="button demo-button" disabled>开始演示 <span>↗</span></button></article>
+          </div>
+        </div>
+
+        <aside class="side-column">
+          <div class="safety-panel"><div class="safety-top"><span class="safety-icon">!</span><span>硬件停止</span></div><h2>停止并<br>释放扭矩</h2><p>任何动作中都可请求停止。机械臂退出后需继续支撑。</p><button id="stop-btn" class="stop-button" disabled>■　停止 / 释放扭矩</button><small>如果串口失联，直接切断舵机电源。</small></div>
+          <div class="telemetry-panel"><span class="section-index">LIVE TELEMETRY</span><h3>实时状态</h3><div class="telemetry-row"><span>舵机在线</span><strong id="online-count">— / 6</strong></div><div class="telemetry-row"><span>扭矩</span><strong id="torque-state">关闭</strong></div><div class="telemetry-row"><span>统一起点</span><strong id="home-state">未进入</strong></div><div class="telemetry-row"><span>电压范围</span><strong id="voltage-range">—</strong></div><div class="telemetry-row"><span>状态报警</span><strong id="fault-count">—</strong></div></div>
+          <div class="log-panel"><div class="log-head"><span class="section-index">EVENT LOG</span><h3>运行记录</h3></div><ol id="event-list" aria-live="polite"><li>等待连接机械臂</li></ol></div>
+        </aside>
+      </section>
+
+      <section class="calibration-section"><div class="section-head"><div><span class="section-index">04 / CALIBRATION</span><h2>校准工作台</h2></div><p>只读查看已有参数；另存手动采集，不改写舵机 EEPROM。</p></div>
+        <div class="panel calibration-panel"><div class="calibration-note"><strong>手动端点采集</strong><p>停止并支撑机械臂后，逐关节摆到希望的 0 和 1 安全端点，分别点击采集。新校准会另存为文件；启用前需重新示教匹配的统一起点。</p></div><div id="calibration-list" class="calibration-list"></div><div class="calibration-actions"><button id="save-cal-btn" class="button button-light" disabled>保存 12 个端点为新校准</button><button id="teach-btn" class="button button-plain" disabled>只读采集当前姿态为新起点</button></div></div>
+      </section>
+      <footer>SO101 / SCS215　·　本机控制界面　·　目标不含碰撞规划</footer>
+    </main>
+  </div>
+</body>
+</html>

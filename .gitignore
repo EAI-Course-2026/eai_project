@@ -9,7 +9,23 @@ data/
 outputs/
 checkpoints/
 .cache/
-calibration/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+/calibration/*
+!/calibration/scs215_so101.json
+!/calibration/scs215_so101.meta.json
+!/calibration/scs215_safe_candidate_20260928.json
+!/calibration/scs215_safe_candidate_20260928.meta.json
+
+# Coursework hand-in stays on this computer, including its report, video, and dependencies.
+/assignment2_handin/
+/scripts/package_assignment2.py
 
 # Machine-specific hardware configuration
 configs/*.local.toml
+configs/*.local.json

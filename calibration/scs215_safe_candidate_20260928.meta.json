@@ -1,0 +1,43 @@
+{
+  "status": "candidate_not_activated",
+  "method": "intersection_of_observed_mechanical_reach_and_eeprom_inset_20_counts_except_elbow_upper_10",
+  "created": "2026-09-28T16:46:42.591675+08:00",
+  "source_calibration": "calibration/scs215_so101.json",
+  "observed_reachable_raw": {
+    "shoulder_pan": [
+      175,
+      884
+    ],
+    "shoulder_lift": [
+      63,
+      738
+    ],
+    "elbow_flex": [
+      196,
+      772
+    ],
+    "wrist_flex": [
+      71,
+      680
+    ],
+    "wrist_roll": [
+      5,
+      1022
+    ],
+    "gripper": [
+      240,
+      638
+    ]
+  },
+  "inset_counts": 20,
+  "elbow_upper_inset_counts": 10,
+  "manual_endpoints_verified": false,
+  "powered_range_verified": false,
+  "eeprom_modified": true,
+  "eeprom_change": "ID3 Max_Position_Limit 769 -> 771; immediate and serial-reconnect readback passed; power-cycle persistence not yet checked. All torque off and EEPROM relocked.",
+  "note": "Unactivated candidate. Most endpoints use 20-count inset; ID3 software upper 761 is 10 below user-confirmed EEPROM 771. ID2 EEPROM lower stays 64 and software 0 maps to 84. Powered verification is incomplete; active calibration remains scs215_so101.json.",
+  "startup_recovery_required": true,
+  "startup_recovery_implemented": true,
+  "startup_recovery_fully_verified": false,
+  "startup_recovery_reason": "A separate EEPROM-bounded recovery path is implemented and has succeeded from some observed starts. ID3 can fall to 771–772 without torque; the clearance sequence has not consistently brought it inside the candidate feedback window without manual support."
+}

@@ -54,3 +54,27 @@ class Bus:
         if got != sid:
             raise ProtocolError(f"ID {sid} 的编号寄存器实际为 {got}")
         return got
+
+    def read_word(self, sid, address):
+        # SCS series uses high byte first (STS3215 uses the opposite order).
+        return int.from_bytes(self.request(sid, 2, [address, 2], 2), "big")
+
+    def verified_word(self, sid, address, value):
+        self.ser.reset_input_buffer()
+        self.ser.write(command(sid, 3, [address, *value.to_bytes(2, "big")]))
+        self.ser.read(6)
+        if self.read_word(sid, address) != value:
+            raise ProtocolError(f"ID {sid} 地址 {address} 写入回读不一致")
+
+    def sync_positions(self, targets):
+        parameters = [42, 2]
+        for sid, position in targets.items():
+            if not 1 <= sid <= 253 or not 0 <= position <= 1023:
+                raise ValueError("SCS215 ID/目标位置无效")
+            parameters.extend([sid, *position.to_bytes(2, "big")])
+        if not targets:
+            raise ValueError("同步目标不能为空")
+        packet = command(254, 0x83, parameters)
+        if self.ser.write(packet) != len(packet):
+            raise ProtocolError("同步写入不完整")
+        self.ser.flush()

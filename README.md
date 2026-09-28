@@ -1,82 +1,47 @@
-# 具身智能机械臂小车课程项目
+# SO101 六关节 SCS215 控制
 
-目标：使用 LeRobot 和现有硬件，完成舵机实验、机械臂装配与遥操作、底盘整合，最终完成可复现的具身任务。
+本仓库为 SO101 结构的六关节 SCS215 机械臂提供编号、软件校准、六个 0–1 位置输入、同步目标发送和本机网页上位机。支持纯 pyserial 通信，也支持通过项目内适配器使用 LeRobot 0.6.1 的 Feetech 电机总线。项目长期目标是将成熟的 SCS215 支持整理为可贡献给 LeRobot 社区的实现。
 
-当前阶段：舵机基础实验，用户已确认逐台完成 6 台编号。尚未确认机械臂、小车或完整任务验收。LeRobot 以固定版本依赖使用，本仓库不是 LeRobot 源码克隆。参考源码继续保留在各自仓库中，不修改 `.venv/site-packages`。
+目前**已验证的是电机通信与位置控制**：六台型号和 ID 回读、两种后端的小幅六关节同步到位，以及网页发命令后的实物运动。完整机械端点、额定负载、任意起点避碰、摄像头、LeRobot 数据采集和训练尚未验收。`src/eai_robot/hardware/lerobot_scs215.py` 是电机总线适配器；它不是已注册的 LeRobot `Robot` 类型。具体边界见[架构与 LeRobot 接入状态](docs/architecture.md)。
 
-## 环境
+## 快速开始
 
-Python 3.12，使用 uv 管理：
+需要 Python 3.12 和 uv。在项目根目录执行：
 
 ```sh
 uv sync --locked --extra experiments
-.venv/bin/python scripts/check_env.py
+uv run --no-sync python -m unittest discover -s tests -q
+uv run --no-sync python scripts/arm_serial.py control --allow-wide-range --dry-run --values 0.5 0.5 0.5 0.5 0.5 0.5
 ```
 
-`experiments` 包含 matplotlib；训练时按需加 `--extra training`。所有命令从项目根目录运行；脚本输出路径不依赖终端所在位置。
-
-## 硬件配置
-
-复制 `configs/hardware.example.toml` 为 `configs/hardware.local.toml`，填写本机实际参数。本机整理时已创建 local 文件并保留旧脚本值。
-
-- `serial`：端口、通信速率。
-- `single`：单舵机 ID、运动位置序列。
-- `numbering`：编号的旧 ID、新 ID；逐台编号只需改 `new_id`。
-- `pid`：起点、角度换算、PWM 方向。
-- `pair`：两台舵机的 ID、软件范围、方向。
-
-local 文件不进入 Git。当前保存的编号和范围是操作默认值，不是验收结果，也不是已写入舵机的硬限位。具体实物信息见 [硬件登记](docs/hardware.md)。
-
-## 常用入口
+复制 `configs/hardware.example.toml` 为被 Git 忽略的 `configs/hardware.local.toml`，填写本机串口和波特率；也可通过 `--port` 指定。Windows 使用本机识别到的 `COM` 端口名。确认六台设备、机械臂支撑与周围空间后，先只读检查：
 
 ```sh
-# 查询电脑的串口
-.venv/bin/python -m serial.tools.list_ports -v
-
-# 只读扫描 ID 1～8；未知编号加 --all
-.venv/bin/python scripts/servo_setup.py --scan
-
-# 逐台编号：总线上只连接当前一台
-.venv/bin/python scripts/servo_setup.py --old-id 1 --new-id 6
-
-# 只读位置查询
-.venv/bin/python experiments/servos/read_position.py --id 1
-
-# 实物单舵机、多位置运动
-.venv/bin/python experiments/servos/move_positions.py
-
-# 实物双舵机控制，输入两个 0～1 数字
-.venv/bin/python experiments/servos/two_servo_control.py
-
-# PID 离线示例（不接硬件）
-.venv/bin/python experiments/servos/pid_response.py --simulate --compare
-
-# PID 实物实验（会切换 PWM 模式）
-.venv/bin/python experiments/servos/pid_response.py --compare
-
-# 离线测试，不打开串口
-.venv/bin/python -m unittest discover -s tests -v
+uv run --no-sync python scripts/arm_serial.py inspect
+uv run --no-sync python scripts/arm_lerobot.py inspect
 ```
 
-编号工具不带参数运行时，按 `numbering` 配置执行改号；它不是扫描默认入口。所有脚本的 `--help` 均不启动硬件。
+网页上位机入口：
 
-## 目录
+```sh
+uv run --no-sync python scripts/arm_desk.py
+```
 
-- `experiments/servos/`：原理学习和课堂实验。
-- `scripts/`：环境检查、编号等日常操作工具。
-- `src/eai_robot/`：目前只抽取配置读取、SCS 协议和归一化映射；机械臂、底盘接口等做到对应阶段再增加。
-- `configs/`：硬件配置示例和本机配置。
-- `tests/`：协议和控制映射的离线验证。
-- `docs/`：硬件登记、实验原理、迁移说明与阶段验收。
-- `outputs/`：图表、日志；原有 PID 实验数据保持原位。
-- `data/`、`calibration/`、`checkpoints/`：运行时按需创建，默认不提交大文件或本机数据。校准结果需随数据集/实验在别处备份，不能把 Git 忽略当作备份。
+界面可选纯串口或 LeRobot 电机总线后端；连接时只读，归位成功后才开放六个滑杆目标发送。它也提供固定起点演示、停止释放扭矩和校准采集。实物控制有边界与姿态要求，首次使用请阅读[六关节控制说明](docs/experiments/scs215_arm.md)和[上位机操作](docs/experiments/scs215_desk.md)。
 
-## 实验与阶段
+## 代码与数据边界
 
-- [舵机实验及原理](docs/experiments/servo_basics.md)
-- [PID 操作、风险与读图](docs/experiments/pid_response.md)
-- [阶段目标与验收](docs/milestones.md)
-- [旧脚本名称对照](docs/migration.md)
-- [原环境检查记录](docs/environment.md)
+| 位置 | 内容 |
+|---|---|
+| `src/eai_robot/arm/` | 六值映射、校准、运动检查、演示与网页服务 |
+| `src/eai_robot/hardware/` | 原生 SCS 协议及 LeRobot SCS215 电机总线适配器 |
+| `scripts/` | 编号、双后端控制、上位机和候选范围验收入口 |
+| `experiments/servos/` | 单舵机、双舵机及 PID 原理实验 |
+| `calibration/`、`configs/` | 本台机械臂的软件校准快照、演示起点和配置示例 |
+| `tests/` | 不驱动实物的协议、控制和网页服务测试 |
 
-运动实验前确认供电、接线、编号、行程及固定情况。PID 的 PWM 模式下断开 USB 不保证停机；需要能切断舵机电源。终端中的“已发送停止”也不等于已确认实物停止。
+`calibration/scs215_so101.json` 是当前演示使用的 EEPROM 限位导出快照，人工重测全部端点尚未完成；日期命名的安全范围是**未启用候选**。硬件限位、软件 0–1 范围、演示入口和到位容差各有不同作用，详见[硬件登记](docs/hardware.md)和[候选范围记录](docs/experiments/scs215_safe_candidate.md)。
+
+完整课程作业提交目录 `assignment2_handin/`、视频、打包脚本、本机配置和运行日志只保留本地，不进入 Git。仓库使用相对源码路径解析，不包含本机用户目录或写死的串口；Windows 路径写法已审查，尚未在 Windows 实机连接舵机验证。
+
+后续工作依次是：完成独立的 LeRobot `Robot` 接口与安全校准适配、接入摄像头与操作者、验证 episode 数据，再测试训练与评估。当前版本**不能直接用于 `lerobot-record`**。见[阶段目标](docs/milestones.md)；分享上游前还需确定开源许可证并完成相应硬件验证。
