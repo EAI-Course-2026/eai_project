@@ -1,7 +1,7 @@
 [project]
 name = "eai-robot-lab"
 version = "0.1.0"
-description = "Embodied AI mobile manipulator course: servo experiments, teleoperation, and learning"
+description = "Six-joint SO101 SCS215 arm control with serial and LeRobot motor-bus backends"
 requires-python = ">=3.12,<3.13"
 dependencies = ["lerobot[core_scripts,feetech]==0.6.1", "pyserial>=3.5,<4"]
 
