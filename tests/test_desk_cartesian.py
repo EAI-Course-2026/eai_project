@@ -31,7 +31,10 @@ class CartesianDeskTests(unittest.TestCase):
     def preview(self, service, delta=(5, 0, 0)):
         xyz = np.array(service.snapshot()['cartesian']['actual']['xyz_mm']) + delta
         service.submit('cartesian_preview', {'xyz': xyz.tolist(), 'speed': 15})
-        return self.settle(service)['cartesian']['preview']
+        # Unreachable paths run IK and recovery searches. Windows hosted
+        # runners can take longer than the ordinary hardware-job wait; this
+        # only bounds offline planning, not stream leases or motion timeouts.
+        return self.settle(service, timeout=30)['cartesian']['preview']
 
     def test_fk_is_read_only_and_mapping_matches_course_for_reverse_axes(self):
         service, bus = self.ready(False)
