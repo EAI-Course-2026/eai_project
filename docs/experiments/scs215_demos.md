@@ -6,10 +6,10 @@
 
 | 版本 | 动作 | 执行 |
 |---|---|---|
-| home | 只进入统一演示起点 | `uv run --no-sync python scripts/arm_demo.py --demo home --enable` |
-| gripper | 保持臂姿，夹爪两端往返两次 | `uv run --no-sync python scripts/arm_demo.py --demo gripper --enable` |
-| showcase | 底座左右、腕部转向、明显夹爪变化 | `uv run --no-sync python scripts/arm_demo.py --demo showcase --enable` |
-| transfer | A 侧探出、模拟夹持、收回转运、B 侧释放 | `uv run --no-sync python scripts/arm_demo.py --demo transfer --enable` |
+| home | 只进入统一演示起点 | `uv run --locked python scripts/arm_demo.py --demo home --enable` |
+| gripper | 保持臂姿，夹爪两端往返两次 | `uv run --locked python scripts/arm_demo.py --demo gripper --enable` |
+| showcase | 底座左右、腕部转向、明显夹爪变化 | `uv run --locked python scripts/arm_demo.py --demo showcase --enable` |
+| transfer | A 侧探出、模拟夹持、收回转运、B 侧释放 | `uv run --locked python scripts/arm_demo.py --demo transfer --enable` |
 
 每个版本都先执行相同的归位动作；三个动作版最后返回同一起点。`transfer` 是空载关节姿态编排，没有物体识别、末端坐标或接触检测，不能把它当成自动抓取。加 `--backend lerobot` 使用 LeRobot SCS215 适配版；默认 serial 版只依赖 pyserial。
 
@@ -38,8 +38,8 @@
 可离线模拟不同起点，确认归位后动作相同：
 
 ```sh
-uv run --no-sync python scripts/arm_demo.py --demo showcase --anchor-raw 349 81 771 93 813 278
-uv run --no-sync python scripts/arm_demo.py --demo showcase --anchor-raw 480 192 652 180 920 590
+uv run --locked python scripts/arm_demo.py --demo showcase --anchor-raw 349 81 771 93 813 278
+uv run --locked python scripts/arm_demo.py --demo showcase --anchor-raw 480 192 652 180 920 590
 ```
 
 ## 分段推进和卡顿处理
@@ -52,13 +52,16 @@ uv run --no-sync python scripts/arm_demo.py --demo showcase --anchor-raw 480 192
 
 ## 重新示教共同起点
 
+先在机械臂运动前执行 `uv sync --locked` 并验证环境。以下释放扭矩命令
+保留 `--no-sync`，使用已验证环境立即执行；不要在需要停机时等待依赖同步。
+
 当前起点只适用于本台机械臂与附带校准，不自动移植到其他机器。需要换一个适合取景的起点时，支撑并关闭扭矩，手动摆好一次，再只读采集：
 
 ```sh
 uv run --no-sync python scripts/arm_serial.py release
-uv run --no-sync python scripts/arm_demo.py --teach-home configs/my_demo_home.local.json
-uv run --no-sync python scripts/arm_demo.py --home-file configs/my_demo_home.local.json --demo showcase
-uv run --no-sync python scripts/arm_demo.py --home-file configs/my_demo_home.local.json --demo showcase --enable
+uv run --locked python scripts/arm_demo.py --teach-home configs/my_demo_home.local.json
+uv run --locked python scripts/arm_demo.py --home-file configs/my_demo_home.local.json --demo showcase
+uv run --locked python scripts/arm_demo.py --home-file configs/my_demo_home.local.json --demo showcase --enable
 ```
 
 示教不会开启扭矩或改写 EEPROM，不覆盖已有文件；保存前检查三个版本的全部目标都能落在内缩限位内，不自动裁剪改变动作。若提示夹爪偏移越界，将示教夹爪放在约 420 刻度附近再采集；其他关节也需给演示偏移留足空间。`start_radius_counts` 可收窄接受误差；扩大半径需要相应实物验证，不因此获得避碰保证。

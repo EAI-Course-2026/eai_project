@@ -17,8 +17,8 @@ the official [versioned installation instructions](https://docs.astral.sh/uv/get
 
 ```sh
 uv sync --locked
-uv run --no-sync python scripts/check_env.py
-uv run --no-sync python -m unittest discover -s tests -q
+uv run --locked python scripts/check_env.py
+uv run --locked python -m unittest discover -s tests -q
 ```
 
 Windows also has `scripts\setup_windows.cmd`. Existing Conda training environments
@@ -38,14 +38,18 @@ the pinned installer, GPU verification, editor interpreter selection, serial
 ports and preview dependencies. Every original course file is accounted for in
 the [migration inventory](COVERAGE.md).
 
+Daily commands use `uv run --locked`. Before hardware work, synchronize
+with `uv sync --locked`; use `--no-sync` only in an already verified environment.
+See the [shared command policy](../environments.md#command-policy-on-windows-and-macos).
+
 ## Migrated tools
 
 ```sh
-uv run --no-sync eai-course --help
-uv run --no-sync eai-course mapping
-uv run --no-sync eai-course fk
-uv run --no-sync eai-course plan --delta-mm 0 0 10
-uv run --no-sync eai-course poses
+uv run --locked eai-course --help
+uv run --locked eai-course mapping
+uv run --locked eai-course fk
+uv run --locked eai-course plan --delta-mm 0 0 10
+uv run --locked eai-course poses
 ```
 
 These commands run offline. `python scripts/course.py COMMAND` is an equivalent
@@ -112,9 +116,9 @@ calibration changes before Cartesian motion.
 
 ```sh
 uv sync --locked --project environments/training
-uv run --no-sync --project environments/training python scripts/check_training_env.py
+uv run --locked --project environments/training python scripts/check_training_env.py
 # Run on the NVIDIA GPU machine to require a real CUDA matrix multiplication:
-uv run --no-sync --project environments/training python scripts/check_training_env.py --require-cuda
+uv run --locked --project environments/training python scripts/check_training_env.py --require-cuda
 ```
 
 This uses `environments/training/.venv` and its own lock. The macOS/Windows

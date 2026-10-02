@@ -14,8 +14,8 @@ From the repository root:
 
 ```sh
 uv sync --locked
-uv run --no-sync python scripts/check_env.py
-uv run --no-sync python -m unittest discover -s tests -q
+uv run --locked python scripts/check_env.py
+uv run --locked python -m unittest discover -s tests -q
 ```
 
 Windows PowerShell users can run `.\scripts\setup_windows.cmd` for the same
@@ -35,13 +35,27 @@ There is no root `training` extra: GPU training uses the separate project.
 
 Copy `configs/hardware.example.toml` to `configs/hardware.local.toml` and set `[serial].port` for your machine. The local file is ignored by Git. Set the camera index in the same local file; there is no shared camera default. You can also pass `--port` before a subcommand. Use the device name reported by your OS, such as a `/dev/...` port on macOS/Linux or `COM5` on Windows; Windows hardware operation has not yet been verified.
 
+## Running commands consistently
+
+Use `uv run --locked ...` for everyday commands on both Windows and macOS.
+It checks the lockfile and synchronizes the selected project environment without
+updating the lockfile. After first checkout, pulling dependency changes or
+switching branches, run `uv sync --locked` before starting hardware work.
+An outdated lockfile is an error; resolve it through a reviewed dependency change.
+
+`--no-sync` is reserved for execution after the environment has already been
+synchronized and verified, such as installer/CI steps or repeated runs within
+a fixed hardware session. It skips environment synchronization and can otherwise
+leave a new checkout using old dependencies. See the
+[command policy](docs/environments.md#command-policy-on-windows-and-macos).
+
 ## Inspect and control
 
 Start with a read-only inspection of all six IDs, models, stored limits, and present positions:
 
 ```sh
-uv run --no-sync python scripts/arm_serial.py inspect
-uv run --no-sync python scripts/arm_lerobot.py inspect
+uv run --locked python scripts/arm_serial.py inspect
+uv run --locked python scripts/arm_lerobot.py inspect
 ```
 
 Both entry points use the same calibration file and control logic. `arm_serial.py` uses the project's SCS protocol implementation; `arm_lerobot.py` uses its SCS215 adapter for the LeRobot Feetech motor bus. The six normalized inputs, each in `[0, 1]`, are ordered as follows:
@@ -53,7 +67,7 @@ shoulder_pan  shoulder_lift  elbow_flex  wrist_flex  wrist_roll  gripper
 Preview a target without opening the serial port or moving the arm:
 
 ```sh
-uv run --no-sync python scripts/arm_serial.py control --allow-wide-range --dry-run --values 0.5 0.5 0.5 0.5 0.5 0.5
+uv run --locked python scripts/arm_serial.py control --allow-wide-range --dry-run --values 0.5 0.5 0.5 0.5 0.5 0.5
 ```
 
 The checked-in calibration snapshot includes a wide-range wrist joint, which requires `--allow-wide-range` for control. It records this shared arm's user-confirmed safe manual ranges and EEPROM readback; powered trajectories and physical FK alignment remain unverified. A six-joint midpoint is not guaranteed to be a collision-free pose. Inspect and calibrate your own hardware before enabling motion. Read the [hardware notes](docs/hardware.md) and [shared calibration contract](calibration/README.md) for the distinction between hardware limits, software ranges, and unverified candidates.
@@ -61,7 +75,7 @@ The checked-in calibration snapshot includes a wide-range wrist joint, which req
 For the local browser control panel:
 
 ```sh
-uv run --no-sync python scripts/arm_desk.py
+uv run --locked python scripts/arm_desk.py
 ```
 
 The panel supports either backend, position feedback, six joint sliders, a home sequence, demonstration motions, calibration capture, and torque release. Connecting is read-only; motion controls become available after the home sequence. See the [control-panel guide](docs/experiments/scs215_desk.md) and [demo behavior](docs/experiments/scs215_demos.md) before operating hardware.

@@ -32,6 +32,10 @@ comparison and, where appropriate, a reviewed recalibration. Connection is
 read-only; it does not automatically overwrite EEPROM or copy a stale fork
 snapshot into a per-user HF cache.
 
+Daily commands use `uv run --locked`. Before hardware work, synchronize
+with `uv sync --locked`; use `--no-sync` only in an already verified environment.
+See the [shared command policy](../docs/environments.md#command-policy-on-windows-and-macos).
+
 ## Local setup
 
 Copy `configs/hardware.example.toml` to `configs/hardware.local.toml`. Windows
@@ -45,10 +49,10 @@ set:
 
 ```sh
 uv sync --locked
-uv run --no-sync python scripts/arm_serial.py inspect
-uv run --no-sync eai-course mapping
-uv run --no-sync eai-course fk --hardware
-uv run --no-sync eai-course vision --preview
+uv run --locked python scripts/arm_serial.py inspect
+uv run --locked eai-course mapping
+uv run --locked eai-course fk --hardware
+uv run --locked eai-course vision --preview
 ```
 
 Vision refuses to select a camera when no local index or explicit
