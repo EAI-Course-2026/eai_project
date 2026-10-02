@@ -1,3 +1,7 @@
+> Historical experiment. Candidates and paired home files are archived in
+> `calibration/history/`; no current command selects them by default.
+> Explicitly select both files to reproduce this experiment.
+
 > 历史实验记录：本文数值对应 2026-09-27/28。当时的腕部 4..1014 和旧候选 25..994 已不是当前基线。2026-10-02 当前 EEPROM 为 47..974；新配置与验收边界见 [共享基线](../course/README.md)。
 
 # SCS215 安全工作范围候选（尚未启用）
@@ -13,7 +17,7 @@
 | 5 / wrist_roll | 5..1022 | 4..1014 | 25..994 |
 | 6 / gripper | 240..638 | 237..644 | 260..618 |
 
-候选文件：`calibration/scs215_safe_candidate_20260928.json`。配套起点文件：`configs/demo_home_scs215_safe_candidate_20260928.json`，两者需成对使用。默认 `calibration/scs215_so101.json` 和已运行上位机未切换到候选。
+候选文件：`calibration/history/scs215_safe_candidate_20260928.json`。配套起点文件：`calibration/history/demo_home_scs215_safe_candidate_20260928.json`，两者需成对使用。默认 `calibration/scs215_so101.json` 和已运行上位机未切换到候选。
 
 离线校验：四种 demo 的全部固定目标在候选范围上即使再内缩 20 刻度，仍在可命令区间。腕旋转候选跨度为 969 刻度，命令行控制仍需显式 `--allow-wide-range`；这一离线通过不证明靠近 0/1023 的反馈连续性。
 

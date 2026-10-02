@@ -14,9 +14,8 @@ from eai_robot.arm.calibration import JOINTS, load
 from eai_robot.arm.controller import ArmController, inspect_hardware
 from eai_robot.arm.demo import check_start, check_status, load_home
 
-CANDIDATE = ROOT / 'calibration/scs215_safe_candidate_20261002.json'
 CURRENT = ROOT / 'calibration/scs215_so101.json'
-HOME = ROOT / 'configs/demo_home_scs215_safe_candidate_20261002.json'
+HOME = ROOT / 'configs/demo_home.json'
 
 
 def emit(handle, event, **data):
@@ -48,7 +47,9 @@ def move_pose(arm, target, label, log, max_step):
 
 
 def run(argv=None):
-    parser=argparse.ArgumentParser(description='SCS215 候选软件校准逐关节实物验收')
+    parser=argparse.ArgumentParser(description='SCS215 共享软件校准逐关节实物验收；历史候选须显式选择')
+    parser.add_argument('--calibration',type=Path,default=CURRENT)
+    parser.add_argument('--home-file',type=Path,default=HOME)
     parser.add_argument('--backend',choices=('serial','lerobot'),default='serial')
     parser.add_argument('--port',default=load_config()['serial']['port'])
     parser.add_argument('--baudrate',type=int,default=load_config()['serial']['baudrate'])
@@ -69,9 +70,9 @@ def run(argv=None):
     args=parser.parse_args(argv)
     if not 1<=args.rounds<=2 or not 5<=args.max_step<=20 or not 0.5<=args.timeout<=10:
         parser.error('rounds 1..2, max-step 5..20, timeout 0.5..10')
-    candidate=load(CANDIDATE)
+    candidate=load(args.calibration)
     existing=load(CURRENT)
-    home,radius=load_home(HOME,candidate,20)
+    home,radius=load_home(args.home_file,candidate,20)
     for sid,raw in ((4,args.clearance_wrist),(6,args.clearance_gripper)):
         if raw is not None:
             cal=candidate[JOINTS[sid-1]]
@@ -107,7 +108,7 @@ def run(argv=None):
         args.log.parent.mkdir(parents=True,exist_ok=True)
         log=args.log.open('x',encoding='utf-8')
         emit(log,'preflight',start=current,hardware=hardware,torque=torque,status=status,
-             candidate=str(CANDIDATE),joint=args.joint,rounds=args.rounds)
+             candidate=str(args.calibration),joint=args.joint,rounds=args.rounds)
         clearance={sid:raw for sid,raw in ((4,args.clearance_wrist),
                                              (6,args.clearance_gripper)) if raw is not None}
         arm.recover_startup(max_overtravel=8,max_step=10,max_recovery=60,
