@@ -7,6 +7,12 @@ version 0.6.2); the commit is essential because PyPI 0.6.2 is not this adaptatio
 Do not edit installed LeRobot files or follow the old Conda/pip setup alongside
 this environment.
 
+The local `lerobot_robot_scs215` package now supplies the shared bus and Robot.
+Standard LeRobot CLI selects it with `--robot.type=scs215_so101_follower`;
+`CourseFollower`/`CourseMotorsBus` are compatibility aliases. This integration
+adds no fork edits. See the [plugin guide](../lerobot_plugin.md) and
+[architecture](../architecture.md) for commands, motion enable and calibration behavior.
+
 ## Install and verify on macOS and Windows
 
 Use Python 3.12, **uv 0.11.7**, the root `pyproject.toml` and `uv.lock` on both
@@ -120,8 +126,8 @@ uv run --no-sync --project environments/training python scripts/check_training_e
 This uses `environments/training/.venv` and its own lock. The macOS/Windows
 control environment uses native Mac wheels / Windows CPU wheels; the separate
 training environment selects Windows/Linux CUDA 12.8 wheels and training
-extras. It installs LeRobot's training tools rather than a second application
-package. The LeRobot source commit is identical. GPU/driver compatibility and training jobs require
+extras. It installs LeRobot's training tools and the shared hardware plugin,
+without the application package. The LeRobot source commit is identical. GPU/driver compatibility and training jobs require
 the team's Windows GPU machine; they cannot be accepted on this Mac.
 The root `training` extra has been removed to prevent confusing CPU control
 dependencies with CUDA training. The Windows installer and a local-only ACT

@@ -41,13 +41,13 @@ class LeRobotBackend:
     """Uses the project-local SCS215 FeetechMotorsBus adapter."""
     def __init__(self, port, baudrate):
         from eai_robot.hardware.lerobot_scs215 import SCS215MotorsBus
-        self.bus = SCS215MotorsBus(port)
+        self.bus = SCS215MotorsBus(port, baudrate=baudrate)
         try:
-            # Set the configured baud before the common, read-only identity checks.
+            # The shared bus sets baudrate before read-only identity checks.
             self.bus.connect(handshake=False)
-            self.bus.set_baudrate(baudrate)
         except BaseException:
-            self.bus.port_handler.closePort()
+            if self.bus.is_connected:
+                self.bus.port_handler.closePort()
             raise
 
     def read(self, sid, register):

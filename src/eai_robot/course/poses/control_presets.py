@@ -6,7 +6,7 @@ import math
 import time
 
 from eai_robot.arm.calibration import JOINTS, JointCalibration, load, validate
-from eai_robot.arm.backends import SerialBackend
+from eai_robot.arm.backends import LeRobotBackend
 from eai_robot.arm.controller import ArmController
 from eai_robot.config import load_config
 from eai_robot.course.input import read_key
@@ -53,7 +53,7 @@ def main():
         return 0
     if not args.port:
         raise ValueError("Set --port or configs/hardware.local.toml")
-    backend = SerialBackend(args.port, load_config()["serial"]["baudrate"])
+    backend = LeRobotBackend(args.port, load_config()["serial"]["baudrate"])
     arm = None
     try:
         arm = ArmController(backend, calibration, motion="smooth", velocity=80,

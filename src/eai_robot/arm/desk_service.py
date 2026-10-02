@@ -79,7 +79,7 @@ class ArmDeskService:
                       'status': '请示教匹配的统一起点' if home_required else '等待连接',
                       'error': None, 'positions': None, 'joints': [], 'events': [],
                       'captures': self.captures, 'profile': None,
-                      'port': '', 'backend': 'serial'}
+                      'port': '', 'backend': 'lerobot'}
         self.worker = Thread(target=self._loop, name='arm-desk-hardware', daemon=True)
         self.worker.start()
         self.watchdog = Thread(target=self._watchdog_loop, name='arm-desk-watchdog', daemon=True)

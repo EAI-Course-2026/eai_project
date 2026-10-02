@@ -425,7 +425,7 @@ class ArmTests(unittest.TestCase):
             return 0
         with patch.object(bus.packet_handler, "writeTxOnly", side_effect=write_ack), \
                 patch.object(bus, "read", side_effect=read_value), \
-                patch("eai_robot.hardware.lerobot_scs215.time.sleep"):
+                patch("lerobot_robot_scs215.bus.time.sleep"):
             bus.write_verified("Running_Time", JOINTS[0], 0)
         self.assertEqual(ser.resets, 2)
 
