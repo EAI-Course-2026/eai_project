@@ -20,6 +20,27 @@ the application. The root `training` extra was removed: `uv sync --extra
 training` is not a CUDA setup command. Linux training wheels are configured,
 but Linux application/hardware acceptance is not part of the Mac/Windows CI.
 
+## Command policy on Windows and macOS
+
+| Situation | Command | Behavior |
+| --- | --- | --- |
+| Everyday control, diagnostics and offline tests | `uv run --locked ...` | Checks the lock and synchronizes this project's environment; an outdated lock errors |
+| First installation or after dependency/branch changes | `uv sync --locked` | Installs the committed baseline before hardware work |
+| Training commands | `uv run --locked --project environments/training ...` | Uses only the separate training project and its lock |
+| Installer/CI execution or a verified fixed hardware session | `uv run --no-sync ...` | Reuses the existing environment without synchronization |
+
+`--locked` does not update the lockfile. `--no-sync` does not establish that an
+existing environment matches newly pulled project files. Both platforms follow
+the same policy; the selected project still determines CPU/native or CUDA wheels.
+Before a hardware session, synchronize and check the environment; complete that
+work before enabling motion. Torque-release commands may use `--no-sync` in the
+already verified environment to avoid delaying release with an installation.
+
+The installers and CI intentionally retain `uv sync --locked` followed by
+`uv run --no-sync`: their install and execution stages are explicit. For a
+fixed session, re-run setup when project files, branches or dependencies change.
+See [uv's locking and syncing documentation](https://docs.astral.sh/uv/concepts/projects/sync/).
+
 ## Windows control setup
 
 Install Git for Windows and use a normal PowerShell terminal. Clone the
@@ -83,7 +104,7 @@ It does not move the arm, open a camera, train a model or upload anything.
 For installation-only verification on a machine without an NVIDIA GPU:
 
 ```powershell
-uv run --no-sync --project environments/training python scripts/check_training_env.py
+uv run --locked --project environments/training python scripts/check_training_env.py
 ```
 
 Alternatively run `.\scripts\setup_training_windows.cmd --software-only` to
@@ -95,7 +116,7 @@ Example single-GPU ACT training command, with a real compatible LeRobot dataset
 substituted for `TEAM/DATASET`:
 
 ```powershell
-uv run --no-sync --project environments/training lerobot-train --dataset.repo_id=TEAM/DATASET --policy.type=act --policy.device=cuda --policy.push_to_hub=false --wandb.enable=false --eval_steps=0 --output_dir=outputs/train/act-first-run
+uv run --locked --project environments/training lerobot-train --dataset.repo_id=TEAM/DATASET --policy.type=act --policy.device=cuda --policy.push_to_hub=false --wandb.enable=false --eval_steps=0 --output_dir=outputs/train/act-first-run
 ```
 
 Run this only after the GPU check passes. Dataset features, batch size, memory,
@@ -115,13 +136,13 @@ terminal automatically activates Conda, run `conda deactivate` until the old
 environment is no longer active, then use the commands above. Do not install
 project packages with `conda install` or bare `pip` into either uv `.venv`.
 
-If you keep a Conda shell, still use `uv sync --locked` / `uv run --no-sync`
+If you keep a Conda shell, still use `uv sync --locked` / `uv run --locked`
 for the chosen project. Do not use `--active`, `--system` or set
 `UV_PROJECT_ENVIRONMENT` to a Conda path. Verify the interpreter explicitly:
 
 ```powershell
-uv run --no-sync python -c "import sys; print(sys.executable)"
-uv run --no-sync --project environments/training python -c "import sys; print(sys.executable)"
+uv run --locked python -c "import sys; print(sys.executable)"
+uv run --locked --project environments/training python -c "import sys; print(sys.executable)"
 ```
 
 The first path must belong to root `.venv`; the second to the training `.venv`.
@@ -134,7 +155,7 @@ contains this fork or these locked dependencies. See uv's
 List serial ports before changing your machine-local configuration:
 
 ```powershell
-uv run --no-sync python -m serial.tools.list_ports
+uv run --locked python -m serial.tools.list_ports
 Copy-Item configs/hardware.example.toml configs/hardware.local.toml
 ```
 
@@ -143,8 +164,8 @@ in local configuration or command arguments; calibration belongs to the
 physical arm and is shared. Start with a read-only check:
 
 ```powershell
-uv run --no-sync python scripts/arm_serial.py inspect
-uv run --no-sync eai-course fk --hardware --port COM5
+uv run --locked python scripts/arm_serial.py inspect
+uv run --locked eai-course fk --hardware --port COM5
 ```
 
 Replace `COM5` with the actual port. A successful software install is not a
@@ -155,12 +176,12 @@ uses Tk/Pillow, so keep `opencv-python-headless`; do not install a competing
 OpenCV wheel to obtain `cv2.imshow`. Check preview dependencies with:
 
 ```powershell
-uv run --no-sync python -c "import tkinter; from PIL import Image, ImageTk; print('Preview imports OK')"
-uv run --no-sync python -m tkinter
+uv run --locked python -c "import tkinter; from PIL import Image, ImageTk; print('Preview imports OK')"
+uv run --locked python -m tkinter
 ```
 
 The second command opens a Tk demo window. Close it, then use
-`uv run --no-sync eai-course vision --preview --camera-index 0` for camera-only
+`uv run --locked eai-course vision --preview --camera-index 0` for camera-only
 detection, replacing the camera index as needed. Omitting `--preview` retains
 console detection. No `--execute` means the motor bus is not opened. Mac also
 needs camera access and may need keyboard Input Monitoring/Accessibility;

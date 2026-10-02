@@ -5,7 +5,7 @@
 在项目目录、已有虚拟环境中：
 
 ```sh
-uv run --no-sync python experiments/servos/pid_response.py --compare
+uv run --locked --extra experiments python experiments/servos/pid_response.py --compare
 ```
 
 每组先用舵机内置位置控制回到刻度 300，再临时切换到 PWM 电机模式，由 Python PID 控制输出轴转过约 90°，采样 6 秒。默认四组为：
@@ -20,7 +20,7 @@ uv run --no-sync python experiments/servos/pid_response.py --compare
 这些是实验起始值，不是经过这台舵机实测调好的最佳值。改脚本顶部 `EXPERIMENTS` 可改整组比较；单次实验可以运行：
 
 ```sh
-uv run --no-sync python experiments/servos/pid_response.py --kp 3 --ki 0.5 --kd 0.25
+uv run --locked --extra experiments python experiments/servos/pid_response.py --kp 3 --ki 0.5 --kd 0.25
 ```
 
 本机实测正 PWM 使位置刻度减小，因此 `configs/hardware.local.toml` 中 `pid.pwm_sign` 已设为 `-1`。这是执行器方向映射，不是把 PID 系数设为负数；更换设备后需重新核对方向。
@@ -64,12 +64,12 @@ SC 公开内存表在 21、22 地址定义 P、D，23 为未定义；本程序�
 ## 离线验证
 
 ```sh
-uv run --no-sync python experiments/servos/pid_response.py --simulate --compare
+uv run --locked --extra experiments python experiments/servos/pid_response.py --simulate --compare
 ```
 
 这使用一个简化、有固定负载的二阶模型测试 PID 与绘图流程。输出目录和图标题均标记 **SIMULATION**，不是实测 SCS215 曲线，也不能证明实物调参已成功。
 
-绘图依赖已安装进现有虚拟环境。如果重新 `uv sync` 后缺失：
+绘图依赖由 `experiments` extra 提供，以上命令已显式选择它。也可提前安装：
 
 ```sh
 uv sync --locked --extra experiments
