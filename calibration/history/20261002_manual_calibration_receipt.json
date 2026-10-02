@@ -1,0 +1,196 @@
+{
+  "before": {
+    "shoulder_pan": {
+      "id": 1,
+      "limits": [
+        183,
+        897
+      ],
+      "position": 886,
+      "torque": 0,
+      "status": 0,
+      "lock": 1
+    },
+    "shoulder_lift": {
+      "id": 2,
+      "limits": [
+        64,
+        737
+      ],
+      "position": 61,
+      "torque": 0,
+      "status": 0,
+      "lock": 1
+    },
+    "elbow_flex": {
+      "id": 3,
+      "limits": [
+        196,
+        771
+      ],
+      "position": 767,
+      "torque": 0,
+      "status": 0,
+      "lock": 1
+    },
+    "wrist_flex": {
+      "id": 4,
+      "limits": [
+        70,
+        681
+      ],
+      "position": 124,
+      "torque": 0,
+      "status": 0,
+      "lock": 1
+    },
+    "wrist_roll": {
+      "id": 5,
+      "limits": [
+        47,
+        974
+      ],
+      "position": 830,
+      "torque": 0,
+      "status": 0,
+      "lock": 1
+    },
+    "gripper": {
+      "id": 6,
+      "limits": [
+        237,
+        644
+      ],
+      "position": 639,
+      "torque": 0,
+      "status": 0,
+      "lock": 1
+    }
+  },
+  "after": {
+    "shoulder_pan": {
+      "id": 1,
+      "limits": [
+        169,
+        898
+      ],
+      "position": 886,
+      "torque": 0,
+      "status": 0,
+      "lock": 1
+    },
+    "shoulder_lift": {
+      "id": 2,
+      "limits": [
+        60,
+        740
+      ],
+      "position": 62,
+      "torque": 0,
+      "status": 0,
+      "lock": 1
+    },
+    "elbow_flex": {
+      "id": 3,
+      "limits": [
+        196,
+        772
+      ],
+      "position": 767,
+      "torque": 0,
+      "status": 0,
+      "lock": 1
+    },
+    "wrist_flex": {
+      "id": 4,
+      "limits": [
+        67,
+        681
+      ],
+      "position": 123,
+      "torque": 0,
+      "status": 0,
+      "lock": 1
+    },
+    "wrist_roll": {
+      "id": 5,
+      "limits": [
+        47,
+        974
+      ],
+      "position": 830,
+      "torque": 0,
+      "status": 0,
+      "lock": 1
+    },
+    "gripper": {
+      "id": 6,
+      "limits": [
+        239,
+        640
+      ],
+      "position": 639,
+      "torque": 0,
+      "status": 0,
+      "lock": 1
+    }
+  },
+  "natural_rest_before": {
+    "shoulder_pan": [
+      450,
+      450
+    ],
+    "shoulder_lift": [
+      62,
+      62
+    ],
+    "elbow_flex": [
+      770,
+      771
+    ],
+    "wrist_flex": [
+      121,
+      121
+    ],
+    "wrist_roll": [
+      441,
+      441
+    ],
+    "gripper": [
+      296,
+      297
+    ]
+  },
+  "manual_observed_ranges": {
+    "shoulder_pan": [
+      169,
+      898
+    ],
+    "shoulder_lift": [
+      60,
+      740
+    ],
+    "elbow_flex": [
+      196,
+      772
+    ],
+    "wrist_flex": [
+      67,
+      681
+    ],
+    "wrist_roll": [
+      6,
+      1017
+    ],
+    "gripper": [
+      239,
+      640
+    ]
+  },
+  "samples": 2240,
+  "duration_s": 237.192,
+  "user_confirmed_all_six_safe_ranges": true,
+  "user_approved_write": true,
+  "no_torque_enable": true,
+  "policy": "Retain 47..974; measured 6..1017 approaches both encoder boundaries."
+}

@@ -1,0 +1,40 @@
+{
+  "method": "read_only_eeprom_snapshot",
+  "captured": "2026-10-02",
+  "timestamp_precision": "date",
+  "port_at_capture": "/dev/cu.usbmodem5B910441861",
+  "model_number": 1315,
+  "manual_endpoints_verified": false,
+  "full_range_motion_verified": false,
+  "eeprom_modified": false,
+  "note": "Active mapping updated from the six-joint read in this migration session. These are stored command limits, not measured mechanical stops. Prior snapshot retained in calibration/history.",
+  "observed_positions": {
+    "1": 498,
+    "2": 59,
+    "3": 773,
+    "4": 66,
+    "5": 249,
+    "6": 256
+  },
+  "torque_at_capture": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "status_at_capture": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "capture_source": "Read-only six-servo inspection in this chat on 2026-10-02",
+  "verified_backends": [
+    "native_serial",
+    "lerobot_0.6.2_pinned_fork"
+  ]
+}

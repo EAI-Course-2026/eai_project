@@ -154,10 +154,11 @@ class ArmTests(unittest.TestCase):
             bus.registers[c.id]['Max_Position_Limit'] = c.range_max
         for sid, raw in enumerate((360, 63, 664, 162, 789, 420), 1):
             bus.registers[sid]['Present_Position'] = raw
+        bus.registers[2]['Present_Position'] = old['shoulder_lift'].range_min - 1
         arm = ArmController(bus, candidate, tolerance=10, timeout=.2, allow_wide_range=True)
         trace = arm.recover_startup()
         self.assertTrue(arm.enabled)
-        self.assertEqual(bus.packets[0][2], 64)
+        self.assertEqual(bus.packets[0][2], old['shoulder_lift'].range_min)
         self.assertGreaterEqual(bus.read(2, 'Present_Position'), candidate['shoulder_lift'].range_min)
         self.assertTrue(any(item['phase'] == 'recover' for item in trace))
         for packet in bus.packets:
@@ -177,7 +178,7 @@ class ArmTests(unittest.TestCase):
             c = old[name]
             bus.registers[c.id]['Min_Position_Limit'] = c.range_min
             bus.registers[c.id]['Max_Position_Limit'] = c.range_max
-        bus.registers[2]['Present_Position'] = 55
+        bus.registers[2]['Present_Position'] = old['shoulder_lift'].range_min - 9
         arm = ArmController(bus, candidate, allow_wide_range=True)
         with self.assertRaisesRegex(RuntimeError, '距 EEPROM 限位过远'):
             arm.recover_startup()

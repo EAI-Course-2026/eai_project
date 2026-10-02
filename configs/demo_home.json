@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "description": "Existing raw home retained with 2026-10-02 EEPROM mapping; migrated motion remains pending physical acceptance.",
+  "description": "Existing raw home retained and rebound to the 2026-10-02 manual calibration; not re-taught or physically revalidated.",
   "home_raw": [
     360,
     174,
@@ -11,7 +11,7 @@
   ],
   "start_radius_counts": [
     200,
-    110,
+    114,
     110,
     100,
     220,
@@ -22,28 +22,28 @@
       "id": 1,
       "drive_mode": 0,
       "homing_offset": 0,
-      "range_min": 183,
-      "range_max": 897
+      "range_min": 169,
+      "range_max": 898
     },
     "shoulder_lift": {
       "id": 2,
       "drive_mode": 0,
       "homing_offset": 0,
-      "range_min": 64,
-      "range_max": 737
+      "range_min": 60,
+      "range_max": 740
     },
     "elbow_flex": {
       "id": 3,
       "drive_mode": 0,
       "homing_offset": 0,
       "range_min": 196,
-      "range_max": 771
+      "range_max": 772
     },
     "wrist_flex": {
       "id": 4,
       "drive_mode": 0,
       "homing_offset": 0,
-      "range_min": 70,
+      "range_min": 67,
       "range_max": 681
     },
     "wrist_roll": {
@@ -57,8 +57,8 @@
       "id": 6,
       "drive_mode": 0,
       "homing_offset": 0,
-      "range_min": 237,
-      "range_max": 644
+      "range_min": 239,
+      "range_max": 640
     }
   }
 }

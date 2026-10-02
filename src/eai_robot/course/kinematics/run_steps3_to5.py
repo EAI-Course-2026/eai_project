@@ -14,6 +14,8 @@ from pathlib import Path
 
 import numpy as np
 
+from eai_robot.arm.calibration import feedback_in_range
+
 from eai_robot.course.robot import CourseFollower as SO101Follower, make_robot, DEFAULT_CALIBRATION, default_port
 
 from eai_robot.course.kinematics.cartesian_planner import CartesianLinePlanner, CartesianPlan
@@ -103,7 +105,7 @@ def raw_outside_calibration(mapper: SO101JointMapper, raw: dict[str, int]) -> li
     outside = []
     for name in raw:
         calibration = mapper.calibration[name]
-        if not calibration.range_min <= raw[name] <= calibration.range_max:
+        if not feedback_in_range(raw[name], calibration.range_min, calibration.range_max):
             outside.append(name)
     return outside
 

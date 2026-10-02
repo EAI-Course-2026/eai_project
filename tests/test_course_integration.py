@@ -32,7 +32,7 @@ class IntegrationTests(unittest.TestCase):
     def test_current_snapshot_matches_expected_ids_and_limits(self):
         cal = load(DEFAULT_CALIBRATION)
         self.assertEqual([(cal[j].range_min, cal[j].range_max) for j in JOINTS],
-                         [(183,897),(64,737),(196,771),(70,681),(47,974),(237,644)])
+                         [(169,898),(60,740),(196,772),(67,681),(47,974),(239,640)])
 
     def test_constructing_course_robot_uses_shared_file_without_serial(self):
         with patch.object(CourseMotorsBus, "connect", side_effect=AssertionError("serial opened")):

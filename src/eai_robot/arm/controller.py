@@ -1,13 +1,13 @@
 """Calibrated, checked synchronous position control for SCS215."""
 import math
 import time
-from .calibration import JOINTS, MODEL_NUMBER, validate
+from .calibration import JOINTS, MODEL_NUMBER, validate, DEFAULT_FEEDBACK_SLACK, feedback_in_range
 
 
 class ArmController:
     def __init__(self, backend, calibration, margin=0, max_step=5, interval=0.05,
                  velocity=None, tolerance=10, timeout=5.0, motion="direct",
-                 allow_wide_range=False, feedback_slack=3, progress_timeout=None):
+                 allow_wide_range=False, feedback_slack=DEFAULT_FEEDBACK_SLACK, progress_timeout=None):
         self.backend = backend
         self.calibration = validate(calibration)
         if not (type(max_step) is int and 1 <= max_step <= 50
@@ -40,7 +40,7 @@ class ArmController:
     def _check_pose(self, positions):
         for name, cal in self.calibration.items():
             low, high = cal.bounds(self.margin)
-            if not low - self.feedback_slack <= positions[cal.id] <= high + self.feedback_slack:
+            if not feedback_in_range(positions[cal.id], low, high, self.feedback_slack):
                 raise RuntimeError(f"{name} 当前刻度 {positions[cal.id]} 不在 {low}..{high}；"
                                    "请在扭矩关闭且支撑机械臂时手动移入范围")
 
