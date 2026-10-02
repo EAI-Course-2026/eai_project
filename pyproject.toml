@@ -1,13 +1,26 @@
 [project]
 name = "eai-robot-lab"
 version = "0.1.0"
-description = "Six-joint SO101 SCS215 arm control with serial and LeRobot motor-bus backends"
+description = "Shared SCS215 arm control, Cartesian kinematics and visual servo course project"
 requires-python = ">=3.12,<3.13"
-dependencies = ["lerobot[core_scripts,feetech]==0.6.1", "pyserial>=3.5,<4"]
+dependencies = ["lerobot[core_scripts,feetech]==0.6.2", "pyserial>=3.5,<4", "numpy>=2,<2.3", "pynput>=1.8,<2", "torch>=2.7,<2.12", "torchvision>=0.22,<0.27"]
 
 [project.optional-dependencies]
 experiments = ["matplotlib>=3.9,<4"]
-training = ["lerobot[training]==0.6.1"]
+training = ["lerobot[training]==0.6.2"]
+
+[project.scripts]
+eai-course = "eai_robot.course.cli:main"
+
+[tool.uv.sources]
+lerobot = { git = "https://github.com/EAI-Course-2026/eai-course-lerobot.git", rev = "6a077907c7989635218969ee78f5436f8faec92b" }
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'win32'" }]
+torchvision = [{ index = "pytorch-cpu", marker = "sys_platform == 'win32'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [build-system]
 requires = ["hatchling"]

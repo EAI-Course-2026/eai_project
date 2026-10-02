@@ -21,6 +21,9 @@ dist/
 !/calibration/scs215_so101.meta.json
 !/calibration/scs215_safe_candidate_20260928.json
 !/calibration/scs215_safe_candidate_20260928.meta.json
+!/calibration/scs215_safe_candidate_20261002.json
+!/calibration/scs215_safe_candidate_20261002.meta.json
+!/calibration/history/
 
 # Coursework hand-in stays on this computer, including its report, video, and dependencies.
 /assignment2_handin/

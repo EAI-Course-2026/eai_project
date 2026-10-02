@@ -12,7 +12,9 @@ ArmController：校准映射、目标检查、六关节同步写、反馈/停止
             └── LeRobotBackend → SCS215MotorsBus → LeRobot FeetechMotorsBus → 串口
 ```
 
-`SCS215MotorsBus` 在项目内为六台 SCS215 指定型号 1315、`scs_series`、协议 1 和大端字节序，并处理写应答残留。LeRobot 后端读写原始刻度时使用 `normalize=False`；本项目的 0–1 映射由 `ArmController` 完成，不能与 LeRobot 的 0–100 归一化数值混用。普通位置控制不解锁或改写 EEPROM。此实现适配锁定的 `lerobot[core_scripts,feetech]==0.6.1`，不修改安装目录中的 LeRobot 代码。
+`SCS215MotorsBus` 在项目内为六台 SCS215 指定型号 1315、`scs_series`、协议 1 和大端字节序，并处理写应答残留。LeRobot 后端读写原始刻度时使用 `normalize=False`；本项目的 0–1 映射由 `ArmController` 完成，不能与 LeRobot 的归一化数值混用。普通位置控制不解锁或改写 EEPROM。当前环境固定到团队 LeRobot 0.6.2 fork 的提交 `6a077907c7989635218969ee78f5436f8faec92b`；旧 0.6.1 基线只用于迁移对照。
+
+2026-10-02 已将协作者课程实现迁入 `src/eai_robot/course/`。课程的 `CourseFollower` 复用 fork 的 `Robot` 接口，以共享项目标定替代个人 HF 缓存，连接只读，运动显式启用。课程臂关节使用 -100..100、夹爪使用 0..100；网页和原生控制继续使用六个 0..1，迁移测试验证两种约定的 raw 刻度一致。FK/IK 默认统一使用 NumPy。详细边界和运行入口见[共享基线](course/README.md)。
 
 ## 已实现与未接入
 
@@ -20,11 +22,11 @@ ArmController：校准映射、目标检查、六关节同步写、反馈/停止
 |---|---|
 | 原生 SCS215 / LeRobot 电机总线通信 | 两版均有六关节小幅同步到位实测；协议与帧行为有离线测试 |
 | 软件校准、归位、GUI、停止 | 项目内实现，使用同一个 `ArmController`；目标范围仍受已记录的安全边界限制 |
-| LeRobot `RobotConfig` / `Robot` 与 CLI 类型注册 | 未接通；现有 GUI 和命令行不依赖 LeRobot 的机器人配置系统 |
+| LeRobot `RobotConfig` / `Robot` | 课程工具已接入 fork 的 SO follower 接口；独立 SCS215 插件与上游贡献仍待实施 |
 | 摄像头、遥操作输入、episode 数据集 | 尚未实现端到端同步采集 |
 | `lerobot-record`、训练、评估 | 尚未用于这台 SCS215 机械臂 |
 
-这里的“LeRobot 版”指**使用 LeRobot 电机总线的控制版**，不表示该机械臂已能由 `lerobot-record` 创建。仓库不提供示例 YAML 冒充可运行的 CLI 配置。锁定版本的录制入口以 `RobotConfig`、`TeleoperatorConfig` 和数据集配置构建对象；仅有舵机总线适配器不足以开始采集。
+原有 `arm_lerobot.py` 仍指**使用 LeRobot 电机总线的控制版**；新迁入的课程工具使用 `CourseFollower`，不表示录制、训练和评估已经端到端验收。标准 CLI 直接创建 fork 的 SO follower 不会自动使用课程中的连接/启用保护层，正式数据采集前仍需统一入口和停止策略。
 
 ## 面向 LeRobot 社区的下一步
 

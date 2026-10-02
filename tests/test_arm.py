@@ -146,7 +146,7 @@ class ArmTests(unittest.TestCase):
 
     def test_startup_recovery_clamps_hardware_hold_and_enters_software_range(self):
         old = load(ROOT/'calibration/scs215_so101.json')
-        candidate = load(ROOT/'calibration/scs215_safe_candidate_20260928.json')
+        candidate = load(ROOT/'calibration/scs215_safe_candidate_20261002.json')
         bus = FakeArm()
         for name in JOINTS:
             c = old[name]
@@ -171,7 +171,7 @@ class ArmTests(unittest.TestCase):
 
     def test_startup_recovery_rejects_large_overtravel_without_writing(self):
         old = load(ROOT/'calibration/scs215_so101.json')
-        candidate = load(ROOT/'calibration/scs215_safe_candidate_20260928.json')
+        candidate = load(ROOT/'calibration/scs215_safe_candidate_20261002.json')
         bus = FakeArm()
         for name in JOINTS:
             c = old[name]
@@ -186,7 +186,7 @@ class ArmTests(unittest.TestCase):
 
     def test_startup_recovery_stall_releases_all_torque(self):
         old = load(ROOT/'calibration/scs215_so101.json')
-        candidate = load(ROOT/'calibration/scs215_safe_candidate_20260928.json')
+        candidate = load(ROOT/'calibration/scs215_safe_candidate_20261002.json')
         bus = FakeArm()
         bus.follow = False
         for name in JOINTS:

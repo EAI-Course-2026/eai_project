@@ -14,9 +14,9 @@ from eai_robot.arm.calibration import JOINTS, load
 from eai_robot.arm.controller import ArmController, inspect_hardware
 from eai_robot.arm.demo import check_start, check_status, load_home
 
-CANDIDATE = ROOT / 'calibration/scs215_safe_candidate_20260928.json'
+CANDIDATE = ROOT / 'calibration/scs215_safe_candidate_20261002.json'
 CURRENT = ROOT / 'calibration/scs215_so101.json'
-HOME = ROOT / 'configs/demo_home_scs215_safe_candidate_20260928.json'
+HOME = ROOT / 'configs/demo_home_scs215_safe_candidate_20261002.json'
 
 
 def emit(handle, event, **data):

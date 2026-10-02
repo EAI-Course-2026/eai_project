@@ -1,121 +1,40 @@
 {
-  "method": "existing_hardware_limits",
-  "captured": "2026-09-27T20:48:54.525436+08:00",
+  "method": "read_only_eeprom_snapshot",
+  "captured": "2026-10-02",
+  "timestamp_precision": "date",
+  "port_at_capture": "/dev/cu.usbmodem5B910441861",
   "model_number": 1315,
   "manual_endpoints_verified": false,
-  "direction": "0 increases raw position unless listed in reverse_joints",
-  "reverse_joints": [],
-  "note": "Read-only import of previously stored EEPROM limits; not a new manual calibration.",
-  "manual_overtravel_observations": {
-    "recorded_at": "2026-09-28T15:37:46+08:00",
-    "source": "user_report",
-    "torque_state": "not_recorded",
-    "interpretation": "Positions reached by manual force are observations, not verified safe commanded endpoints.",
-    "joints": [
-      {
-        "id": 1,
-        "name": "shoulder_pan",
-        "reported_raw": [
-          175
-        ],
-        "saved_limit": [
-          183,
-          897
-        ],
-        "condition": "near extreme with sustained force"
-      },
-      {
-        "id": 2,
-        "name": "shoulder_lift",
-        "reported_raw": [
-          63,
-          738
-        ],
-        "saved_limit": [
-          64,
-          737
-        ],
-        "condition": "near extremes with sustained force"
-      },
-      {
-        "id": 3,
-        "name": "elbow_flex",
-        "reported_raw": null,
-        "saved_limit": [
-          196,
-          769
-        ],
-        "condition": "user reports slight overtravel; side and exact readings not provided"
-      }
-    ]
-  },
-  "calibration_review": {
-    "reviewed_at": "2026-09-28T15:49:19+08:00",
-    "decision": "existing_hardware_capped_mapping_retained",
-    "six_joint_mapping_complete": true,
-    "manual_captures_recorded": 8,
-    "manual_captures_expected": 12,
-    "uncaptured_endpoints": [
-      {
-        "id": 1,
-        "joint": "shoulder_pan",
-        "input": 0,
-        "reason": "reported forced raw 175 below saved hardware min 183"
-      },
-      {
-        "id": 2,
-        "joint": "shoulder_lift",
-        "input": 0,
-        "reason": "reported forced raw 63 below saved hardware min 64"
-      },
-      {
-        "id": 3,
-        "joint": "elbow_flex",
-        "input": 1,
-        "reason": "feedback 770–772 above saved hardware max 769; numeric endpoint not captured"
-      },
-      {
-        "id": 5,
-        "joint": "wrist_roll",
-        "input": 1,
-        "reason": "feedback 1022 above saved hardware max 1014; numeric endpoint not captured"
-      }
-    ],
-    "manual_capture_snapshot": {
-      "shoulder_pan": [
-        null,
-        884
-      ],
-      "shoulder_lift": [
-        null,
-        737
-      ],
-      "elbow_flex": [
-        196,
-        null
-      ],
-      "wrist_flex": [
-        71,
-        680
-      ],
-      "wrist_roll": [
-        5,
-        null
-      ],
-      "gripper": [
-        240,
-        638
-      ]
-    },
-    "software_demo_margin_counts": 20,
-    "full_range_motion_verified": false,
-    "evidence": [
-      "GUI in-memory captures from connected session",
-      "existing EEPROM-limits import",
-      "successful interior-position demo logs; not complete endpoint testing"
-    ],
-    "note": "No missing endpoint was imputed from a forced overtravel reading. EEPROM and calibration JSON were not changed."
-  },
   "full_range_motion_verified": false,
-  "historical_snapshot_notice": "This JSON is the 2026-09-27 EEPROM import and remains the default software mapping. On 2026-09-28 the physical ID3 EEPROM upper limit changed from 769 to 771; the unchanged software upper 769 remains within that hardware bound. See scs215_safe_candidate_20260928.meta.json for the unactivated candidate and current hardware evidence."
+  "eeprom_modified": false,
+  "note": "Active mapping updated from the six-joint read in this migration session. These are stored command limits, not measured mechanical stops. Prior snapshot retained in calibration/history.",
+  "observed_positions": {
+    "1": 498,
+    "2": 59,
+    "3": 773,
+    "4": 66,
+    "5": 249,
+    "6": 256
+  },
+  "torque_at_capture": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "status_at_capture": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "capture_source": "Read-only six-servo inspection in this chat on 2026-10-02",
+  "verified_backends": [
+    "native_serial",
+    "lerobot_0.6.2_pinned_fork"
+  ]
 }

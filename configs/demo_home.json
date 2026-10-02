@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "description": "本台 SCS215 固定演示起点；已有硬件限位，尚非全范围碰撞认证",
+  "description": "Existing raw home retained with 2026-10-02 EEPROM mapping; migrated motion remains pending physical acceptance.",
   "home_raw": [
     360,
     174,
@@ -37,7 +37,7 @@
       "drive_mode": 0,
       "homing_offset": 0,
       "range_min": 196,
-      "range_max": 769
+      "range_max": 771
     },
     "wrist_flex": {
       "id": 4,
@@ -50,8 +50,8 @@
       "id": 5,
       "drive_mode": 0,
       "homing_offset": 0,
-      "range_min": 4,
-      "range_max": 1014
+      "range_min": 47,
+      "range_max": 974
     },
     "gripper": {
       "id": 6,

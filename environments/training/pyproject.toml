@@ -1,0 +1,15 @@
+[project]
+name = "eai-training-environment"
+version = "0.1.0"
+requires-python = ">=3.12,<3.13"
+dependencies = ["lerobot[training,core_scripts,feetech]==0.6.2", "torch>=2.7,<2.12", "torchvision>=0.22,<0.27"]
+
+[tool.uv.sources]
+lerobot = { git = "https://github.com/EAI-Course-2026/eai-course-lerobot.git", rev = "6a077907c7989635218969ee78f5436f8faec92b" }
+torch = [{ index = "pytorch-cu128", marker = "sys_platform == 'win32' or sys_platform == 'linux'" }]
+torchvision = [{ index = "pytorch-cu128", marker = "sys_platform == 'win32' or sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
