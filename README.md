@@ -81,7 +81,7 @@ For the local browser control panel:
 uv run --locked python scripts/arm_desk.py
 ```
 
-The panel supports either backend, position feedback, six joint sliders, a home sequence, demonstration motions, calibration capture, and torque release. Connecting is read-only; motion controls become available after the home sequence. See the [control-panel guide](docs/experiments/scs215_desk.md) and [demo behavior](docs/experiments/scs215_demos.md) before operating hardware.
+The panel supports joint and Cartesian FK/IK control, encoder feedback, continuous or stepped XYZ movement, path previews, calibration capture, optional home/demos and torque release. Connecting is read-only. Enable control to hold the current calibrated pose; home is optional. Edited joints use command margins while untouched joints hold their measured pose. The Swiss-style interface uses square borders. See the [control-panel guide](docs/experiments/scs215_desk.md) before operating hardware.
 
 ## Repository layout
 
@@ -105,4 +105,8 @@ camera acceptance on Windows.
 
 Current hardware validation covers ID/model reads, small synchronized moves with both backends, and motion initiated through the browser panel. The standard `lerobot-record` route now supports the plugin and is tested with simulated devices and a local RGB episode. Physical synchronized recording, rated-load behavior, collision recovery, training and policy playback remain open work. The [milestones](docs/milestones.md) track these separately.
 
-The longer-term goal is to make the SCS215 implementation suitable for contribution to the LeRobot community, with a complete `Robot` interface, reproducible hardware tests, and a clearly chosen open-source license.
+The longer-term goal is to prepare the SCS215 implementation for contribution to the LeRobot community, with reproducible hardware tests and a clearly chosen open-source license.
+
+## Latest project report
+
+The [2026-10-02 closeout report](docs/reports/2026-10-02.md) records delivered work, validation evidence, remaining hardware acceptance and the next recording milestones.

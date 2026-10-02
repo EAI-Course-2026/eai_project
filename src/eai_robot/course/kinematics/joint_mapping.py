@@ -8,9 +8,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import degrees, radians
-from typing import Mapping
+from typing import Mapping, TYPE_CHECKING
 
-from lerobot.motors import MotorCalibration
+if TYPE_CHECKING:
+    from lerobot.motors import MotorCalibration
 
 
 ENCODER_MIN = 0

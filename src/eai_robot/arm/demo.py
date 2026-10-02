@@ -120,7 +120,7 @@ def check_status(backend):
             raise RuntimeError(f'ID {sid} 状态寄存器报警：0x{status:02x}')
 
 
-def run_stage(arm, item, max_step=20):
+def run_stage(arm, item, max_step=20, on_progress=None):
     """Bound intermediate lag to 25 counts; enforce final arrival separately."""
     current = arm.positions()
     arm._check_pose(current)
@@ -157,6 +157,8 @@ def run_stage(arm, item, max_step=20):
             arm.tolerance = arrival_tolerance
         entry.update(feedback=feedback, reached=True, duration_seconds=round(time.monotonic() - started, 3))
         check_status(arm.backend)
+        if on_progress is not None:
+            on_progress()
         time.sleep(.08)
     return feedback
 

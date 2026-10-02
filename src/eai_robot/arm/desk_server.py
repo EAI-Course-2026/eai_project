@@ -18,6 +18,14 @@ MIMES = {'/': ('index.html', 'text/html; charset=utf-8'),
          '/app.js': ('app.js', 'text/javascript; charset=utf-8')}
 
 
+def discover_ports():
+    """Enumerate OS ports only; never open devices or probe motors."""
+    from serial.tools import list_ports
+    return [{'device': p.device, 'description': p.description or '',
+             'manufacturer': p.manufacturer or ''}
+            for p in sorted(list_ports.comports(), key=lambda p: p.device)]
+
+
 def make_handler(service, initial_port):
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, format, *args):
@@ -35,6 +43,11 @@ def make_handler(service, initial_port):
 
         def do_GET(self):
             path = self.path.split('?', 1)[0]
+            if path == '/api/ports':
+                try:
+                    return self._send(200, json.dumps({'ports': discover_ports()}, ensure_ascii=False).encode())
+                except Exception as exc:
+                    return self._send(503, json.dumps({'error': f'串口扫描失败：{exc}'}, ensure_ascii=False).encode())
             if path == '/api/state':
                 data = service.snapshot()
                 data['default_port'] = initial_port
