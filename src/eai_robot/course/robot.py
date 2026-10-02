@@ -10,7 +10,7 @@ import time
 from lerobot.robots.so_follower import SO101Follower, SO101FollowerConfig
 from lerobot.motors.feetech import FeetechMotorsBus
 from eai_robot.config import ROOT, load_config
-from eai_robot.arm.calibration import JOINTS, MODEL_NUMBER, load
+from eai_robot.arm.calibration import JOINTS, MODEL_NUMBER, load, feedback_in_range
 
 DEFAULT_CALIBRATION = ROOT / "calibration/scs215_so101.json"
 
@@ -115,11 +115,12 @@ class CourseFollower(SO101Follower):
                 raise RuntimeError(f"{name}: torque must be off before enabling")
             raw = self.bus.read("Present_Position", name, normalize=False)
             cal = self.calibration[name]
-            if not cal.range_min <= raw <= cal.range_max:
+            if not feedback_in_range(raw, cal.range_min, cal.range_max):
                 raise RuntimeError(f"{name}: start position is outside calibration")
             if self.bus.read("Status", name, normalize=False):
                 raise RuntimeError(f"{name}: motor alarm")
-            goals[name] = raw
+            # Feedback slack never expands the commanded range, even for the initial hold.
+            goals[name] = max(cal.range_min, min(cal.range_max, raw))
         # Clear stale time and seed goals before enabling. Speed is preserved.
         for name in names:
             self.bus.write_verified("Running_Time", name, 0)

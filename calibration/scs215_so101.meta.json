@@ -1,20 +1,76 @@
 {
-  "method": "read_only_eeprom_snapshot",
-  "captured": "2026-10-02",
-  "timestamp_precision": "date",
+  "method": "manual_user_confirmed_safe_ranges",
+  "captured": "2026-10-02T18:13:14.167058+08:00",
   "port_at_capture": "/dev/cu.usbmodem5B910441861",
   "model_number": 1315,
-  "manual_endpoints_verified": false,
+  "manual_endpoints_verified": true,
   "full_range_motion_verified": false,
-  "eeprom_modified": false,
-  "note": "Active mapping updated from the six-joint read in this migration session. These are stored command limits, not measured mechanical stops. Prior snapshot retained in calibration/history.",
+  "powered_motion_verified": false,
+  "fk_alignment_verified": false,
+  "eeprom_modified": true,
+  "eeprom_readback_verified": true,
+  "user_approved_eeprom_write": true,
+  "sample_count": 2240,
+  "duration_s": 237.192,
+  "observed_manual_ranges": {
+    "shoulder_pan": [
+      169,
+      898
+    ],
+    "shoulder_lift": [
+      60,
+      740
+    ],
+    "elbow_flex": [
+      196,
+      772
+    ],
+    "wrist_flex": [
+      67,
+      681
+    ],
+    "wrist_roll": [
+      6,
+      1017
+    ],
+    "gripper": [
+      239,
+      640
+    ]
+  },
+  "natural_rest_observed_ranges": {
+    "shoulder_pan": [
+      450,
+      450
+    ],
+    "shoulder_lift": [
+      62,
+      62
+    ],
+    "elbow_flex": [
+      770,
+      771
+    ],
+    "wrist_flex": [
+      121,
+      121
+    ],
+    "wrist_roll": [
+      441,
+      441
+    ],
+    "gripper": [
+      296,
+      297
+    ]
+  },
   "observed_positions": {
-    "1": 498,
-    "2": 59,
-    "3": 773,
-    "4": 66,
-    "5": 249,
-    "6": 256
+    "1": 886,
+    "2": 62,
+    "3": 767,
+    "4": 123,
+    "5": 830,
+    "6": 639
   },
   "torque_at_capture": [
     0,
@@ -32,9 +88,15 @@
     0,
     0
   ],
-  "capture_source": "Read-only six-servo inspection in this chat on 2026-10-02",
-  "verified_backends": [
-    "native_serial",
-    "lerobot_0.6.2_pinned_fork"
-  ]
+  "eeprom_locks_after": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1
+  ],
+  "feedback_slack_counts": 3,
+  "wrist_roll_policy": "Retain 47..974; measured 6..1017 approaches both encoder boundaries.",
+  "note": "Endpoints observed during user-confirmed safe manual travel. Drive directions and homing offsets retained. Natural-rest feedback allowance does not expand command limits. Cartesian FK zero/scale and powered trajectories remain unverified."
 }

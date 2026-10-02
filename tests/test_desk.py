@@ -67,15 +67,19 @@ class DeskTests(unittest.TestCase):
         self.assertFalse(state['torque_on'])
         self.assertEqual({bus.read(s,'Torque_Enable') for s in range(1,7)},{0})
 
-    def test_gravity_drift_to_63_homes_without_commanding_below_hardware_limit(self):
+    def test_gravity_drift_homes_without_commanding_below_hardware_limit(self):
         service,bus=self.make_desk()
-        bus.registers[2]['Present_Position']=63
+        lower=service.calibration['shoulder_lift'].range_min
+        bus.registers[2]['Present_Position']=lower-1
+        for c in service.calibration.values():
+            bus.registers[c.id]['Min_Position_Limit']=c.range_min
+            bus.registers[c.id]['Max_Position_Limit']=c.range_max
         self.connect(service)
         service.submit('home')
         state=self.settle(service)
         self.assertTrue(state['homed'],state['error'])
-        self.assertEqual(bus.packets[0][2],64)
-        self.assertTrue(all(packet[2]>=64 for packet in bus.packets))
+        self.assertEqual(bus.packets[0][2],lower)
+        self.assertTrue(all(packet[2]>=lower for packet in bus.packets))
         service.submit('stop')
         self.assertFalse(self.settle(service)['torque_on'])
 

@@ -9,13 +9,13 @@ import sys
 import time
 
 from eai_robot.config import ROOT, load_config
-from .calibration import JOINTS, load
+from .calibration import JOINTS, load, DEFAULT_FEEDBACK_SLACK
 from .cli import DEFAULT_CALIBRATION, report_release
 from .controller import ArmController
 
 DEFAULT_HOME = ROOT / 'configs/demo_home.json'
 # Match ArmController.feedback_slack for torque-off gravity drift at the entry boundary.
-START_FEEDBACK_SLACK = 3
+START_FEEDBACK_SLACK = DEFAULT_FEEDBACK_SLACK
 # Fixed offsets from the saved home, never from the current measured pose.
 # Grip excursions total 310 counts on this arm, with 1.2 s photographic dwell.
 PROFILES = {

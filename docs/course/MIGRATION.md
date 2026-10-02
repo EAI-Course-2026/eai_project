@@ -1,5 +1,8 @@
 # Migration receipt — 2026-10-02
 
+This receipt describes the pre-manual-calibration migration snapshot. The later
+manual calibration supersedes its limits; see [CALIBRATION.md](CALIBRATION.md).
+
 ## Sources and destinations
 
 - Application baseline before migration: `eai_project` commit `375cd10`.

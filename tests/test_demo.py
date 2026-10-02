@@ -70,11 +70,12 @@ class DemoTests(unittest.TestCase):
         cal = load(ROOT/'calibration/scs215_so101.json')
         home, radius = load_home(ROOT/'configs/demo_home.json', cal)
         start = home.copy()
-        start[2] = 63
-        self.assertEqual(check_start(cal, start, home, radius)[2], [61, 287])
+        lower = cal['shoulder_lift'].range_min
+        start[2] = lower - 1
+        self.assertEqual(check_start(cal, start, home, radius)[2], [57, 291])
         plan = build_plan(cal, start, home, radius, 'home')
         self.assertTrue(all(item['targets'][2] >= cal['shoulder_lift'].range_min for item in plan))
-        start[2] = 60
+        start[2] = lower - 4
         with self.assertRaisesRegex(ValueError, 'shoulder_lift.*入口'):
             check_start(cal, start, home, radius)
 

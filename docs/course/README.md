@@ -69,11 +69,17 @@ the shared snapshot is never overwritten by that maintenance command.
 
 ## Calibration baseline
 
-`calibration/scs215_so101.json` now matches the read-only 2026-10-02 EEPROM
-snapshot: IDs 1–6 have limits `183..897`, `64..737`, `196..771`, `70..681`,
-`47..974`, `237..644`. They are stored command limits, not a full mechanical
-travel or collision certification. The previous 2026-09-27 snapshot is retained
-in `calibration/history/`.
+`calibration/scs215_so101.json` matches the user-confirmed manual calibration
+written and read back on 2026-10-02: IDs 1–6 have limits `169..898`, `60..740`,
+`196..772`, `67..681`, `47..974`, `239..640`. Wrist roll retains its previous
+command range because the observed `6..1017` approaches both encoder boundaries.
+The old EEPROM snapshot remains in `calibration/history/`. See
+[CALIBRATION.md](CALIBRATION.md) for the sampling and write receipt.
+
+Control and course entry points use the same 3-count feedback allowance.
+Initial hold targets are clamped to calibrated limits; feedback allowance never
+expands permitted commands. Natural rest is distinct from a Cartesian working
+pose: keyboard/vision motion still checks IK margins before executing.
 
 The existing raw demo home is retained, with its calibration binding updated.
 This does not establish that its trajectories are physically validated under
