@@ -58,3 +58,12 @@ Next hardware acceptance needs a compatible operator, short real synchronized
 camera/action recording, dataset inspection, GPU training and controlled policy
 playback. FK/IK physical alignment and arbitrary-pose collision recovery remain
 separate milestones.
+
+## End-of-day integration
+
+The later keyboard fix verifies torque and accepted goals, and displays requested
+TCP, encoder FK and joint error independently. The operator confirmed real
+terminal keyboard movement after this fix. This acceptance is separate from
+the earlier read-only plugin session above. After integration with the new
+Cartesian desk and current main, 151 offline tests pass. See the
+[closeout report](reports/2026-10-02.md) for full scope and remaining hardware work.
