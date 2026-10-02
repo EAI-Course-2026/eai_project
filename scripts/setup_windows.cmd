@@ -1,5 +1,7 @@
 @echo off
 setlocal
+set "PYTHONUTF8=1"
+set "PYTHONIOENCODING=utf-8"
 where uv >nul 2>nul
 if errorlevel 1 (
     echo Install uv first: https://docs.astral.sh/uv/getting-started/installation/

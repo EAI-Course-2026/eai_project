@@ -9,7 +9,11 @@ this environment.
 
 ## Install and verify on macOS and Windows
 
-Use Python 3.12, uv, the root `pyproject.toml` and `uv.lock` on both systems:
+Use Python 3.12, **uv 0.11.7**, the root `pyproject.toml` and `uv.lock` on both
+systems. The project and CI pin the uv version: the first clean hosted check
+found that uv 0.12.22 wanted to rewrite this lock. Tool upgrades must therefore
+be reviewed together with regenerated locks. To install the pinned version, use
+the official [versioned installation instructions](https://docs.astral.sh/uv/getting-started/installation/#installing-a-specific-version).
 
 ```sh
 uv sync --locked
@@ -23,6 +27,8 @@ uv's project environment. Copy `configs/hardware.example.toml` to
 `configs/hardware.local.toml` and set the serial port; the local file is ignored.
 Ports, camera indices and compute devices are machine-specific. Calibration is
 shared by physical arm, independent of COM port or operating system.
+Windows setup enables Python UTF-8 mode so Chinese diagnostics and paths are
+consistent with Mac and CI.
 
 ## Migrated tools
 

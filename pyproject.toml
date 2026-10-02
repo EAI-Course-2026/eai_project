@@ -12,6 +12,9 @@ training = ["lerobot[training]==0.6.2"]
 [project.scripts]
 eai-course = "eai_robot.course.cli:main"
 
+[tool.uv]
+required-version = "==0.11.7"
+
 [tool.uv.sources]
 lerobot = { git = "https://github.com/EAI-Course-2026/eai-course-lerobot.git", rev = "6a077907c7989635218969ee78f5436f8faec92b" }
 torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'win32'" }]
