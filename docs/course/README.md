@@ -110,8 +110,9 @@ The course Robot connects read-only, rejects calibration outside current stored
 limits, and requires explicit motion enable. Torque release no longer unlocks
 EEPROM; partial enable failures attempt release on every requested motor.
 The GUI and migrated course tools still have separate process lifecycles: run
-only one hardware control process at a time. A shared GUI/vision/voice action
-scheduler remains the next integration task.
+only one hardware control process at a time. The GUI now schedules joint and Cartesian keyboard control in one hardware
+thread. Separate vision/voice integration remains future work; CLI control
+must disconnect before the GUI takes ownership.
 
 The inherited IK mapping assumes calibrated endpoints correspond to URDF
 endpoints. Offline tests verify the mathematics, not physical zero alignment.
@@ -155,3 +156,12 @@ Work from the application repository's latest `main`, use a feature branch and
 PR, and include offline results plus hardware evidence when applicable. Changes
 to the LeRobot dependency must update the commit and lock in a dedicated PR.
 macOS and Windows CI run the same offline suite. Do not force-push shared main.
+
+## Keyboard motion evidence
+
+The terminal controller checks existing arm torque before confirmation. Robot
+preflight seeds the hold pose, then torque and accepted goals are verified.
+During motion it displays `TCP command`, `encoder FK` and joint error separately,
+and stops on lost torque or unaccepted goals. On 2026-10-02 the operator confirmed
+real keyboard movement after this fix. `--speed-mm-s 15` requests 15 mm/s;
+physical distance, direction and FK alignment still require measured acceptance.

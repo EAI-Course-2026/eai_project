@@ -11,9 +11,9 @@ fork's discovery mechanism. The config type is `scs215_so101_follower`; built-in
 ## Direct scripts
 
 ```sh
-uv run --no-sync python scripts/arm_lerobot.py --port /dev/cu.usbmodem5B910441861 inspect
-uv run --no-sync python scripts/arm_lerobot.py control --allow-wide-range --dry-run --values 0.5 0.5 0.5 0.5 0.5 0.5
-uv run --no-sync python scripts/arm_desk.py
+uv run --locked python scripts/arm_lerobot.py --port /dev/cu.usbmodem5B910441861 inspect
+uv run --locked python scripts/arm_lerobot.py control --allow-wide-range --dry-run --values 0.5 0.5 0.5 0.5 0.5 0.5
+uv run --locked python scripts/arm_desk.py
 ```
 
 Direct scripts, default web/demo backend and course pose tools share the plugin
@@ -26,7 +26,7 @@ Native `arm_serial.py` remains a diagnostics/reference path.
 macOS/Linux example; Windows accepts the same flags on one line with its local COM port:
 
 ```sh
-uv run --no-sync lerobot-calibrate \
+uv run --locked lerobot-calibrate \
   --robot.type=scs215_so101_follower \
   --robot.port=/dev/cu.usbmodem5B910441861 \
   --robot.id=scs215_so101 \
@@ -53,7 +53,7 @@ remains `eai-course keyboard`; generic framework keyboard actions are not six
 joint-position actions.
 
 ```sh
-uv run --no-sync lerobot-teleoperate \
+uv run --locked lerobot-teleoperate \
   --robot.type=scs215_so101_follower \
   --robot.port=FOLLOWER_PORT \
   --robot.calibration_path=calibration/scs215_so101.json \
