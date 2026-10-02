@@ -1,9 +1,0 @@
-{
-  "status": "candidate_not_activated",
-  "created": "2026-10-02",
-  "source_calibration": "calibration/scs215_so101.json",
-  "method": "retain_previous_candidate_except_wrist_range_inset_20_from_current_eeprom",
-  "powered_range_verified": false,
-  "manual_endpoints_verified": false,
-  "note": "Historical candidate wrist 25..994 exceeded current EEPROM 47..974; new wrist candidate 67..954 is unverified and not the default."
-}

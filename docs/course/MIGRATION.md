@@ -1,3 +1,8 @@
+> Current shared/local configuration rules and archived candidate locations are
+> documented in [calibration/README.md](../../calibration/README.md). This receipt
+> describes migration-time validation; its original candidate selection was
+> superseded by the portable shared calibration contract.
+
 # Migration receipt — 2026-10-02
 
 This receipt describes the pre-manual-calibration migration snapshot. The later

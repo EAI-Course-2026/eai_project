@@ -21,6 +21,7 @@ from eai_robot.course.input import keyboard
 
 from lerobot.cameras import ColorMode
 from lerobot.cameras.opencv import OpenCVCameraConfig
+from eai_robot.config import default_camera_index
 from eai_robot.course.robot import CourseFollower as SO101Follower, make_robot, DEFAULT_CALIBRATION, default_port
 
 from eai_robot.course.kinematics.cartesian_planner import CartesianLinePlanner, CartesianPlan  # noqa: E402
@@ -140,6 +141,8 @@ class VisionArmRuntime:
     """Single owner of the camera, SCS215 bus, IK state and torque policy."""
 
     def __init__(self, args: argparse.Namespace, stop_state: StopState) -> None:
+        if type(args.camera_index) is not int or args.camera_index < 0:
+            raise ValueError("Select this machine's camera using --camera-index or hardware.local.toml")
         camera_config = OpenCVCameraConfig(
             index_or_path=args.camera_index,
             fps=args.camera_fps,
@@ -339,7 +342,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--port", default=default_port())
     parser.add_argument("--robot-id", default="scs215_so101")
     parser.add_argument("--calibration", type=Path, default=DEFAULT_CALIBRATION)
-    parser.add_argument("--camera-index", type=int, default=1)
+    parser.add_argument("--camera-index", type=int, default=default_camera_index(),
+                        help="Local camera index; set in hardware.local.toml or pass explicitly")
     parser.add_argument("--camera-key", default="wrist")
     parser.add_argument("--camera-width", type=int, default=640)
     parser.add_argument("--camera-height", type=int, default=480)
@@ -383,6 +387,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--torque-settle-s", type=float, default=2.0)
     parser.add_argument("--detection-timeout-s", type=float, default=8.0)
     args = parser.parse_args()
+    if args.camera_index is None or args.camera_index < 0:
+        parser.error("Set --camera-index or [camera].index_or_path in hardware.local.toml")
 
     if args.control_axes[0] == args.control_axes[1]:
         parser.error("--control-axes must contain two different axes")

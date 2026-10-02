@@ -18,6 +18,13 @@ spec.loader.exec_module(verify)
 
 
 class CandidateVerifyTests(unittest.TestCase):
+    def run_candidate(self, argv):
+        return verify.run([
+            '--calibration', str(ROOT/'calibration/history/scs215_safe_candidate_20261002.json'),
+            '--home-file', str(ROOT/'calibration/history/demo_home_scs215_safe_candidate_20261002.json'),
+            *argv,
+        ])
+
     def bus(self):
         bus=FakeArm()
         old=load(ROOT/'calibration/scs215_so101.json')
@@ -33,7 +40,7 @@ class CandidateVerifyTests(unittest.TestCase):
         bus,old=self.bus()
         with tempfile.TemporaryDirectory() as d, patch.object(verify,'SerialBackend',return_value=bus), patch.object(verify.time,'sleep'):
             log=Path(d)/'verify.jsonl'
-            code=verify.run(['--port','FAKE','--joint','shoulder_lift','--enable','--log',str(log)])
+            code=self.run_candidate(['--port','FAKE','--joint','shoulder_lift','--enable','--log',str(log)])
             events=[json.loads(line) for line in log.read_text().splitlines()]
         self.assertEqual(code,0)
         self.assertTrue(any(e['event']=='startup_recover' for e in events))
@@ -49,8 +56,19 @@ class CandidateVerifyTests(unittest.TestCase):
     def test_read_only_mode_has_no_writes(self):
         bus,_=self.bus()
         with patch.object(verify,'SerialBackend',return_value=bus):
-            code=verify.run(['--port','FAKE','--joint','shoulder_lift'])
+            code=self.run_candidate(['--port','FAKE','--joint','shoulder_lift'])
         self.assertEqual(code,0)
+        self.assertEqual(bus.packets,[])
+        self.assertEqual(bus.writes,[])
+        self.assertTrue(bus.closed)
+
+    def test_default_preflight_selects_active_calibration_and_has_no_writes(self):
+        bus,_=self.bus()
+        with patch.object(verify,'SerialBackend',return_value=bus), \
+                patch.object(verify,'load',wraps=load) as loader:
+            code=verify.run(['--port','FAKE'])
+        self.assertEqual(code,0)
+        self.assertTrue(all(call.args[0] == verify.CURRENT for call in loader.call_args_list))
         self.assertEqual(bus.packets,[])
         self.assertEqual(bus.writes,[])
         self.assertTrue(bus.closed)
@@ -60,7 +78,7 @@ class CandidateVerifyTests(unittest.TestCase):
         bus.registers[2]['Present_Position']=554
         with tempfile.TemporaryDirectory() as d, patch.object(verify,'SerialBackend',return_value=bus), patch.object(verify.time,'sleep'):
             log=Path(d)/'return.jsonl'
-            code=verify.run(['--port','FAKE','--return-home','--enable','--log',str(log)])
+            code=self.run_candidate(['--port','FAKE','--return-home','--enable','--log',str(log)])
             events=[json.loads(line) for line in log.read_text().splitlines()]
         self.assertEqual(code,0)
         self.assertFalse(any(e['event']=='endpoint' for e in events))
@@ -72,7 +90,7 @@ class CandidateVerifyTests(unittest.TestCase):
         bus.registers[3]['Present_Position']=771
         with tempfile.TemporaryDirectory() as d, patch.object(verify,'SerialBackend',return_value=bus), patch.object(verify.time,'sleep'):
             log=Path(d)/'clearance.jsonl'
-            code=verify.run(['--port','FAKE','--return-home','--clearance-wrist','240',
+            code=self.run_candidate(['--port','FAKE','--return-home','--clearance-wrist','240',
                              '--clearance-gripper','520','--enable','--log',str(log)])
             events=[json.loads(line) for line in log.read_text().splitlines()]
         self.assertEqual(code,0)
@@ -88,7 +106,7 @@ class CandidateVerifyTests(unittest.TestCase):
         bus,_=self.bus()
         with tempfile.TemporaryDirectory() as d, patch.object(verify,'SerialBackend',return_value=bus), patch.object(verify.time,'sleep'):
             log=Path(d)/'clearance_verify.jsonl'
-            code=verify.run(['--port','FAKE','--joint','shoulder_lift',
+            code=self.run_candidate(['--port','FAKE','--joint','shoulder_lift',
                              '--clearance-wrist','240','--clearance-gripper','520',
                              '--enable','--log',str(log)])
             events=[json.loads(line) for line in log.read_text().splitlines()]
@@ -108,7 +126,7 @@ class CandidateVerifyTests(unittest.TestCase):
         bus.registers[6]['Present_Position']=518
         with tempfile.TemporaryDirectory() as d, patch.object(verify,'SerialBackend',return_value=bus), patch.object(verify.time,'sleep'):
             log=Path(d)/'manual_verify.jsonl'
-            code=verify.run(['--port','FAKE','--manual-start','--joint','shoulder_lift',
+            code=self.run_candidate(['--port','FAKE','--manual-start','--joint','shoulder_lift',
                              '--clearance-wrist','330','--clearance-gripper','520',
                              '--enable','--log',str(log)])
             events=[json.loads(line) for line in log.read_text().splitlines()]

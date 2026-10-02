@@ -1,7 +1,9 @@
 {
+  "schema_version": 1,
+  "hardware_id": "scs215_so101",
+  "units": "raw_encoder_counts",
   "method": "manual_user_confirmed_safe_ranges",
   "captured": "2026-10-02T18:13:14.167058+08:00",
-  "port_at_capture": "/dev/cu.usbmodem5B910441861",
   "model_number": 1315,
   "manual_endpoints_verified": true,
   "full_range_motion_verified": false,

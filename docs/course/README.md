@@ -25,7 +25,10 @@ Windows also has `scripts\setup_windows.cmd`. Existing Conda training environmen
 can remain on teammates' machines, but the canonical application commands use
 uv's project environment. Copy `configs/hardware.example.toml` to
 `configs/hardware.local.toml` and set the serial port; the local file is ignored.
-Ports, camera indices and compute devices are machine-specific. Calibration is
+Ports, camera indices and compute devices are machine-specific. The shared
+metadata contains no host port; local settings override portable defaults.
+Set `[camera].index_or_path` locally or pass `--camera-index`; vision has no
+implicit camera index. See the [shared calibration contract](../../calibration/README.md). Calibration is
 shared by physical arm, independent of COM port or operating system.
 Windows setup enables Python UTF-8 mode so Chinese diagnostics and paths are
 consistent with Mac and CI.
@@ -88,9 +91,10 @@ pose: keyboard/vision motion still checks IK margins before executing.
 
 The existing raw demo home is retained, with its calibration binding updated.
 This does not establish that its trajectories are physically validated under
-the new limits. The 2026-09-28 inactive candidate remains historical; the new
-2026-10-02 inactive candidate uses wrist `67..954`, within current EEPROM bounds.
-Candidate verification selects the new files; neither candidate is the default.
+the new limits. Both inactive candidates and their paired home files are archived under
+`calibration/history/`. The verification script defaults to the active
+calibration/home; archived experiments require explicit `--calibration` and
+`--home-file` arguments.
 
 The course Robot connects read-only, rejects calibration outside current stored
 limits, and requires explicit motion enable. Torque release no longer unlocks
