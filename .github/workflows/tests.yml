@@ -22,7 +22,25 @@ jobs:
           version: '0.11.7'
           enable-cache: true
           python-version: '3.12'
-      - run: uv sync --locked
-      - run: uv run --no-sync python scripts/check_env.py
-      - run: uv run --no-sync python -m unittest discover -s tests -q
+      - if: runner.os != 'Windows'
+        run: uv sync --locked
+      - if: runner.os != 'Windows'
+        run: uv run --no-sync python scripts/check_env.py
+      - if: runner.os != 'Windows'
+        run: uv run --no-sync python -m unittest discover -s tests -q
+      - if: runner.os == 'Windows'
+        run: .\scripts\setup_windows.cmd
       - run: uv build --wheel
+  windows-training-install:
+    name: Windows CUDA training software (no GPU)
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990
+        with:
+          version: '0.11.7'
+          enable-cache: true
+          python-version: '3.12'
+      - run: .\scripts\setup_training_windows.cmd --software-only
+      - run: uv run --no-sync --project environments/training lerobot-train --help

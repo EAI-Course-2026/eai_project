@@ -6,7 +6,7 @@ LeRobot is fixed to the team's **0.6.2 fork at commit `6a077907c7989635218969ee7
 
 ## Requirements
 
-- Python 3.12 and [uv](https://docs.astral.sh/uv/)
+- Python 3.12 and [uv 0.11.7](https://docs.astral.sh/uv/getting-started/installation/#installing-a-specific-version)
 - A six-servo SCS215 arm with IDs 1–6 and a supported serial adapter
 - A suitable servo power supply and a supported arm during motion
 
@@ -14,8 +14,24 @@ From the repository root:
 
 ```sh
 uv sync --locked
+uv run --no-sync python scripts/check_env.py
 uv run --no-sync python -m unittest discover -s tests -q
 ```
+
+Windows PowerShell users can run `.\scripts\setup_windows.cmd` for the same
+control setup. NVIDIA training uses `.\scripts\setup_training_windows.cmd`
+and a **separate** environment. Read the [Windows, CUDA and Conda guide](docs/environments.md)
+for the pinned uv installer, driver/GPU verification, Conda coexistence, serial
+port selection, camera preview and troubleshooting. Conda environments may be
+kept, but the team's reproducible baseline is the two uv lockfiles.
+
+| Use | Environment | Windows PyTorch | macOS PyTorch |
+| --- | --- | --- | --- |
+| Arm control, classical vision, tests | Root `.venv` | CPU 2.11.0 | Native 2.11.0; MPS available when supported |
+| Model training | `environments/training/.venv` | 2.11.0+cu128 (CUDA 12.8) | Native 2.11.0; no NVIDIA CUDA |
+
+Both environments install the exact course fork above, not PyPI LeRobot.
+There is no root `training` extra: GPU training uses the separate project.
 
 Copy `configs/hardware.example.toml` to `configs/hardware.local.toml` and set `[serial].port` for your machine. The local file is ignored by Git. You can also pass `--port` before a subcommand. Use the device name reported by your OS, such as a `/dev/...` port on macOS/Linux or `COM5` on Windows; Windows hardware operation has not yet been verified.
 
@@ -62,6 +78,12 @@ The panel supports either backend, position feedback, six joint sliders, a home 
 | `experiments/servos/` | Single-servo, two-servo, and PID experiments |
 | `calibration/` and `configs/` | Arm-specific calibration snapshots, demo poses, and configuration templates |
 | `tests/` | Offline protocol, control, and web-service tests |
+
+The [35-file migration inventory](docs/course/COVERAGE.md) maps every file under
+the original `examples/eai_course/` to its implementation, asset, test or
+historical document here. Voice was a design note in the source, not working
+speech recognition. Migrated source coverage does not establish real-arm or
+camera acceptance on Windows.
 
 Current hardware validation covers ID/model reads, small synchronized moves with both backends, and motion initiated through the browser panel. Full mechanical travel, rated-load behavior, collision recovery from arbitrary starting poses, camera capture, and the LeRobot dataset pipeline remain open work. The [milestones](docs/milestones.md) track these separately. The project does not currently support `lerobot-record` for this arm.
 
