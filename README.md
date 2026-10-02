@@ -31,6 +31,9 @@ kept, but the team's reproducible baseline is the two uv lockfiles.
 | Model training | `environments/training/.venv` | 2.11.0+cu128 (CUDA 12.8) | Native 2.11.0; no NVIDIA CUDA |
 
 Both environments install the exact course fork above, not PyPI LeRobot.
+Both also install the local `lerobot_robot_scs215` package. It extends LeRobot
+through plugin registration; this integration adds no fork/source edits. See the
+[plugin guide](docs/lerobot_plugin.md) for standard calibration, teleoperation and recording.
 There is no root `training` extra: GPU training uses the separate project.
 
 Copy `configs/hardware.example.toml` to `configs/hardware.local.toml` and set `[serial].port` for your machine. The local file is ignored by Git. Set the camera index in the same local file; there is no shared camera default. You can also pass `--port` before a subcommand. Use the device name reported by your OS, such as a `/dev/...` port on macOS/Linux or `COM5` on Windows; Windows hardware operation has not yet been verified.
@@ -87,6 +90,7 @@ The panel supports either backend, position feedback, six joint sliders, a home 
 | `src/eai_robot/arm/` | Shared calibration, motion checks, control, demonstrations, and web service |
 | `src/eai_robot/hardware/` | Native SCS protocol and LeRobot SCS215 motor-bus adapter |
 | `src/eai_robot/course/` | Migrated poses, FK/IK, planning, keyboard and visual servo implementation |
+| `plugins/lerobot_robot_scs215/` | Installable shared SCS215 bus and registered LeRobot Robot |
 | `environments/training/` | Separate locked training environment, using the same fork commit |
 | `scripts/` | Servo setup, command-line control, and browser-panel entry points |
 | `experiments/servos/` | Single-servo, two-servo, and PID experiments |
@@ -99,6 +103,6 @@ historical document here. Voice was a design note in the source, not working
 speech recognition. Migrated source coverage does not establish real-arm or
 camera acceptance on Windows.
 
-Current hardware validation covers ID/model reads, small synchronized moves with both backends, and motion initiated through the browser panel. Full mechanical travel, rated-load behavior, collision recovery from arbitrary starting poses, camera capture, and the LeRobot dataset pipeline remain open work. The [milestones](docs/milestones.md) track these separately. The project does not currently support `lerobot-record` for this arm.
+Current hardware validation covers ID/model reads, small synchronized moves with both backends, and motion initiated through the browser panel. The standard `lerobot-record` route now supports the plugin and is tested with simulated devices and a local RGB episode. Physical synchronized recording, rated-load behavior, collision recovery, training and policy playback remain open work. The [milestones](docs/milestones.md) track these separately.
 
 The longer-term goal is to make the SCS215 implementation suitable for contribution to the LeRobot community, with a complete `Robot` interface, reproducible hardware tests, and a clearly chosen open-source license.

@@ -37,7 +37,7 @@
           <div class="section-head"><div><span class="section-index">01 / SETUP</span><h2>连接设备</h2></div><p>连接时只读取 ID、型号和状态，不会移动。</p></div>
           <div class="panel connection-panel">
             <div class="form-field port-field"><label for="device-port">串口设备</label><input id="device-port" type="text" spellcheck="false" autocomplete="off" placeholder="串口名称，例如 COM5"></div>
-            <div class="form-field"><label for="backend">控制后端</label><select id="backend"><option value="serial">原生串口 · pyserial</option><option value="lerobot">LeRobot · SCS215 适配</option></select></div>
+            <div class="form-field"><label for="backend">控制后端</label><select id="backend"><option value="lerobot">LeRobot · SCS215 适配</option><option value="serial">原生串口 · 诊断对照</option></select></div>
             <div class="form-field baud-field"><label for="baudrate">波特率</label><select id="baudrate"><option value="1000000">1,000,000</option><option value="500000">500,000</option><option value="250000">250,000</option><option value="115200">115,200</option></select></div>
             <button id="connect-btn" class="button button-dark">连接机械臂 <span aria-hidden="true">↗</span></button>
             <button id="disconnect-btn" class="button button-ghost" disabled>断开</button>

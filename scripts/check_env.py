@@ -23,7 +23,7 @@ try:
 except Exception as exc:
     print(f'FAIL LeRobot source: {exc}')
     failed = True
-for package, module in [("lerobot", "lerobot"), ("torch", "torch"), ("opencv-python-headless", "cv2"), ("pyserial", "serial"), ("feetech-servo-sdk", "scservo_sdk"), ("av", "av")]:
+for package, module in [("lerobot", "lerobot"), ("lerobot_robot_scs215", "lerobot_robot_scs215"), ("torch", "torch"), ("opencv-python-headless", "cv2"), ("pyserial", "serial"), ("feetech-servo-sdk", "scservo_sdk"), ("av", "av")]:
     try:
         loaded = importlib.import_module(module)
         print(f"OK {package}: {importlib.metadata.version(package)}")
