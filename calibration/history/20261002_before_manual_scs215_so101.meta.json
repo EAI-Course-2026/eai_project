@@ -2,7 +2,6 @@
   "method": "read_only_eeprom_snapshot",
   "captured": "2026-10-02",
   "timestamp_precision": "date",
-  "port_at_capture": "/dev/cu.usbmodem5B910441861",
   "model_number": 1315,
   "manual_endpoints_verified": false,
   "full_range_motion_verified": false,

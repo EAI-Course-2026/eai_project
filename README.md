@@ -17,7 +17,7 @@ uv sync --locked
 uv run --no-sync python -m unittest discover -s tests -q
 ```
 
-Copy `configs/hardware.example.toml` to `configs/hardware.local.toml` and set `[serial].port` for your machine. The local file is ignored by Git. You can also pass `--port` before a subcommand. Use the device name reported by your OS, such as a `/dev/...` port on macOS/Linux or `COM5` on Windows; Windows hardware operation has not yet been verified.
+Copy `configs/hardware.example.toml` to `configs/hardware.local.toml` and set `[serial].port` for your machine. The local file is ignored by Git. Set the camera index in the same local file; there is no shared camera default. You can also pass `--port` before a subcommand. Use the device name reported by your OS, such as a `/dev/...` port on macOS/Linux or `COM5` on Windows; Windows hardware operation has not yet been verified.
 
 ## Inspect and control
 
@@ -40,7 +40,7 @@ Preview a target without opening the serial port or moving the arm:
 uv run --no-sync python scripts/arm_serial.py control --allow-wide-range --dry-run --values 0.5 0.5 0.5 0.5 0.5 0.5
 ```
 
-The checked-in calibration snapshot includes a wide-range wrist joint, which requires `--allow-wide-range` for control. It records limits imported from this particular arm's EEPROM; it is **not** a universal safe range or a completed manual endpoint verification. A six-joint midpoint is not guaranteed to be a collision-free pose. Inspect and calibrate your own hardware before enabling motion. Read the [hardware notes](docs/hardware.md) and [calibration record](docs/experiments/scs215_safe_candidate.md) for the distinction between hardware limits, software ranges, and unverified candidates.
+The checked-in calibration snapshot includes a wide-range wrist joint, which requires `--allow-wide-range` for control. It records this shared arm's user-confirmed safe manual ranges and EEPROM readback; powered trajectories and physical FK alignment remain unverified. A six-joint midpoint is not guaranteed to be a collision-free pose. Inspect and calibrate your own hardware before enabling motion. Read the [hardware notes](docs/hardware.md) and [shared calibration contract](calibration/README.md) for the distinction between hardware limits, software ranges, and unverified candidates.
 
 For the local browser control panel:
 

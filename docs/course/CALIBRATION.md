@@ -1,5 +1,9 @@
 # Manual calibration — 2026-10-02
 
+This receipt is shared hardware evidence, independent of the capture computer.
+Host ports and camera indices belong only in ignored local configuration.
+See [the shared contract](../../calibration/README.md).
+
 The user placed the torque-off arm in its normal rest pose, then manually moved
 all six joints through user-confirmed safe ranges. No powered trajectory was
 performed. The fixed LeRobot dependency remains fork commit `6a07790` / 0.6.2.

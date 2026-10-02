@@ -1,3 +1,7 @@
+> Superseded historical source. The sole active shared calibration and Windows/macOS
+> setup are described in [calibration/README.md](../../../../calibration/README.md).
+> Do not install the old COM-named snapshot as a current calibration.
+
 > Historical source document, imported from eai-course-lerobot at 6a077907. For current commands, use docs/course/README.md.
 
 # 团队共享机械臂标定
