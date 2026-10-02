@@ -4,7 +4,7 @@ from dataclasses import asdict
 import argparse
 import json
 
-from eai_robot.arm.backends import SerialBackend
+from eai_robot.arm.backends import LeRobotBackend
 from eai_robot.arm.calibration import JOINTS, load
 from eai_robot.arm.controller import ArmController
 from eai_robot.config import ROOT, load_config
@@ -29,7 +29,7 @@ def main():
             raise ValueError("Output poses belong to a different calibration; choose a new file")
         if args.name in data["poses"]:
             raise ValueError("Pose already exists; choose a new name")
-    backend = SerialBackend(args.port, load_config()["serial"]["baudrate"])
+    backend = LeRobotBackend(args.port, load_config()["serial"]["baudrate"])
     try:
         arm = ArmController(backend, calibration, allow_wide_range=True)
         positions = arm.inspect()

@@ -10,6 +10,12 @@ resolution-markers = [
     "(platform_machine != 'arm64' and sys_platform == 'darwin') or (sys_platform != 'darwin' and sys_platform != 'linux' and sys_platform != 'win32')",
 ]
 
+[manifest]
+members = [
+    "eai-robot-lab",
+    "lerobot-robot-scs215",
+]
+
 [[package]]
 name = "aiohappyeyeballs"
 version = "2.7.1"
@@ -369,6 +375,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "lerobot", extra = ["core-scripts", "feetech"] },
+    { name = "lerobot-robot-scs215" },
     { name = "numpy" },
     { name = "pynput" },
     { name = "pyserial" },
@@ -388,6 +395,7 @@ experiments = [
 [package.metadata]
 requires-dist = [
     { name = "lerobot", extras = ["core-scripts", "feetech"], git = "https://github.com/EAI-Course-2026/eai-course-lerobot.git?rev=6a077907c7989635218969ee78f5436f8faec92b" },
+    { name = "lerobot-robot-scs215", editable = "plugins/lerobot_robot_scs215" },
     { name = "matplotlib", marker = "extra == 'experiments'", specifier = ">=3.9,<4" },
     { name = "numpy", specifier = ">=2,<2.3" },
     { name = "pynput", specifier = ">=1.8,<2" },
@@ -710,6 +718,17 @@ feetech = [
     { name = "feetech-servo-sdk" },
     { name = "pyserial" },
 ]
+
+[[package]]
+name = "lerobot-robot-scs215"
+version = "0.1.0"
+source = { editable = "plugins/lerobot_robot_scs215" }
+dependencies = [
+    { name = "lerobot", extra = ["feetech"] },
+]
+
+[package.metadata]
+requires-dist = [{ name = "lerobot", extras = ["feetech"], git = "https://github.com/EAI-Course-2026/eai-course-lerobot.git?rev=6a077907c7989635218969ee78f5436f8faec92b" }]
 
 [[package]]
 name = "markupsafe"

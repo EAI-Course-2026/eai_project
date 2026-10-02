@@ -366,6 +366,7 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "lerobot", extra = ["core-scripts", "feetech", "training"] },
+    { name = "lerobot-robot-scs215" },
     { name = "torch", version = "2.11.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux' and sys_platform != 'win32'" },
     { name = "torch", version = "2.11.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
     { name = "torchvision", version = "0.26.0", source = { registry = "https://pypi.org/simple" }, marker = "sys_platform != 'linux' and sys_platform != 'win32'" },
@@ -375,6 +376,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "lerobot", extras = ["training", "core-scripts", "feetech"], git = "https://github.com/EAI-Course-2026/eai-course-lerobot.git?rev=6a077907c7989635218969ee78f5436f8faec92b" },
+    { name = "lerobot-robot-scs215", editable = "../../plugins/lerobot_robot_scs215" },
     { name = "torch", marker = "sys_platform != 'linux' and sys_platform != 'win32'", specifier = ">=2.7,<2.12" },
     { name = "torch", marker = "sys_platform == 'linux' or sys_platform == 'win32'", specifier = ">=2.7,<2.12", index = "https://download.pytorch.org/whl/cu128" },
     { name = "torchvision", marker = "sys_platform != 'linux' and sys_platform != 'win32'", specifier = ">=0.22,<0.27" },
@@ -681,6 +683,17 @@ training = [
     { name = "torchcodec", marker = "(platform_machine == 'arm64' and sys_platform == 'darwin') or (platform_machine == 'AMD64' and sys_platform == 'linux') or (platform_machine == 'aarch64' and sys_platform == 'linux') or (platform_machine == 'arm64' and sys_platform == 'linux') or (platform_machine == 'x86_64' and sys_platform == 'linux') or sys_platform == 'win32'" },
     { name = "wandb" },
 ]
+
+[[package]]
+name = "lerobot-robot-scs215"
+version = "0.1.0"
+source = { editable = "../../plugins/lerobot_robot_scs215" }
+dependencies = [
+    { name = "lerobot", extra = ["feetech"] },
+]
+
+[package.metadata]
+requires-dist = [{ name = "lerobot", extras = ["feetech"], git = "https://github.com/EAI-Course-2026/eai-course-lerobot.git?rev=6a077907c7989635218969ee78f5436f8faec92b" }]
 
 [[package]]
 name = "markupsafe"

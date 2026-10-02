@@ -7,7 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, PropertyMock
 
 from eai_robot.arm.calibration import JOINTS, load
 from eai_robot.course.robot import CourseMotorsBus, CourseFollower, DEFAULT_CALIBRATION, make_robot
@@ -48,6 +48,8 @@ class IntegrationTests(unittest.TestCase):
         bus = robot.bus
         cal = robot.calibration
         def read(register, name, **kwargs):
+            if register == "ID":
+                return cal[name].id
             return cal[name].range_min if register == "Min_Position_Limit" else cal[name].range_max
         with patch.object(FeetechMotorsBus,"connect"), patch.object(bus,"set_baudrate"), \
              patch.object(bus,"ping",return_value=1315), patch.object(bus,"read",side_effect=read), \
@@ -58,7 +60,10 @@ class IntegrationTests(unittest.TestCase):
     def test_connect_rejects_stale_calibration_and_closes_port(self):
         robot = make_robot("FAKE")
         bus = robot.bus
+        bus.port_handler.ser = Mock()
         def read(register, name, **kwargs):
+            if register == "ID":
+                return robot.calibration[name].id
             if name == "wrist_roll":
                 return 100 if register == "Min_Position_Limit" else 900
             cal = robot.calibration[name]
@@ -95,9 +100,10 @@ class IntegrationTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError,"enable_motion"):
             robot.send_action({"shoulder_pan.pos":0})
         robot.motion_enabled=True
-        for action in ({"shoulder_pan.pos":float("nan")},{"gripper.pos":-1},{"shoulder_pan.pos":101},{"bad.pos":0}):
-            with self.assertRaises(ValueError):
-                robot.send_action(action)
+        with patch.object(CourseMotorsBus,"is_connected",new_callable=PropertyMock,return_value=True):
+            for action in ({"shoulder_pan.pos":float("nan")},{"gripper.pos":-1},{"shoulder_pan.pos":101},{"bad.pos":0}):
+                with self.assertRaises(ValueError):
+                    robot.send_action(action)
         robot.motion_enabled=False
 
     def test_pose_conversion_preserves_original_raw_targets(self):

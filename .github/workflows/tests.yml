@@ -30,7 +30,7 @@ jobs:
         run: uv run --no-sync python -m unittest discover -s tests -q
       - if: runner.os == 'Windows'
         run: .\scripts\setup_windows.cmd
-      - run: uv build --wheel
+      - run: uv build --wheel --all-packages
   windows-training-install:
     name: Windows CUDA training software (no GPU)
     runs-on: windows-latest

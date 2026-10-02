@@ -187,7 +187,7 @@ def teach_home(path, arm, calibration, margin):
 def main(argv=None):
     cfg = load_config()
     parser = argparse.ArgumentParser(description='先反馈归位，再执行固定 demo；默认只读预览')
-    parser.add_argument('--backend', choices=('serial', 'lerobot'), default='serial')
+    parser.add_argument('--backend', choices=('serial', 'lerobot'), default='lerobot')
     parser.add_argument('--port', default=cfg['serial']['port'])
     parser.add_argument('--baudrate', type=int, default=cfg['serial']['baudrate'])
     parser.add_argument('--calibration', type=Path, default=DEFAULT_CALIBRATION)
