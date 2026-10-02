@@ -1,5 +1,5 @@
 {
-  "status": "candidate_not_activated",
+  "status": "archived_candidate_not_activated",
   "method": "intersection_of_observed_mechanical_reach_and_eeprom_inset_20_counts_except_elbow_upper_10",
   "created": "2026-09-28T16:46:42.591675+08:00",
   "source_calibration": "calibration/scs215_so101.json",
@@ -39,5 +39,6 @@
   "startup_recovery_required": true,
   "startup_recovery_implemented": true,
   "startup_recovery_fully_verified": false,
-  "startup_recovery_reason": "A separate EEPROM-bounded recovery path is implemented and has succeeded from some observed starts. ID3 can fall to 771–772 without torque; the clearance sequence has not consistently brought it inside the candidate feedback window without manual support."
+  "startup_recovery_reason": "A separate EEPROM-bounded recovery path is implemented and has succeeded from some observed starts. ID3 can fall to 771–772 without torque; the clearance sequence has not consistently brought it inside the candidate feedback window without manual support.",
+  "archive_notice": "Superseded by the user-confirmed 2026-10-02 manual calibration; never selected by default."
 }

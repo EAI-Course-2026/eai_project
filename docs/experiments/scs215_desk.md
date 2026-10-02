@@ -3,7 +3,7 @@
 在项目根目录启动：
 
 ```sh
-uv run --no-sync python scripts/arm_desk.py
+uv run --locked python scripts/arm_desk.py
 ```
 
 启动器只在 `127.0.0.1` 提供界面并自动打开浏览器，打开页面不会连接或移动舵机。若电脑没有自动打开浏览器，终端会显示可访问的本机 URL。默认使用 `configs/hardware.local.toml` 中的串口，也能在界面中改；可加 `--device-port SERIAL_PORT`，其中 `SERIAL_PORT` 要替换为本机设备名（Windows 如 `COM5`）。可加 `--no-open` 只打印地址。退出终端用 `Ctrl+C`；程序会尝试关闭扭矩和串口。

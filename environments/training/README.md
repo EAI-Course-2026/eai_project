@@ -9,16 +9,20 @@ From the application repository root:
 
 ```sh
 uv sync --locked --project environments/training
-uv run --no-sync --project environments/training python scripts/check_training_env.py
+uv run --locked --project environments/training python scripts/check_training_env.py
 ```
 
 On the NVIDIA GPU machine:
 
 ```sh
-uv run --no-sync --project environments/training python scripts/check_training_env.py --require-cuda
+uv run --locked --project environments/training python scripts/check_training_env.py --require-cuda
 ```
 
 On Windows, `.\scripts\setup_training_windows.cmd` installs this environment
 and runs the required GPU check. A successful software-only check does not
 validate a GPU or training job. See [the Windows/CUDA/Conda guide](../../docs/environments.md)
 for installation, diagnostics, example training commands and acceptance scope.
+
+Use `uv run --locked --project environments/training ...` for daily training
+commands. The Windows installer and CI retain `--no-sync` only after explicit
+locked synchronization. See the [shared command policy](../../docs/environments.md#command-policy-on-windows-and-macos).

@@ -17,15 +17,18 @@ the official [versioned installation instructions](https://docs.astral.sh/uv/get
 
 ```sh
 uv sync --locked
-uv run --no-sync python scripts/check_env.py
-uv run --no-sync python -m unittest discover -s tests -q
+uv run --locked python scripts/check_env.py
+uv run --locked python -m unittest discover -s tests -q
 ```
 
 Windows also has `scripts\setup_windows.cmd`. Existing Conda training environments
 can remain on teammates' machines, but the canonical application commands use
 uv's project environment. Copy `configs/hardware.example.toml` to
 `configs/hardware.local.toml` and set the serial port; the local file is ignored.
-Ports, camera indices and compute devices are machine-specific. Calibration is
+Ports, camera indices and compute devices are machine-specific. The shared
+metadata contains no host port; local settings override portable defaults.
+Set `[camera].index_or_path` locally or pass `--camera-index`; vision has no
+implicit camera index. See the [shared calibration contract](../../calibration/README.md). Calibration is
 shared by physical arm, independent of COM port or operating system.
 Windows setup enables Python UTF-8 mode so Chinese diagnostics and paths are
 consistent with Mac and CI.
@@ -35,14 +38,18 @@ the pinned installer, GPU verification, editor interpreter selection, serial
 ports and preview dependencies. Every original course file is accounted for in
 the [migration inventory](COVERAGE.md).
 
+Daily commands use `uv run --locked`. Before hardware work, synchronize
+with `uv sync --locked`; use `--no-sync` only in an already verified environment.
+See the [shared command policy](../environments.md#command-policy-on-windows-and-macos).
+
 ## Migrated tools
 
 ```sh
-uv run --no-sync eai-course --help
-uv run --no-sync eai-course mapping
-uv run --no-sync eai-course fk
-uv run --no-sync eai-course plan --delta-mm 0 0 10
-uv run --no-sync eai-course poses
+uv run --locked eai-course --help
+uv run --locked eai-course mapping
+uv run --locked eai-course fk
+uv run --locked eai-course plan --delta-mm 0 0 10
+uv run --locked eai-course poses
 ```
 
 These commands run offline. `python scripts/course.py COMMAND` is an equivalent
@@ -88,9 +95,10 @@ pose: keyboard/vision motion still checks IK margins before executing.
 
 The existing raw demo home is retained, with its calibration binding updated.
 This does not establish that its trajectories are physically validated under
-the new limits. The 2026-09-28 inactive candidate remains historical; the new
-2026-10-02 inactive candidate uses wrist `67..954`, within current EEPROM bounds.
-Candidate verification selects the new files; neither candidate is the default.
+the new limits. Both inactive candidates and their paired home files are archived under
+`calibration/history/`. The verification script defaults to the active
+calibration/home; archived experiments require explicit `--calibration` and
+`--home-file` arguments.
 
 The course Robot connects read-only, rejects calibration outside current stored
 limits, and requires explicit motion enable. Torque release no longer unlocks
@@ -108,9 +116,9 @@ calibration changes before Cartesian motion.
 
 ```sh
 uv sync --locked --project environments/training
-uv run --no-sync --project environments/training python scripts/check_training_env.py
+uv run --locked --project environments/training python scripts/check_training_env.py
 # Run on the NVIDIA GPU machine to require a real CUDA matrix multiplication:
-uv run --no-sync --project environments/training python scripts/check_training_env.py --require-cuda
+uv run --locked --project environments/training python scripts/check_training_env.py --require-cuda
 ```
 
 This uses `environments/training/.venv` and its own lock. The macOS/Windows
