@@ -33,6 +33,11 @@ shared by physical arm, independent of COM port or operating system.
 Windows setup enables Python UTF-8 mode so Chinese diagnostics and paths are
 consistent with Mac and CI.
 
+See [Windows, CUDA and Conda setup](../environments.md) for PowerShell commands,
+the pinned installer, GPU verification, editor interpreter selection, serial
+ports and preview dependencies. Every original course file is accounted for in
+the [migration inventory](COVERAGE.md).
+
 ## Migrated tools
 
 ```sh
@@ -107,7 +112,9 @@ calibration changes before Cartesian motion.
 
 ```sh
 uv sync --locked --project environments/training
-uv run --no-sync --project environments/training python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
+uv run --no-sync --project environments/training python scripts/check_training_env.py
+# Run on the NVIDIA GPU machine to require a real CUDA matrix multiplication:
+uv run --no-sync --project environments/training python scripts/check_training_env.py --require-cuda
 ```
 
 This uses `environments/training/.venv` and its own lock. The macOS/Windows
@@ -116,6 +123,9 @@ training environment selects Windows/Linux CUDA 12.8 wheels and training
 extras. It installs LeRobot's training tools rather than a second application
 package. The LeRobot source commit is identical. GPU/driver compatibility and training jobs require
 the team's Windows GPU machine; they cannot be accepted on this Mac.
+The root `training` extra has been removed to prevent confusing CPU control
+dependencies with CUDA training. The Windows installer and a local-only ACT
+training example are in [the environment guide](../environments.md).
 
 ## Source and collaboration
 

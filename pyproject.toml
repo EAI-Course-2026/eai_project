@@ -7,7 +7,6 @@ dependencies = ["lerobot[core_scripts,feetech]==0.6.2", "pyserial>=3.5,<4", "num
 
 [project.optional-dependencies]
 experiments = ["matplotlib>=3.9,<4"]
-training = ["lerobot[training]==0.6.2"]
 
 [project.scripts]
 eai-course = "eai_robot.course.cli:main"
@@ -17,6 +16,7 @@ required-version = "==0.11.7"
 
 [tool.uv.sources]
 lerobot = { git = "https://github.com/EAI-Course-2026/eai-course-lerobot.git", rev = "6a077907c7989635218969ee78f5436f8faec92b" }
+# Windows control stays on CPU. CUDA belongs to environments/training/.
 torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'win32'" }]
 torchvision = [{ index = "pytorch-cpu", marker = "sys_platform == 'win32'" }]
 

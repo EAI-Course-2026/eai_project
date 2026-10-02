@@ -100,7 +100,7 @@ class PreviewWindow:
             self._root = tk.Tk()
         except tk.TclError as exc:
             raise RuntimeError(
-                "Could not create a Windows preview. Re-run without --preview."
+                "Could not create a desktop preview. Re-run without --preview."
             ) from exc
         self._root.title(WINDOW_NAME)
         self._root.protocol("WM_DELETE_WINDOW", self._request_close)

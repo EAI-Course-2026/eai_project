@@ -1,0 +1,24 @@
+# Training environment
+
+This project has its own `pyproject.toml`, `uv.lock` and `.venv`. It installs
+the exact LeRobot course fork at `6a077907c7989635218969ee78f5436f8faec92b`,
+including training tools. Windows/Linux use locked PyTorch `2.11.0+cu128`;
+Mac uses native `2.11.0` and cannot run NVIDIA CUDA.
+
+From the application repository root:
+
+```sh
+uv sync --locked --project environments/training
+uv run --no-sync --project environments/training python scripts/check_training_env.py
+```
+
+On the NVIDIA GPU machine:
+
+```sh
+uv run --no-sync --project environments/training python scripts/check_training_env.py --require-cuda
+```
+
+On Windows, `.\scripts\setup_training_windows.cmd` installs this environment
+and runs the required GPU check. A successful software-only check does not
+validate a GPU or training job. See [the Windows/CUDA/Conda guide](../../docs/environments.md)
+for installation, diagnostics, example training commands and acceptance scope.
