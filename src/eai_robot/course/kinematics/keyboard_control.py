@@ -49,6 +49,25 @@ def direction_from_keys(keys: Iterable[str]) -> np.ndarray:
     return direction / norm if norm > 0 else direction
 
 
+def read_motion_feedback(robot, mapper, command_q):
+    """Verify actuator state and accepted goals, then return encoder feedback."""
+    raw = read_raw_motors(robot, ARM_JOINT_NAMES)
+    for name, angle in zip(ARM_JOINT_NAMES, command_q, strict=True):
+        torque = robot.bus.read("Torque_Enable", name, normalize=False)
+        if torque != 1:
+            raise RuntimeError(f"{name}: torque feedback is {torque}; motion stopped")
+        expected = mapper.urdf_degrees_to_raw(name, angle)
+        accepted = robot.bus.read("Goal_Position", name, normalize=False)
+        # Degree/normalized conversions can differ by one encoder count through
+        # floating-point truncation, especially for the initial raw hold.
+        if abs(accepted - expected) > 1:
+            raise RuntimeError(
+                f"{name}: goal was not accepted: sent raw={expected}, "
+                f"readback={accepted}, actual={raw[name]}; motion stopped"
+            )
+    return raw
+
+
 class KeyboardState:
     def __init__(self) -> None:
         self._pressed: set[str] = set()
@@ -164,6 +183,18 @@ def run_controller(args: argparse.Namespace) -> int:
     try:
         robot.bus.port_handler.clearPort()
         time.sleep(0.10)
+        torque = {
+            name: robot.bus.read("Torque_Enable", name, normalize=False)
+            for name in ARM_JOINT_NAMES
+        }
+        if any(torque.values()):
+            details = ", ".join(f"{name}={value}" for name, value in torque.items())
+            raise RuntimeError(
+                "Existing arm torque is enabled: " + details
+                + ". Support the arm and release torque in the previous controller, "
+                "then disconnect it. No goal positions were written."
+            )
+        print("Arm torque preflight: all five joints are off.")
         raw = read_raw_motors(robot, ARM_JOINT_NAMES)
         outside = raw_outside_calibration(mapper, raw)
         if outside:
@@ -190,12 +221,21 @@ def run_controller(args: argparse.Namespace) -> int:
             print("Confirmation did not match. Torque was not enabled.")
             return 0
 
-        current_goals = {
-            name: mapper.raw_to_normalized(name, raw[name]) for name in ARM_JOINT_NAMES
-        }
-        robot.bus.sync_write("Goal_Position", current_goals)
-        torque_enabled = True
+        # Confirmation may take time while the supported, unpowered arm moves.
+        # Refresh the pose before starting. The Robot performs the torque/status
+        # checks and seeds goals itself; never write goals before those checks.
+        raw = read_raw_motors(robot, ARM_JOINT_NAMES)
+        if raw_outside_calibration(mapper, raw):
+            raise RuntimeError("Start position moved outside calibration during confirmation")
+        command_q = arm_degrees_from_raw(mapper, raw)
+        ensure_execution_start_is_safe(command_q, margin_deg=args.joint_margin_deg)
+        command_position = fk.forward_kinematics(command_q)[:3, 3]
         robot.enable_motion(list(ARM_JOINT_NAMES))
+        torque_enabled = True
+        measured_raw = read_motion_feedback(robot, mapper, command_q)
+        measured_q = arm_degrees_from_raw(mapper, measured_raw)
+        initial_measured_position = fk.forward_kinematics(measured_q)[:3, 3]
+        print("Torque and goal readback verified on arm joints ID 1-5.")
 
         listener = keyboard.Listener(on_press=state.on_press, on_release=state.on_release)
         listener.start()
@@ -205,14 +245,17 @@ def run_controller(args: argparse.Namespace) -> int:
         next_feedback = next_tick + feedback_period
         tracking_paused = False
         last_ik_warning = 0.0
+        measured_position = initial_measured_position
+        tracking_error = float(np.max(np.abs(measured_q - command_q)))
 
         while not state.quit_requested.is_set():
             now = time.perf_counter()
             direction = direction_from_keys(state.snapshot())
 
             if now >= next_feedback:
-                measured_raw = read_raw_motors(robot, ARM_JOINT_NAMES)
+                measured_raw = read_motion_feedback(robot, mapper, command_q)
                 measured_q = arm_degrees_from_raw(mapper, measured_raw)
+                measured_position = fk.forward_kinematics(measured_q)[:3, 3]
                 tracking_error = float(np.max(np.abs(measured_q - command_q)))
                 tracking_paused = tracking_error > args.max_tracking_error_deg
                 if tracking_paused:
@@ -245,7 +288,11 @@ def run_controller(args: argparse.Namespace) -> int:
             print(
                 f"\rTCP command (mm): x={command_position[0] * 1000:7.2f} "
                 f"y={command_position[1] * 1000:7.2f} "
-                f"z={command_position[2] * 1000:7.2f}",
+                f"z={command_position[2] * 1000:7.2f} | "
+                f"encoder FK (mm): x={measured_position[0] * 1000:7.2f} "
+                f"y={measured_position[1] * 1000:7.2f} "
+                f"z={measured_position[2] * 1000:7.2f} | "
+                f"joint error={tracking_error:.2f} deg",
                 end="",
                 flush=True,
             )
@@ -267,7 +314,7 @@ def run_controller(args: argparse.Namespace) -> int:
         if listener is not None:
             listener.stop()
             listener.join(timeout=1.0)
-        if torque_enabled and robot.bus.is_connected:
+        if (torque_enabled or robot.torque_touched) and robot.bus.is_connected:
             try:
                 robot.bus.disable_torque(list(ARM_JOINT_NAMES), num_retry=5)
                 print("Torque disabled on arm joints ID 1-5.")

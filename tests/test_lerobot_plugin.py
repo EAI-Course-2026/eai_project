@@ -26,6 +26,7 @@ from lerobot_robot_scs215 import (
 from lerobot_robot_scs215.safety import JOINTS, feedback_in_range
 from eai_robot.arm.calibration import load
 from eai_robot.course.robot import DEFAULT_CALIBRATION, CourseFollower, CourseMotorsBus
+from eai_robot.course.kinematics import keyboard_control as keyboard_controller
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -77,6 +78,7 @@ class SimulatedHardware:
             "Min_Position_Limit": c.range_min,
             "Max_Position_Limit": c.range_max,
             "Present_Position": self.positions[name],
+            "Goal_Position": self.positions[name],
             "Torque_Enable": self.torque[name],
             "Status": 0,
             "Lock": 1,
@@ -144,6 +146,66 @@ class SimulatedHardware:
 
 
 class PluginTests(unittest.TestCase):
+    def keyboard_args(self):
+        return type(
+            "Args",
+            (),
+            dict(
+                port="FAKE",
+                robot_id="test",
+                calibration=DEFAULT_CALIBRATION,
+                urdf=keyboard_controller.DEFAULT_URDF,
+                speed_mm_s=5,
+                control_hz=20,
+                feedback_hz=2,
+                max_joint_step_deg=5,
+                joint_margin_deg=2,
+                max_tracking_error_deg=12,
+            ),
+        )()
+
+    def test_keyboard_does_not_seed_goals_before_robot_preflight(self):
+        hardware = SimulatedHardware()
+        state = keyboard_controller.KeyboardState()
+        state.quit_requested.set()
+        state.emergency_requested.set()
+        enable = SCS215SO101Follower.enable_motion
+
+        def checked_enable(robot, motors):
+            self.assertEqual(hardware.writes, [])
+            return enable(robot, motors)
+
+        with (
+            hardware.active(),
+            patch.object(
+                SCS215SO101Follower,
+                "enable_motion",
+                autospec=True,
+                side_effect=checked_enable,
+            ),
+            patch.object(keyboard_controller, "KeyboardState", return_value=state),
+            patch.object(keyboard_controller, "keyboard", Mock()),
+            patch("builtins.input", return_value="START KEYBOARD CONTROL"),
+            redirect_stdout(io.StringIO()),
+        ):
+            self.assertEqual(
+                keyboard_controller.run_controller(self.keyboard_args()), 0
+            )
+        self.assertEqual(sum(r == "Goal_Position" for r, _, _ in hardware.writes), 5)
+        self.assertEqual(set(hardware.torque.values()), {0})
+
+    def test_keyboard_rejects_existing_torque_without_writes_or_release(self):
+        hardware = SimulatedHardware()
+        hardware.torque["shoulder_pan"] = 1
+        with hardware.active(), patch("builtins.input") as confirmation:
+            with self.assertRaisesRegex(
+                RuntimeError, "Existing arm torque.*shoulder_pan=1"
+            ):
+                keyboard_controller.run_controller(self.keyboard_args())
+            confirmation.assert_not_called()
+        self.assertEqual(hardware.writes, [])
+        self.assertEqual(hardware.torque["shoulder_pan"], 1)
+
     def config(self, **kwargs):
         return SCS215SO101FollowerConfig(
             port="FAKE", calibration_path=DEFAULT_CALIBRATION, **kwargs
