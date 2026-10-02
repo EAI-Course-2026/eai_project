@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>视觉闭环实验：黑球目标</title>
+  <style>
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #fff; font-family: system-ui, "Microsoft YaHei", sans-serif; }
+    #target { position: absolute; left: 50%; top: 50%; width: 180px; height: 180px; border-radius: 50%; transform: translate(-50%, -50%); background: radial-gradient(circle at 35% 30%, #303030 0 5%, #090909 25%, #000 72%); box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22); }
+    #hint { position: fixed; left: 16px; bottom: 12px; color: #aaa; font-size: 14px; user-select: none; }
+  </style>
+</head>
+<body>
+  <div id="target" aria-label="黑色圆形目标"></div>
+  <div id="hint">方向键/WASD 移动 · +/- 缩放 · R 居中 · F11 全屏</div>
+  <script>
+    const target = document.getElementById("target");
+    let x = 0.5, y = 0.5, size = 180;
+    function render() {
+      const margin = size / 2 + 8;
+      const px = margin + x * Math.max(0, innerWidth - 2 * margin);
+      const py = margin + y * Math.max(0, innerHeight - 2 * margin);
+      target.style.left = `${px}px`; target.style.top = `${py}px`;
+      target.style.width = `${size}px`; target.style.height = `${size}px`;
+    }
+    addEventListener("keydown", (event) => {
+      const key = event.key.toLowerCase(), step = event.shiftKey ? 0.06 : 0.025;
+      let handled = true;
+      if (key === "arrowleft" || key === "a") x -= step;
+      else if (key === "arrowright" || key === "d") x += step;
+      else if (key === "arrowup" || key === "w") y -= step;
+      else if (key === "arrowdown" || key === "s") y += step;
+      else if (key === "+" || key === "=") size = Math.min(360, size + 20);
+      else if (key === "-" || key === "_") size = Math.max(60, size - 20);
+      else if (key === "r") { x = 0.5; y = 0.5; size = 180; }
+      else handled = false;
+      if (handled) {
+        event.preventDefault(); x = Math.max(0, Math.min(1, x)); y = Math.max(0, Math.min(1, y)); render();
+      }
+    });
+    addEventListener("resize", render); render();
+  </script>
+</body>
+</html>

@@ -1,0 +1,81 @@
+{
+  "schema_version": 1,
+  "calibration": {
+    "shoulder_pan": {
+      "id": 1,
+      "drive_mode": 0,
+      "homing_offset": 0,
+      "range_min": 183,
+      "range_max": 897
+    },
+    "shoulder_lift": {
+      "id": 2,
+      "drive_mode": 0,
+      "homing_offset": 0,
+      "range_min": 64,
+      "range_max": 737
+    },
+    "elbow_flex": {
+      "id": 3,
+      "drive_mode": 0,
+      "homing_offset": 0,
+      "range_min": 196,
+      "range_max": 769
+    },
+    "wrist_flex": {
+      "id": 4,
+      "drive_mode": 0,
+      "homing_offset": 0,
+      "range_min": 70,
+      "range_max": 681
+    },
+    "wrist_roll": {
+      "id": 5,
+      "drive_mode": 0,
+      "homing_offset": 0,
+      "range_min": 47,
+      "range_max": 974
+    },
+    "gripper": {
+      "id": 6,
+      "drive_mode": 0,
+      "homing_offset": 0,
+      "range_min": 237,
+      "range_max": 644
+    }
+  },
+  "poses": {
+    "stand": [
+      0.4286,
+      0.4116,
+      0.1449,
+      0.4812,
+      0.4564,
+      0.0369
+    ],
+    "raise": [
+      0.416,
+      0.101,
+      0.6911,
+      0.3306,
+      0.5317,
+      0.0369
+    ],
+    "left": [
+      0.4398,
+      0.1025,
+      0.3682,
+      0.5663,
+      0.4287,
+      0.0369
+    ],
+    "right": [
+      0.4398,
+      0.0996,
+      0.7976,
+      0.3552,
+      0.598,
+      0.0369
+    ]
+  }
+}

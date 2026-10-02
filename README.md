@@ -1,8 +1,8 @@
-# SO101 SCS215 Arm Control
+# EAI SCS215 Robot Project
 
-Control a six-joint SO101-style arm built with Feetech SCS215 servos. This project provides servo ID setup, software calibration, normalized joint targets, synchronized position commands, and a local browser-based control panel. It offers two motor backends: direct SCS protocol over `pyserial`, and an adapter built on LeRobot 0.6.1's Feetech motor bus.
+Control a six-joint SO101-style arm built with Feetech SCS215 servos. This team repository combines servo setup, checked joint control, the browser panel, calibrated URDF FK/IK, Cartesian planning, keyboard control and black-ball visual servoing.
 
-The LeRobot integration currently covers **motor communication**, not the LeRobot `Robot` interface or its recording and training workflows. See [Architecture and LeRobot integration](docs/architecture.md) for the exact boundary and planned upstream work.
+LeRobot is fixed to the team's **0.6.2 fork at commit `6a077907c7989635218969ee78f5436f8faec92b`**. The application stays in this repository; the fork supplies framework adaptation. The root uv environment is for control and tests, while `environments/training/` has its own environment and CUDA configuration. See the [shared course baseline](docs/course/README.md) for current Mac/Windows setup, migrated commands, calibration and remaining acceptance work. Recording, training and evaluation are not yet verified end to end for this arm.
 
 ## Requirements
 
@@ -56,6 +56,8 @@ The panel supports either backend, position feedback, six joint sliders, a home 
 | --- | --- |
 | `src/eai_robot/arm/` | Shared calibration, motion checks, control, demonstrations, and web service |
 | `src/eai_robot/hardware/` | Native SCS protocol and LeRobot SCS215 motor-bus adapter |
+| `src/eai_robot/course/` | Migrated poses, FK/IK, planning, keyboard and visual servo implementation |
+| `environments/training/` | Separate locked training environment, using the same fork commit |
 | `scripts/` | Servo setup, command-line control, and browser-panel entry points |
 | `experiments/servos/` | Single-servo, two-servo, and PID experiments |
 | `calibration/` and `configs/` | Arm-specific calibration snapshots, demo poses, and configuration templates |
