@@ -46,26 +46,203 @@ class DeskTests(unittest.TestCase):
         self.assertTrue(state['connected'])
         return state
 
-    def test_connect_is_read_only_and_home_gates_manual_control(self):
+    def test_connect_is_read_only_and_enable_gates_manual_control(self):
         service,bus=self.make_desk()
+        bus.registers[5]['Present_Position']=235
         state=self.connect(service)
         self.assertEqual(len(state['joints']),6)
-        self.assertFalse(state['homed'])
+        self.assertFalse(state['control_enabled'])
         self.assertEqual(bus.writes,[])
         self.assertEqual(bus.packets,[])
-        with self.assertRaisesRegex(RuntimeError,'先进入统一起点'):
-            service.submit('move',{'values':[service.calibration[n].ratio(service.home[i]) for i,n in enumerate(('shoulder_pan','shoulder_lift','elbow_flex','wrist_flex','wrist_roll','gripper'),1)]})
-        service.submit('home')
+        with self.assertRaisesRegex(RuntimeError,'启用控制'):
+            service.submit('move',{'values':[.5]*6})
+        original={sid:bus.read(sid,'Present_Position') for sid in range(1,7)}
+        service.submit('enable_control')
         state=self.settle(service)
-        self.assertTrue(state['homed'],state['error'])
-        self.assertEqual(state['torque_on'],True)
-        with self.assertRaisesRegex(ValueError,'入口'):
+        self.assertIsNone(state['error'])
+        self.assertTrue(state['control_enabled'])
+        self.assertFalse(state['homed'])
+        self.assertEqual(bus.packets[0],original)
+        self.assertEqual(state['targets']['5'],235)
+        # A rejected optional home leaves ordinary control enabled.
+        with self.assertRaisesRegex(ValueError,'归位入口'):
+            service.submit('home')
+        self.assertTrue(service.snapshot()['control_enabled'])
+        with self.assertRaisesRegex(ValueError,'普通控制范围'):
             service.submit('move',{'values':[1,.5,.5,.5,.5,.5]})
-        self.assertTrue(service.snapshot()['homed'])
+        # Full travel is no longer intersected with the saved home radius.
+        values=[.90,.85,.15,.85,.20,.80]
+        service.submit('move',{'values':values})
+        state=self.settle(service)
+        self.assertIsNone(state['error'],state['error'])
+        self.assertEqual(state['motion_state'],'reached')
+        expected={cal.id:cal.position(v) for cal,v in zip(service.calibration.values(),values)}
+        self.assertEqual(bus.packets[-1],expected)
+        for previous,following in zip(bus.packets,bus.packets[1:]):
+            self.assertLessEqual(max(abs(following[i]-previous[i]) for i in following),20)
         service.submit('stop')
         state=self.settle(service)
+        self.assertFalse(state['control_enabled'])
         self.assertFalse(state['torque_on'])
-        self.assertEqual({bus.read(s,'Torque_Enable') for s in range(1,7)},{0})
+        with self.assertRaisesRegex(RuntimeError,'重新启用'):
+            service.submit('move',{'values':[.5]*6})
+        service.submit('enable_control')
+        self.assertTrue(self.settle(service)['control_enabled'])
+
+    def test_jog_uses_feedback_and_rejects_boundary_without_release(self):
+        service,bus=self.make_desk()
+        self.connect(service)
+        service.submit('enable_control');self.settle(service)
+        before={sid:bus.read(sid,'Present_Position') for sid in range(1,7)}
+        service.submit('jog',{'joint':'wrist_roll','delta':-5})
+        state=self.settle(service)
+        expected=dict(before);expected[5]-=5
+        self.assertEqual(bus.packets[-1],expected)
+        self.assertIsNone(state['error'])
+        bus.registers[5]['Present_Position']=service.calibration['wrist_roll'].range_min+20
+        service._refresh()
+        count=len(bus.packets)
+        with self.assertRaisesRegex(ValueError,'点动目标'):
+            service.submit('jog',{'joint':'wrist_roll','delta':-5})
+        self.assertEqual(len(bus.packets),count)
+        self.assertTrue(service.snapshot()['control_enabled'])
+        with self.assertRaises(ValueError):
+            service.submit('jog',{'joint':'wrist_roll','delta':50})
+
+    def test_screenshot_pose_can_take_over_and_move_only_edited_joint(self):
+        service,bus=self.make_desk()
+        pose=(531,222,514,170,442,249)
+        for sid,raw in enumerate(pose,1):
+            bus.registers[sid]['Present_Position']=raw
+        self.connect(service)
+        service.submit('enable_control')
+        state=self.settle(service)
+        self.assertTrue(state['control_enabled'],state['error'])
+        self.assertEqual(bus.packets[0],dict(enumerate(pose,1)))
+        values=[service.calibration[name].ratio(raw) for name,raw in zip(service.calibration,pose)]
+        values[0]=.60
+        service.submit('move',{'values':values,'joints':['shoulder_pan']})
+        state=self.settle(service)
+        self.assertIsNone(state['error'])
+        self.assertTrue(all(packet[6]==249 for packet in bus.packets))
+        self.assertEqual(tuple(bus.read(s,'Present_Position') for s in range(2,7)),pose[1:])
+        # In the endpoint margin, only inward small steps are allowed.
+        count=len(bus.packets)
+        with self.assertRaisesRegex(ValueError,'内部点动'):
+            service.submit('jog',{'joint':'gripper','delta':-5})
+        self.assertEqual(len(bus.packets),count)
+        self.assertTrue(service.snapshot()['control_enabled'])
+        service.submit('jog',{'joint':'gripper','delta':5})
+        self.assertIsNone(self.settle(service)['error'])
+        self.assertEqual(bus.read(6,'Present_Position'),254)
+        service.submit('jog',{'joint':'gripper','delta':5})
+        self.assertIsNone(self.settle(service)['error'])
+        self.assertEqual(bus.read(6,'Present_Position'),259)
+        for joints in ([],['gripper','gripper'],['unknown']):
+            with self.assertRaises(ValueError):
+                service.submit('move',{'values':values,'joints':joints})
+
+    def test_takeover_rejects_outside_calibration_without_goal_write(self):
+        service,bus=self.make_desk()
+        bus.registers[5]['Present_Position']=46
+        self.connect(service)
+        service.submit('enable_control')
+        state=self.settle(service)
+        self.assertIn('接管范围',state['error'])
+        self.assertFalse(state['control_enabled'])
+        self.assertEqual(bus.packets,[])
+        self.assertEqual(bus.writes,[])
+
+    def test_takeover_checks_fault_and_cleans_up_partial_enable(self):
+        service,bus=self.make_desk()
+        self.connect(service)
+        bus.fail_enable=3
+        service.submit('enable_control')
+        state=self.settle(service)
+        self.assertFalse(state['control_enabled'])
+        self.assertEqual({bus.read(i,'Torque_Enable') for i in range(1,7)},{0})
+        self.assertEqual(state['motion_state'],'failed')
+        bus.fail_enable=None
+        bus.registers[5]['Status']=1
+        count=len(bus.packets)
+        service.submit('enable_control')
+        self.assertIn('报警',self.settle(service)['error'])
+        self.assertEqual(len(bus.packets),count)
+
+    def test_stop_during_takeover_prevents_remaining_enable_writes(self):
+        from threading import Event
+        entered,proceed=Event(),Event()
+        class PausedArm(FakeArm):
+            def sync_positions(self,targets):
+                super().sync_positions(targets)
+                entered.set()
+                proceed.wait(2)
+        service,bus=self.make_desk(PausedArm())
+        self.connect(service)
+        service.submit('enable_control')
+        self.assertTrue(entered.wait(2))
+        service.submit('stop')
+        proceed.set()
+        state=self.settle(service)
+        self.assertFalse(state['control_enabled'])
+        self.assertFalse(state['torque_on'])
+        self.assertFalse(any(r=='Torque_Enable' and v==1 for _,r,v in bus.writes))
+
+    def test_missing_home_and_reverse_mapping_do_not_limit_manual_control(self):
+        with tempfile.TemporaryDirectory() as d:
+            path=Path(d)/'reversed.json'
+            data=json.loads((ROOT/'calibration/scs215_so101.json').read_text())
+            data['wrist_roll']['drive_mode']=1
+            path.write_text(json.dumps(data))
+            bus=FakeArm()
+            service=ArmDeskService(path,Path(d)/'absent-home.json',backend_factory=lambda *_:bus,idle_poll_seconds=.02)
+            self.addCleanup(service.close)
+            self.connect(service)
+            service.submit('enable_control')
+            self.assertTrue(self.settle(service)['control_enabled'])
+            service.submit('move',{'values':[.5,.5,.5,.5,.8,.5]})
+            state=self.settle(service)
+            self.assertIsNone(state['error'])
+            self.assertEqual(bus.packets[-1][5],service.calibration['wrist_roll'].position(.8))
+            self.assertAlmostEqual(state['joints'][4]['ratio'],.8,delta=.001)
+            self.assertEqual((state['calibration'][4]['safe_min'],state['calibration'][4]['safe_max']),(954,67))
+
+    def test_hold_is_written_and_verified_before_any_torque_enable(self):
+        class OrderedArm(FakeArm):
+            def write(self,sid,register,value):
+                if register=='Torque_Enable' and value==1:
+                    assert self.packets
+                    assert all(self.read(i,'Goal_Position')==self.packets[0][i] for i in range(1,7))
+                super().write(sid,register,value)
+        service,bus=self.make_desk(OrderedArm())
+        self.connect(service)
+        service.submit('enable_control')
+        self.assertTrue(self.settle(service)['control_enabled'])
+
+    def test_motion_timeout_releases_and_requires_new_takeover(self):
+        service,bus=self.make_desk()
+        self.connect(service)
+        service.submit('enable_control');self.settle(service)
+        bus.follow=False
+        service.arm.timeout=.15
+        service.submit('move',{'values':[.5]*6})
+        state=self.settle(service)
+        self.assertIsNotNone(state['error'])
+        self.assertFalse(state['control_enabled'])
+        self.assertFalse(state['torque_on'])
+        self.assertEqual(state['motion_state'],'failed')
+
+    def test_jog_requires_actual_small_step_arrival(self):
+        service,bus=self.make_desk()
+        self.connect(service)
+        service.submit('enable_control');self.settle(service)
+        bus.follow=False
+        service.arm.timeout=.15
+        service.submit('jog',{'joint':'wrist_roll','delta':5})
+        state=self.settle(service)
+        self.assertIn('点动未到位',state['error'])
+        self.assertFalse(state['control_enabled'])
+        self.assertFalse(state['torque_on'])
 
     def test_gravity_drift_homes_without_commanding_below_hardware_limit(self):
         service,bus=self.make_desk()
@@ -129,7 +306,7 @@ class DeskTests(unittest.TestCase):
             self.assertEqual(len([p for p in (Path(d)/'calibration').glob('scs215_manual_*.json') if not p.name.endswith('.meta.json')]),1)
             self.assertEqual(bus.writes,[])
 
-    def test_new_calibration_stays_read_only_until_matching_home_is_taught(self):
+    def test_manual_control_works_without_matching_home(self):
         with tempfile.TemporaryDirectory() as d:
             base=Path(d)
             data=json.loads((ROOT/'calibration/scs215_so101.json').read_text())
@@ -146,6 +323,14 @@ class DeskTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError,'匹配起点'):
                 service.submit('home')
             self.assertEqual(bus.writes,[])
+            service.submit('enable_control')
+            self.assertTrue(self.settle(service)['control_enabled'])
+            service.submit('move',{'values':[.5]*6})
+            self.assertIsNone(self.settle(service)['error'])
+            service.submit('stop');self.settle(service)
+            # Reset the fake pose to a teachable demonstration pose.
+            for sid,pos in enumerate((360,174,664,162,789,420),1):
+                bus.registers[sid]['Present_Position']=pos
             with patch('eai_robot.arm.desk_service.ROOT',base):
                 service.submit('teach_home')
                 state=self.settle(service)
@@ -170,6 +355,12 @@ class DeskTests(unittest.TestCase):
         self.assertIn('data-demo="transfer"',html)
         with urlopen(base+'/api/state') as response:
             self.assertEqual(len(json.load(response)['calibration']),6)
+        with patch('eai_robot.arm.desk_server.discover_ports',return_value=[{'device':'FAKE','description':'USB serial','manufacturer':'test'}]):
+            with urlopen(base+'/api/ports') as response:
+                self.assertEqual(json.load(response)['ports'][0]['device'],'FAKE')
+        with patch('eai_robot.arm.desk_server.discover_ports',return_value=[]):
+            with urlopen(base+'/api/ports') as response:
+                self.assertEqual(json.load(response)['ports'],[])
         data=json.dumps({'action':'connect','payload':{'backend':'serial','port':'FAKE','baudrate':1_000_000}}).encode()
         with self.assertRaises(HTTPError) as error:
             urlopen(Request(base+'/api/action',data=data,headers={'Content-Type':'application/json'}))

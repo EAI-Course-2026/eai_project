@@ -3,74 +3,85 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#121d26">
-  <title>SO101 · 六关节控制台</title>
+  <meta name="theme-color" content="#202329">
+  <title>SO101 · 机械臂工作台</title>
   <link rel="stylesheet" href="/app.css">
   <script src="/app.js" defer></script>
 </head>
 <body>
   <div class="app-shell">
-    <header class="topbar">
-      <div class="brand"><span class="brand-symbol">S<span class="brand-dot">●</span></span><span>SO101<span class="brand-sub">/ CONTROL DESK</span></span></div>
-      <div class="header-right"><span class="eyebrow">SCS215 · 6 AXES</span><span id="connection-badge" class="status-pill"><i></i> 未连接</span></div>
-    </header>
-
-    <main>
-      <section class="hero">
-        <div>
-          <p class="kicker">PHYSICAL INTELLIGENCE LAB / 02</p>
-          <h1>让六个关节，<br><em>听从你的指尖。</em></h1>
-          <p class="hero-copy">先连接，再进入已校准的统一起点。拖动六个滑杆设置目标，一次发送六台舵机；也可以直接播放已验证的演示动作。</p>
-        </div>
-        <div class="hero-meter" aria-label="当前连接摘要">
-          <div class="meter-mark">06<span> / 06</span></div>
-          <span class="meter-line"></span>
-          <p id="hero-state">等待连接机械臂</p>
-          <small>端口只在本机使用 · 页面关闭后自动释放扭矩</small>
-        </div>
-      </section>
-
-      <div class="status-ribbon" role="status" aria-live="polite"><span class="ribbon-bullet"></span><span id="status-text">等待连接</span><span id="motion-label">READ ONLY</span></div>
-
-      <section class="workspace-grid">
-        <div class="main-column">
-          <div class="section-head"><div><span class="section-index">01 / SETUP</span><h2>连接设备</h2></div><p>连接时只读取 ID、型号和状态，不会移动。</p></div>
-          <div class="panel connection-panel">
-            <div class="form-field port-field"><label for="device-port">串口设备</label><input id="device-port" type="text" spellcheck="false" autocomplete="off" placeholder="串口名称，例如 COM5"></div>
-            <div class="form-field"><label for="backend">控制后端</label><select id="backend"><option value="serial">原生串口 · pyserial</option><option value="lerobot">LeRobot · SCS215 适配</option></select></div>
-            <div class="form-field baud-field"><label for="baudrate">波特率</label><select id="baudrate"><option value="1000000">1,000,000</option><option value="500000">500,000</option><option value="250000">250,000</option><option value="115200">115,200</option></select></div>
-            <button id="connect-btn" class="button button-dark">连接机械臂 <span aria-hidden="true">↗</span></button>
-            <button id="disconnect-btn" class="button button-ghost" disabled>断开</button>
+    <aside class="navigation">
+      <div class="brand"><!-- Official Hugging Face monochrome SVG: https://huggingface.co/brand -->
+      <span class="brand-symbol brand-hf"><img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTUwMCIgaGVpZ2h0PSIxNTAwIiB2aWV3Qm94PSIwIDAgMTUwMCAxNTAwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8cGF0aCBmaWxsLXJ1bGU9ImV2ZW5vZGQiIGNsaXAtcnVsZT0iZXZlbm9kZCIgZD0iTTEzNDguNzIgMTE2OC4zN0MxMzYwLjAzIDExNDIuNjcgMTM2MS4xMyAxMTEzLjc0IDEzNTEuOTQgMTA4Ny41NUMxMzYxLjA4IDEwNjQuNTggMTM2Mi41MiAxMDM4Ljg3IDEzNTYuMzMgMTAxNC45N0MxMzUzLjEgMTAwMi42MyAxMzQ3Ljk1IDk5MS4xNzUgMTM0MS4xMiA5ODAuOTY1QzEzNDIuNTIgOTc2LjAyOSAxMzQzLjYgOTcwLjkyOSAxMzQ0LjM2IDk2NS42NTlDMTM0OS40NCA5MzAuMzc4IDEzMzcuMzggODk2LjQwOCAxMzEzLjU5IDg3MC40MDNDMTMwMi44MyA4NTguNjQgMTI4OS45MSA4NDkuODk0IDEyNzUuOTcgODQ0LjEwNUMxMjg0LjQ0IDgwNS44ODggMTI4OC45IDc2Ni4xODUgMTI4OC45IDcyNS40NzVDMTI4OC45IDQyNS4xMiAxMDQ2LjMzIDE4MS4zNiA3NDYuNzcyIDE4MS4zNkM0NDcuMjEzIDE4MS4zNiAyMDQuNjQ0IDQyNS4xMiAyMDQuNjQ0IDcyNS40NzVDMjA0LjY0NCA3NjcuMTM2IDIwOS4zMTcgODA3Ljc0MyAyMTguMTc2IDg0Ni43ODFDMjA2LjQ2IDg1Mi40ODIgMTk1LjYxOCA4NjAuMzU0IDE4Ni40MzEgODcwLjQwM0MxNjIuNjUgODk2LjQwNiAxNTAuNTg1IDkzMC4zODQgMTU1LjY1OCA5NjUuNjU5QzE1Ni40MTUgOTcwLjkyNiAxNTcuNTA1IDk3Ni4wMzEgMTU4LjkwNCA5ODAuOTY1QzE1Mi4wNzQgOTkxLjE3NSAxNDYuOTIyIDEwMDIuNjMgMTQzLjY5MiAxMDE0Ljk3QzEzNy40NDUgMTAzOC44MiAxMzguOTU4IDEwNjQuNjMgMTQ4LjA3OCAxMDg3LjU0QzEzOC44ODggMTExMy43NCAxMzkuOTkyIDExNDIuNjggMTUxLjMwMSAxMTY4LjM3QzE3MS42MDUgMTIxNC40OSAyMTguODEzIDEyNDMuMjEgMjgzLjYxNCAxMjY5QzM1NS42NTQgMTI5Ny42OCA0MzUuMjI5IDEzMTguNjQgNTE2LjcxNSAxMzE4LjY0QzU4Mi41MzIgMTMxOC42NCA2MzkuNzM3IDEzMDIuNjIgNjgxLjUwOSAxMjY1LjY4QzcwMi45MTkgMTI2OC4yNiA3MjQuNjk5IDEyNjkuNTkgNzQ2Ljc3MiAxMjY5LjU5Qzc3MC43OTcgMTI2OS41OSA3OTQuNDc1IDEyNjguMDIgODE3LjcwNiAxMjY0Ljk3Qzg1OS41MjcgMTMwMi4zOSA5MTcuMDQ4IDEzMTguNjQgOTgzLjMwNSAxMzE4LjY0QzEwNjUuMTEgMTMxOC42NCAxMTQ0LjEgMTI5Ny43OSAxMjE2LjQxIDEyNjlDMTI4MS4yMSAxMjQzLjIxIDEzMjguNDIgMTIxNC40OSAxMzQ4LjcyIDExNjguMzdaTTEyMDEuNDggMTIzMS41QzEyNjUuNTIgMTIwNi4wMSAxMjk4LjUgMTE4Mi4yNiAxMzExLjc3IDExNTIuMTFDMTMyMS4xMSAxMTMwLjg5IDEzMTkuNDYgMTEwNi40MSAxMzA3LjAyIDEwODYuODRDMTMyMy41MiAxMDYxLjU0IDEzMjAuMzYgMTAzNi45OCAxMzE3LjI4IDEwMjUuMTlDMTMxMy4zNCAxMDEwLjE1IDEzMDUuMiA5OTcuNjQ0IDEyOTQuMTQgOTg4LjY2MUMxMjk5LjM4IDk3OS45MTIgMTMwMi44OSA5NzAuNDYxIDEzMDQuNDEgOTU5LjkxOEMxMzA3LjU5IDkzNy43NzkgMTMwMC4yOCA5MTUuNjUzIDEyODMuODEgODk3LjY0OEMxMjc4LjU2IDg5MS45MDMgMTI3Mi4zNiA4ODcuMjYgMTI2NS41OSA4ODMuNzYzQzEyNTMuNDUgODc3LjQ5IDEyMzkuNDQgODc0LjkwNCAxMjI1LjY3IDg3Ni4yNkMxMjI5LjgzIDg2Mi45NCAxMjMzLjQ1IDg0OS4zOCAxMjM2LjUxIDgzNS42MDlDMTI0NC4zOCA4MDAuMTYxIDEyNDguNTMgNzYzLjMwNiAxMjQ4LjUzIDcyNS40NzZDMTI0OC41MyA0NDcuMjYyIDEwMjMuODkgMjIxLjcyNiA3NDYuNzcyIDIyMS43MjZDNDY5LjY1NiAyMjEuNzI2IDI0NS4wMSA0NDcuMjYyIDI0NS4wMSA3MjUuNDc2QzI0NS4wMSA3NjMuNDQgMjQ5LjE5MyA4MDAuNDI0IDI1Ny4xMjIgODM1Ljk4OEMyNjAuMTM1IDg0OS41MDYgMjYzLjY5IDg2Mi44MTggMjY3Ljc2MiA4NzUuOTAxQzI1NC4wNzQgODc1Ljc5MSAyNDAuMzkyIDg3OS42MDQgMjI4LjkzIDg4Ni45NjFDMjI0LjI3NiA4ODkuOTQ4IDIxOS45ODggODkzLjUxOSAyMTYuMjE0IDg5Ny42NDhDMTk5Ljc0MyA5MTUuNjUzIDE5Mi40MjcgOTM3Ljc3OSAxOTUuNjEzIDk1OS45MThDMTk3LjEyOCA5NzAuNDYxIDIwMC42MzcgOTc5LjkxMiAyMDUuODgxIDk4OC42NjFDMTk0LjgyMyA5OTcuNjQ0IDE4Ni42NzggMTAxMC4xNSAxODIuNzQyIDEwMjUuMTlDMTc5LjY2IDEwMzYuOTggMTc2LjUwMSAxMDYxLjU0IDE5Mi45OTcgMTA4Ni44NEMxODAuNTY0IDExMDYuNDEgMTc4LjkwOCAxMTMwLjg5IDE4OC4yNDUgMTE1Mi4xMUMyMDEuNTE3IDExODIuMjYgMjM0LjQ5OCAxMjA2LjAxIDI5OC41NDIgMTIzMS41QzM2Ny42MzYgMTI1OSA0NDEuOTc4IDEyNzguMjcgNTE2LjcxNSAxMjc4LjI3QzU4NC40MzIgMTI3OC4yNyA2MzQuOTYzIDEyNTkuNjcgNjY3LjIzOSAxMjIyLjkzQzY5My4xNDIgMTIyNy4wNyA3MTkuNzA3IDEyMjkuMjMgNzQ2Ljc3MiAxMjI5LjIzQzc3NS44MTEgMTIyOS4yMyA4MDQuMjc1IDEyMjYuNzUgODMxLjk2NCAxMjIxLjk5Qzg2NC4yMDEgMTI1OS4zNiA5MTUuMDE0IDEyNzguMjggOTgzLjMwNSAxMjc4LjI4QzEwNTguMzYgMTI3OC4yOCAxMTMyLjExIDEyNTkuMTEgMTIwMS40OCAxMjMxLjVaIiBmaWxsPSJibGFjayIvPgo8cGF0aCBkPSJNNjM1LjIyMSAxMTc5LjY5QzY3MC44NTYgMTEyNy4yMyA2NjguMzMxIDEwODcuODUgNjE5LjQzNyAxMDM4Ljc5QzU3MC41NDIgOTg5LjczOSA1NDIuMDgxIDkxNy45NzkgNTQyLjA4MSA5MTcuOTc5QzU0Mi4wODEgOTE3Ljk3OSA1MzEuNDUgODc2LjMwMSA1MDcuMjM2IDg4MC4xMzZDNDgzLjAyMiA4ODMuOTcxIDQ2NS4yNDQgOTQ2LjI1NCA1MTUuOTY0IDk4NC4zNTdDNTY2LjY4NCAxMDIyLjQ1IDUwNS44NjQgMTA0OC4zMyA0ODYuMzUgMTAxMi41NUM0NjYuODM2IDk3Ni43NzggNDEzLjU1MiA4ODQuODAzIDM4NS45MiA4NjcuMjE0QzM1OC4zIDg0OS42MjUgMzM4Ljg1MSA4NTkuNDc5IDM0NS4zNjUgODk1LjczNkMzNTEuODc4IDkzMS45OTMgNDY3LjM5MyAxMDE5Ljg3IDQ1Ni4xNTQgMTAzOC44OUM0NDQuOTE0IDEwNTcuOSA0MDUuMzA0IDEwMTYuNTUgNDA1LjMwNCAxMDE2LjU1QzQwNS4zMDQgMTAxNi41NSAyODEuMzU5IDkwMy4zMDIgMjU0LjM3NCA5MzIuODEyQzIyNy4zODkgOTYyLjMyMiAyNzQuODQ2IDk4Ny4wNDggMzQyLjQ3NyAxMDI4LjE1QzQxMC4xMjEgMTA2OS4yNSA0MTUuMzY1IDEwODAuMSA0MDUuNzcgMTA5NS42NUMzOTYuMTYyIDExMTEuMiAyNDYuODY0IDk4NC44MjUgMjMyLjg0IDEwMzguNEMyMTguODMgMTA5MS45NyAzODUuMjA4IDExMDcuNTIgMzc0LjkzOSAxMTQ0LjVDMzY0LjY3MSAxMTgxLjUgMjU3Ljc0MSAxMDc0LjUgMjM1Ljg3IDExMTYuMTlDMjEzLjk4NyAxMTU3Ljg5IDM4Ni43NjIgMTIwNi44OSAzODguMTYgMTIwNy4yNUM0NDMuOTY5IDEyMjEuNzkgNTg1LjcwNSAxMjUyLjU5IDYzNS4yMjEgMTE3OS42OVoiIGZpbGw9ImJsYWNrIi8+CjxwYXRoIGQ9Ik04NjQuODA2IDExNzkuNjlDODI5LjE3MSAxMTI3LjIzIDgzMS42OTYgMTA4Ny44NSA4ODAuNTkxIDEwMzguNzlDOTI5LjQ4NSA5ODkuNzM5IDk1Ny45NDYgOTE3Ljk3OSA5NTcuOTQ2IDkxNy45NzlDOTU3Ljk0NiA5MTcuOTc5IDk2OC41NzcgODc2LjMwMSA5OTIuNzkxIDg4MC4xMzZDMTAxNy4wMSA4ODMuOTcxIDEwMzQuNzggOTQ2LjI1NCA5ODQuMDY0IDk4NC4zNTdDOTMzLjM0NCAxMDIyLjQ1IDk5NC4xNjQgMTA0OC4zMyAxMDEzLjY4IDEwMTIuNTVDMTAzMy4xOSA5NzYuNzc4IDEwODYuNDcgODg0LjgwMyAxMTE0LjExIDg2Ny4yMTRDMTE0MS43MyA4NDkuNjI1IDExNjEuMTggODU5LjQ3OSAxMTU0LjY2IDg5NS43MzZDMTE0OC4xNSA5MzEuOTkzIDEwMzIuNjMgMTAxOS44NyAxMDQzLjg3IDEwMzguODlDMTA1NS4xMSAxMDU3LjkgMTA5NC43MiAxMDE2LjU1IDEwOTQuNzIgMTAxNi41NUMxMDk0LjcyIDEwMTYuNTUgMTIxOC42NyA5MDMuMzAyIDEyNDUuNjUgOTMyLjgxMkMxMjcyLjY0IDk2Mi4zMjIgMTIyNS4xOCA5ODcuMDQ4IDExNTcuNTUgMTAyOC4xNUMxMDg5LjkxIDEwNjkuMjUgMTA4NC42NiAxMDgwLjEgMTA5NC4yNiAxMDk1LjY1QzExMDMuODcgMTExMS4yIDEyNTMuMTYgOTg0LjgyNSAxMjY3LjE5IDEwMzguNEMxMjgxLjIgMTA5MS45NyAxMTE0LjgyIDExMDcuNTIgMTEyNS4wOSAxMTQ0LjVDMTEzNS4zNiAxMTgxLjUgMTI0Mi4yOSAxMDc0LjUgMTI2NC4xNiAxMTE2LjE5QzEyODYuMDQgMTE1Ny44OSAxMTEzLjI3IDEyMDYuODkgMTExMS44NyAxMjA3LjI1QzEwNTYuMDYgMTIyMS43OSA5MTQuMzIyIDEyNTIuNTkgODY0LjgwNiAxMTc5LjY5WiIgZmlsbD0iYmxhY2siLz4KPHBhdGggZD0iTTY3NS45MTMgODUzLjIwMUM2NzkuNjc0IDg1NS4zOSA2ODMuNzY2IDg1Ny41MjQgNjg4Ljg5MSA4NjAuMDAxQzcwNS41OSA4NjguMDc0IDcyNS44NzggODczLjEwNiA3NTAuNTY0IDg3My4xMDZDNzc3LjM2NiA4NzMuMTA2IDc5OS4wMTUgODY3LjE3NSA4MTYuNTMgODU3LjgxOUM4MjEuMTkzIDg1NS4zMjggODI1LjMwNSA4NTIuNzc5IDgyOC43MDEgODUwLjUyQzgxOC4yODYgODQxLjE0MiA4MDYuMTE2IDgzMy42ODggNzkyLjc0NyA4MjguNzE3Qzc5MS4xNzIgODI4LjEzMSA3ODkuNTggODI3LjU4IDc4Ny45NzMgODI3LjA2NEM3ODIuNDYgODI1LjI5NSA3NzYuNzYxIDgzNC4xNDggNzcwLjkxNSA4NDMuMjMyQzc2NS4zMTcgODUxLjkyOSA3NTkuNTgyIDg2MC44MzggNzUzLjc0NCA4NjAuODM4Qzc0OC4yNjggODYwLjgzOCA3NDIuODgyIDg1MS44MDIgNzM3LjYxNSA4NDIuOTY0QzczMi4xNTcgODMzLjgwNCA3MjYuODI0IDgyNC44NTcgNzIxLjY0OSA4MjYuNDAzQzcwNC4yNjYgODMxLjU5OSA2ODguNjQ4IDg0MC45MDYgNjc1LjkxMyA4NTMuMjAxWiIgZmlsbD0iYmxhY2siLz4KPHBhdGggZmlsbC1ydWxlPSJldmVub2RkIiBjbGlwLXJ1bGU9ImV2ZW5vZGQiIGQ9Ik04NDkuNjk1IDI4NS41OTlDODE2LjY0MSAyNzcuODMzIDc4Mi4xODQgMjczLjcyNyA3NDYuNzcyIDI3My43MjdDNjg0LjY0NCAyNzMuNzI3IDYyNS40NTggMjg2LjM2OCA1NzEuNjI0IDMwOS4yMjdDNDQ4Ljk5OCAzNjEuMjk5IDM1NC4xNSA0NjYuMzk0IDMxNS41OTMgNTk1Ljg4M0MzMDMuMzcgNjM2LjkzMyAyOTYuODA1IDY4MC40MzUgMjk2LjgwNSA3MjUuNDc2QzI5Ni44MDUgNzYxLjk3NCAzMDEuMTE2IDc5Ny40NjEgMzA5LjI1NSA4MzEuNDUyQzMwOS4zNjYgODMxLjMxNyAzMDkuNDc3IDgzMS4xODMgMzA5LjU4NyA4MzEuMDVDMzIyLjY1MiA4MTUuMzcyIDM0MS4zODkgODA2LjcyNyAzNjIuMzUzIDgwNi43MjdDMzc5LjEzNSA4MDYuNzI3IDM5Ni4zOTUgODEyLjMwNCA0MTMuNjY5IDgyMy4zMDJDNDI1LjEyOCA4MzAuNjA4IDQzNy43OTIgODQzLjU1NiA0NTAuODMyIDg1OS44MzJDNDYyLjkxMyA4NDMuMDEgNDc5LjgyNCA4MzEuODMgNDk5LjE2OSA4MjguNzc1QzUwMi44NzIgODI4LjE5IDUwNi42MjggODI3Ljg5MSA1MTAuMzQ0IDgyNy44OTFINTEwLjM1N0M1NTQuNTI1IDgyNy44OTEgNTgxLjA5NiA4NjYuMzU4IDU5MS4xNDQgOTAwLjk2NEM1OTYuMTI5IDkxMi42NTEgNjIwLjA1OCA5NjUuODk5IDY1Ni4wNTYgMTAwMi4wMUM3MTAuODczIDEwNTcuMDEgNzI0LjU5NSAxMTEzLjc1IDY5Ny40NjEgMTE3NC41NEM3MTMuNjU1IDExNzYuMzIgNzMwLjEwOCAxMTc3LjIzIDc0Ni43NzIgMTE3Ny4yM0M3NDcuNDQ1IDExNzcuMjMgNzQ4LjExNyAxMTc3LjIyIDc0OC43ODkgMTE3Ny4yMkw3NDkuMzA3IDExNzcuMjJMNzUwLjI5IDExNzcuMjFDNzY3Ljg2NSAxMTc3LjA4IDc4NS4yIDExNzUuOTMgODAyLjI0MSAxMTczLjgzQzc3NS41MzQgMTExMy4zMSA3ODkuMzYzIDEwNTYuOCA4NDMuOTY0IDEwMDIuMDFDODc5Ljk2MiA5NjUuODk5IDkwMy44OTEgOTEyLjY1MSA5MDguODc2IDkwMC45NjRDOTE4LjkyNCA4NjYuMzU4IDk0NS40OTUgODI3Ljg5MSA5ODkuNjYzIDgyNy44OTFIOTg5LjY3NkM5OTMuMzkyIDgyNy44OTEgOTk3LjE0NyA4MjguMTkgMTAwMC44NSA4MjguNzc1QzEwMjAuMiA4MzEuODMgMTAzNy4xMSA4NDMuMDEgMTA0OS4xOSA4NTkuODMyQzEwNjIuMjMgODQzLjU1NiAxMDc0Ljg5IDgzMC42MDggMTA4Ni4zNSA4MjMuMzAyQzExMDMuNjIgODEyLjMwNCAxMTIwLjg5IDgwNi43MjcgMTEzNy42NyA4MDYuNzI3QzExNTYuMTcgODA2LjcyNyAxMTcyLjk0IDgxMy40NiAxMTg1LjYgODI1LjgxOUMxMTkyLjg5IDc5My41NDcgMTE5Ni43NCA3NTkuOTYzIDExOTYuNzQgNzI1LjQ3NkMxMTk2Ljc0IDcwOS44ODMgMTE5NS45NSA2OTQuNDc0IDExOTQuNDIgNjc5LjI4OEMxMTc0Ljg4IDQ4Ni4xMTUgMTAzNC4xMSAzMjguOTIyIDg0OS42OTUgMjg1LjU5OVpNNjUyLjkzIDg4NC43NDRDNjAzLjM5NCA4NDMuMzM3IDU4MS42NzcgNzgxLjk3OSA1ODEuNjc3IDc0Mi4wNjhDNTgxLjY3NyA3MTEuMTAxIDYwMi43OTcgNzIxLjYwNSA2MzYuNDY3IDczOC4zNUM2NjYuNDAyIDc1My4yMzggNzA2LjI1NiA3NzMuMDU5IDc1MC4wMSA3NzMuMDU5Qzc5My43NjMgNzczLjA1OSA4MzMuNjE4IDc1My4yMzggODYzLjU1MyA3MzguMzVDODk3LjIyMyA3MjEuNjA1IDkxOC4zNDMgNzExLjEwMSA5MTguMzQzIDc0Mi4wNjhDOTE4LjM0MyA3ODAuNCA5MDAuNzEgODQyLjUyOSA4NTIuNzQ1IDg4MC44MDlDODI3LjU2NyA5MDAuNzI4IDc5NC4wOTMgOTE0LjQ4NSA3NTAuNTA5IDkxNC40ODVDNzA5LjU2IDkxNC40ODUgNjc3LjUzNCA5MDIuNjkxIDY1Mi45MyA4ODQuNzQ0Wk05MTkuNzI2IDYxOS44MDlDOTE0Ljc2MSA2MTIuNTkxIDkwOS41NDEgNjA1LjAwMiA5MDIuNTIzIDYwMi41MTRDODk2LjA0IDYwMC4yMTYgODg3LjU0OSA2MDMuNjI2IDg3OS4zOTUgNjA2LjkwMUM4NjguOTk0IDYxMS4wNzggODU5LjE0MiA2MTUuMDM1IDg1NC43MDEgNjA2LjY0OUM4MzcuOTE0IDU3NC45NTMgODQ5Ljg5OSA1MzUuNTk1IDg4MS40NzEgNTE4Ljc0MkM5MTMuMDQyIDUwMS44ODkgOTUyLjI0NCA1MTMuOTIyIDk2OS4wMzEgNTQ1LjYxOEM5ODUuODE4IDU3Ny4zMTUgOTczLjgzMyA2MTYuNjcyIDk0Mi4yNjEgNjMzLjUyNUM5MzIuNjggNjM4LjY0IDkyNi40MzcgNjI5LjU2NCA5MTkuNzI2IDYxOS44MDlaTTU5Ny40OTQgNjAyLjUxNEM1OTAuNDc3IDYwNS4wMDIgNTg1LjI1NiA2MTIuNTkxIDU4MC4yOTEgNjE5LjgwOUM1NzMuNTgxIDYyOS41NjQgNTY3LjMzNyA2MzguNjQgNTU3Ljc1NiA2MzMuNTI1QzUyNi4xODUgNjE2LjY3MiA1MTQuMiA1NzcuMzE1IDUzMC45ODYgNTQ1LjYxOEM1NDcuNzczIDUxMy45MjIgNTg2Ljk3NSA1MDEuODg5IDYxOC41NDcgNTE4Ljc0MkM2NTAuMTE4IDUzNS41OTUgNjYyLjEwMyA1NzQuOTUzIDY0NS4zMTcgNjA2LjY0OUM2NDAuODc2IDYxNS4wMzUgNjMxLjAyMyA2MTEuMDc4IDYyMC42MjMgNjA2LjkwMUM2MTIuNDY4IDYwMy42MjYgNjAzLjk3NyA2MDAuMjE2IDU5Ny40OTQgNjAyLjUxNFpNMTA5My4xNSA2MjEuNDc3QzEwOTMuMTUgNjQ0LjgxMSAxMDc0LjMxIDY2My43MjcgMTA1MS4wNyA2NjMuNzI3QzEwMjcuODMgNjYzLjcyNyAxMDA4Ljk4IDY0NC44MTEgMTAwOC45OCA2MjEuNDc3QzEwMDguOTggNTk4LjE0MyAxMDI3LjgzIDU3OS4yMjcgMTA1MS4wNyA1NzkuMjI3QzEwNzQuMzEgNTc5LjIyNyAxMDkzLjE1IDU5OC4xNDMgMTA5My4xNSA2MjEuNDc3Wk00NDguOTUgNjYzLjcyN0M0NzIuMTkyIDY2My43MjcgNDkxLjAzMyA2NDQuODExIDQ5MS4wMzMgNjIxLjQ3N0M0OTEuMDMzIDU5OC4xNDMgNDcyLjE5MiA1NzkuMjI3IDQ0OC45NSA1NzkuMjI3QzQyNS43MDggNTc5LjIyNyA0MDYuODY2IDU5OC4xNDMgNDA2Ljg2NiA2MjEuNDc3QzQwNi44NjYgNjQ0LjgxMSA0MjUuNzA4IDY2My43MjcgNDQ4Ljk1IDY2My43MjdaIiBmaWxsPSJibGFjayIvPgo8L3N2Zz4K" alt="Hugging Face" width="35" height="35"></span><div>SO101<small>ROBOT WORKSPACE</small></div></div>
+      <div class="nav-caption">工作台</div>
+      <nav aria-label="工作台导航"><button id="control-tab" class="nav-item active" aria-current="page" aria-controls="control-view" data-view="control"><span aria-hidden="true">⊞</span>关节控制<span class="nav-count">06</span></button><button id="cartesian-tab" class="nav-item" aria-controls="cartesian-view" data-view="cartesian"><span aria-hidden="true">↗</span>末端控制<span class="nav-count">XYZ</span></button><button id="calibration-tab" class="nav-item" aria-controls="calibration-view" data-view="calibration"><span aria-hidden="true">⊟</span>校准与示教</button></nav>
+      <div class="nav-device"><span class="device-dot"></span><div>SO101 / SCS215<small>六轴桌面机械臂</small></div></div>
+      <div class="nav-footer">PHYSICAL INTELLIGENCE<small>LOCAL CONTROL DESK</small></div>
+    </aside>
+    <div class="workspace">
+      <header class="topbar"><div class="breadcrumb">工作台 <span>/</span> <strong id="page-name">关节控制</strong></div><div class="header-right"><span class="local-label">本机控制</span><span id="connection-badge" class="status-pill"><i></i> 未连接</span><button id="pause-btn" class="button button-ghost" disabled>暂停运动</button><button id="stop-btn" class="stop-button" disabled><span aria-hidden="true">■</span> 释放扭矩 / 急停</button></div></header>
+      <main>
+        <div class="page-heading"><div><p class="kicker">ARM CONTROL / SO101</p><h1 id="page-title">关节控制</h1><p id="hero-state">等待连接机械臂</p></div><div class="workflow"><span id="step-connect">01 连接</span><i></i><span id="step-enable">02 接管</span><i></i><span id="step-control">03 控制</span></div></div>
+        <section class="panel connection-panel" aria-label="设备连接"><div id="connection-summary" hidden><strong>设备已连接</strong><small id="connection-summary-port"></small></div>
+          <div class="form-field port-field"><label for="port-select">可用串口 <button id="refresh-ports-btn" class="port-refresh" type="button">刷新</button></label><select id="port-select" aria-label="可用串口"><option value="">正在扫描串口…</option></select><label class="manual-port-label" for="device-port">连接地址 · 可手动输入</label><input id="device-port" type="text" spellcheck="false" autocomplete="off" placeholder="例如 COM5 或 /dev/tty.usbmodem…"></div>
+          <div class="form-field"><label for="backend">控制后端</label><select id="backend"><option value="serial">原生串口</option><option value="lerobot">LeRobot · SCS215</option></select></div>
+          <div class="form-field baud-field"><label for="baudrate">波特率</label><select id="baudrate"><option value="1000000">1,000,000</option><option value="500000">500,000</option><option value="250000">250,000</option><option value="115200">115,200</option></select></div>
+          <button id="connect-btn" class="button button-dark">连接设备 <span aria-hidden="true">→</span></button><button id="disconnect-btn" class="button button-ghost" disabled>断开</button>
+        </section>
+        <div class="status-ribbon" role="status" aria-live="polite"><span class="ribbon-bullet"></span><span id="status-text">等待连接</span><span id="motion-label">只读待机</span></div>
+        <div class="workspace-grid">
+          <div class="main-column">
+            <section id="control-view" aria-labelledby="control-tab">
+              <div class="panel arm-panel"><div class="panel-heading"><div><h2>六关节控制</h2><p>先点「开始控制」，再调整关节。只移动你修改的关节，其余保持原位。</p></div><span class="tag">NORMALIZED 0–1</span></div>
+                <div class="arm-panel-top"><span id="control-hint">连接设备后，从当前姿态启用控制</span><div class="arm-panel-actions"><button id="enable-btn" class="button button-primary" disabled>开始控制（保持当前姿态）</button><button id="reset-target-btn" class="button button-plain" disabled>重置为当前姿态</button></div></div>
+                <div class="axis-header"><span>关节 / ID</span><span>目标位置 / 点动</span><span>实时反馈</span></div><div id="axis-list" class="axis-list"></div>
+                <div class="arm-panel-bottom"><p id="target-state">尚未启用控制</p><button id="send-btn" class="button button-primary" disabled>发送修改的关节 <span aria-hidden="true">→</span></button></div>
+              </div>
+              <details class="optional-motion"><summary>可选：固定起点与演示 · 普通控制无需使用</summary><div class="optional-home"><button id="home-btn" class="button button-ghost" disabled>移动到固定起点</button><p>仅用于预设路径，有额外的起始姿态要求。</p></div><div id="optional-status" role="status" aria-live="polite"></div><div class="section-head"><h2>动作演示</h2><p>自动归位 → 执行动作 → 返回起点</p></div>
+              <div class="demo-grid">
+                <article class="demo-card"><span class="demo-glyph" aria-hidden="true">↔</span><div><h3>夹爪开合</h3><p>夹爪两端往返，逐步停留</p></div><button data-demo="gripper" class="demo-button" aria-label="开始夹爪开合演示" disabled>↗</button></article>
+                <article class="demo-card"><span class="demo-glyph" aria-hidden="true">⤨</span><div><h3>左右展示</h3><p>底座、腕部与夹爪联动</p></div><button data-demo="showcase" class="demo-button" aria-label="开始左右展示演示" disabled>↗</button></article>
+                <article class="demo-card"><span class="demo-glyph" aria-hidden="true">⌁</span><div><h3>空载转运</h3><p>A 侧夹持，B 侧模拟释放</p></div><button data-demo="transfer" class="demo-button" aria-label="开始空载转运演示" disabled>↗</button></article>
+              </div>
+              </details>
+            </section>
+            <section id="cartesian-view" hidden aria-labelledby="cartesian-tab">
+              <div class="panel tcp-panel">
+                <div class="panel-heading"><div><h2>末端位置</h2><p>底座坐标系 · mm · 编码器经过模型推算</p></div><span class="tag">POSITION / XYZ</span></div>
+                <div class="tcp-readings"><div><span>X</span><strong id="tcp-x">—</strong></div><div><span>Y</span><strong id="tcp-y">—</strong></div><div><span>Z</span><strong id="tcp-z">—</strong></div></div>
+                <div class="tcp-feedback"><span id="tcp-target">目标 —</span><span id="tcp-error">跟随误差 —</span></div>
+                <div class="tcp-enable"><p id="tcp-hint">连接设备后，从当前姿态接管；无需归位。</p><button id="tcp-enable-btn" class="button button-primary" disabled>开始控制（保持当前姿态）</button></div>
+              </div>
+              <div class="panel tcp-drive-panel">
+                <div class="panel-heading"><div><h2>方向移动</h2><p>连续模式按住移动，松开保持；单步模式点击移动一次。</p></div><span class="tag">BASE FRAME</span></div>
+                <div class="tcp-settings"><div class="mode-switch" role="group" aria-label="末端移动方式"><button id="continuous-mode" class="active" aria-pressed="true">连续移动</button><button id="step-mode" aria-pressed="false">单步移动</button></div><label>速度 mm/s <input id="tcp-speed" type="number" min="2" max="30" step="1" value="15"></label><div class="speed-presets"><button data-speed="5">5</button><button data-speed="15" class="active">15</button><button data-speed="30">30</button></div><label id="step-distance-wrap" hidden>单步 mm <select id="tcp-distance"><option>1</option><option selected>5</option><option>10</option></select></label></div>
+                <div class="coordinate-guide"><svg viewBox="0 0 150 62" role="img" aria-label="底座坐标示意：X 前、Y 左、Z 上"><path d="M65 45 L122 45 M65 45 L27 58 M65 45 L65 10" stroke="#8793a0" fill="none"/><path d="M116 41 L123 45 L116 49 M31 53 L26 58 L34 58 M61 16 L65 9 L69 16" stroke="#e76b31" fill="none"/><text x="127" y="49">X</text><text x="12" y="61">Y</text><text x="73" y="14">Z</text><rect x="61" y="41" width="8" height="8" fill="#34414e"/></svg><p>底座坐标示意<br>方向以模型为准，与屏幕视角无关</p></div><div class="tcp-directions"><button data-direction="1,0,0" aria-label="末端 X 正向" disabled><strong>+X</strong><small>W · 前</small></button><button data-direction="0,1,0" aria-label="末端 Y 正向" disabled><strong>+Y</strong><small>A · 左</small></button><button data-direction="0,0,1" aria-label="末端 Z 正向" disabled><strong>+Z</strong><small>R · 上</small></button><button data-direction="-1,0,0" aria-label="末端 X 负向" disabled><strong>−X</strong><small>S · 后</small></button><button data-direction="0,-1,0" aria-label="末端 Y 负向" disabled><strong>−Y</strong><small>D · 右</small></button><button data-direction="0,0,-1" aria-label="末端 Z 负向" disabled><strong>−Z</strong><small>F · 下</small></button></div>
+                <div class="keyboard-bar"><button id="keyboard-btn" class="button button-dark" aria-pressed="false" disabled>开启键盘控制</button><p id="keyboard-hint">W/S：X± · A/D：Y± · R/F：Z±<br>Esc 暂停并保持扭矩 · 空格立即释放扭矩</p></div>
+                <p id="tcp-notice" role="status" aria-live="polite">只控制 XYZ，末端朝向可能变化。方向以底座坐标系为准。</p>
+              </div>
+              <div class="panel tcp-position-panel">
+                <div class="panel-heading"><div><h2>指定位置 · 直线移动</h2><p>先预览整条路径，再执行。路径可解不代表通过碰撞检查。</p></div></div>
+                <div class="xyz-inputs"><label>X / mm<input id="target-x" type="number" step="1"></label><label>Y / mm<input id="target-y" type="number" step="1"></label><label>Z / mm<input id="target-z" type="number" step="1"></label></div>
+                <div class="tcp-position-actions"><button id="tcp-copy" class="button button-ghost" disabled>填入当前位置</button><button id="tcp-preview" class="button button-dark" disabled>预览路径</button><button id="tcp-execute" class="button button-primary" disabled>执行直线移动</button></div>
+                <div id="path-preview" hidden><div class="path-projections"><div><span>XY · 俯视 / mm</span><svg id="path-xy" viewBox="0 0 300 150" role="img" aria-label="直线路径 XY 预览"></svg></div><div><span>XZ · 侧视 / mm</span><svg id="path-xz" viewBox="0 0 300 150" role="img" aria-label="直线路径 XZ 预览"></svg></div></div><p id="path-summary"></p><p id="path-joints"></p></div>
+              </div>
+              <div class="panel tcp-gripper-panel"><div><h2>夹爪 · 独立控制</h2><p>夹爪不参与 XYZ 求解，末端运动期间保持原位。</p></div><button id="tcp-grip-minus" class="button button-ghost" disabled>−5 刻度</button><button id="tcp-grip-plus" class="button button-ghost" disabled>+5 刻度</button><strong id="tcp-grip-feedback">—</strong></div>
+            </section>
+            <section id="calibration-view" hidden aria-labelledby="calibration-tab">
+              <div class="panel calibration-panel"><div class="panel-heading"><div><h2>校准与起点示教</h2><p>采集当前机械臂的位置，另存参数文件。</p></div><span class="tag">READ ONLY CAPTURE</span></div>
+                <div class="calibration-note"><strong>先支撑机械臂，并释放扭矩</strong><p>逐关节摆到安全端点，分别采集 0 和 1。新校准另存为文件，不写入舵机 EEPROM；普通控制可独立启用，归位与演示需要匹配的起点。</p></div><div id="calibration-list" class="calibration-list"></div><div class="calibration-actions"><button id="teach-btn" class="button button-ghost" disabled>采集当前姿态为新起点</button><button id="save-cal-btn" class="button button-primary" disabled>另存 12 个校准端点</button></div>
+              </div>
+            </section>
           </div>
-
-          <div class="section-head control-head"><div><span class="section-index">02 / LIVE CONTROL</span><h2>六关节控制</h2></div><p>滑杆为校准后的 0–1 数值，并限于本台机械臂的演示入口范围。</p></div>
-          <div class="panel arm-panel">
-            <div class="arm-panel-top"><div><span class="mini-eyebrow">CURRENT CONFIGURATION</span><strong>先归位，再控制</strong></div><div class="arm-panel-actions"><button id="home-btn" class="button button-light" disabled>◎ 进入统一起点</button><button id="reset-target-btn" class="button button-plain" disabled>目标 ← 当前反馈</button></div></div>
-            <div class="axis-header"><span>关节 / ID</span><span>校准范围内目标</span><span>反馈刻度</span></div>
-            <div id="axis-list" class="axis-list"></div>
-            <div class="arm-panel-bottom"><p>一次同步发送六个目标。控制范围在校准端点内缩 20 刻度；进入起点前不会启用滑杆运动。</p><button id="send-btn" class="button button-primary" disabled>发送六关节目标 <span aria-hidden="true">→</span></button></div>
-          </div>
-
-          <div class="section-head"><div><span class="section-index">03 / CHOREOGRAPHY</span><h2>一键演示</h2></div><p>每次都先从当前姿态归位，再开始动作。</p></div>
-          <div class="demo-grid">
-            <article class="demo-card"><span class="demo-number">01</span><span class="demo-glyph">↔</span><h3>夹爪开合</h3><p>两端往返，约 310 刻度目标跨度。每步停留，方便近景拍摄。</p><button data-demo="gripper" class="button demo-button" disabled>开始演示 <span>↗</span></button></article>
-            <article class="demo-card"><span class="demo-number">02</span><span class="demo-glyph">⤨</span><h3>左右展示</h3><p>底座与腕部左右转动，配合明显的夹爪变化。</p><button data-demo="showcase" class="button demo-button" disabled>开始演示 <span>↗</span></button></article>
-            <article class="demo-card"><span class="demo-number">03</span><span class="demo-glyph">⌁</span><h3>空载转运</h3><p>A 侧探出、模拟夹持、转到 B 侧并模拟释放。</p><button data-demo="transfer" class="button demo-button" disabled>开始演示 <span>↗</span></button></article>
-          </div>
+          <aside class="side-column">
+            <div class="telemetry-panel panel"><div class="aside-heading"><h2>设备状态</h2><span class="live-label">LIVE</span></div><div class="telemetry-row"><span>舵机在线</span><strong id="online-count">— / 6</strong></div><div class="telemetry-row"><span>控制接管</span><strong id="control-state">未启用</strong></div><div class="telemetry-row"><span>扭矩状态</span><strong id="torque-state">已关闭</strong></div><div class="telemetry-row"><span>统一起点</span><strong id="home-state">未进入</strong></div><div class="telemetry-row"><span>电压范围</span><strong id="voltage-range">—</strong></div><div class="telemetry-row"><span>状态报警</span><strong id="fault-count">—</strong></div></div>
+            <div class="log-panel panel"><div class="aside-heading"><h2>运行记录</h2><span class="tag">EVENTS</span></div><ol id="event-list" aria-live="polite"><li>等待连接机械臂</li></ol></div>
+            <div class="safety-note"><span aria-hidden="true">ⓘ</span><div><strong>操作提醒</strong><p>释放扭矩后请支撑机械臂。串口失联时，直接切断舵机电源。</p><p>目标范围不包含碰撞规划。</p></div></div>
+          </aside>
         </div>
-
-        <aside class="side-column">
-          <div class="safety-panel"><div class="safety-top"><span class="safety-icon">!</span><span>硬件停止</span></div><h2>停止并<br>释放扭矩</h2><p>任何动作中都可请求停止。机械臂退出后需继续支撑。</p><button id="stop-btn" class="stop-button" disabled>■　停止 / 释放扭矩</button><small>如果串口失联，直接切断舵机电源。</small></div>
-          <div class="telemetry-panel"><span class="section-index">LIVE TELEMETRY</span><h3>实时状态</h3><div class="telemetry-row"><span>舵机在线</span><strong id="online-count">— / 6</strong></div><div class="telemetry-row"><span>扭矩</span><strong id="torque-state">关闭</strong></div><div class="telemetry-row"><span>统一起点</span><strong id="home-state">未进入</strong></div><div class="telemetry-row"><span>电压范围</span><strong id="voltage-range">—</strong></div><div class="telemetry-row"><span>状态报警</span><strong id="fault-count">—</strong></div></div>
-          <div class="log-panel"><div class="log-head"><span class="section-index">EVENT LOG</span><h3>运行记录</h3></div><ol id="event-list" aria-live="polite"><li>等待连接机械臂</li></ol></div>
-        </aside>
-      </section>
-
-      <section class="calibration-section"><div class="section-head"><div><span class="section-index">04 / CALIBRATION</span><h2>校准工作台</h2></div><p>只读查看已有参数；另存手动采集，不改写舵机 EEPROM。</p></div>
-        <div class="panel calibration-panel"><div class="calibration-note"><strong>手动端点采集</strong><p>停止并支撑机械臂后，逐关节摆到希望的 0 和 1 安全端点，分别点击采集。新校准会另存为文件；启用前需重新示教匹配的统一起点。</p></div><div id="calibration-list" class="calibration-list"></div><div class="calibration-actions"><button id="save-cal-btn" class="button button-light" disabled>保存 12 个端点为新校准</button><button id="teach-btn" class="button button-plain" disabled>只读采集当前姿态为新起点</button></div></div>
-      </section>
-      <footer>SO101 / SCS215　·　本机控制界面　·　目标不含碰撞规划</footer>
-    </main>
+        <footer><span>SO101 · SCS215 · 6 AXES</span><span>本机连接 · 20 刻度端点余量</span></footer>
+      </main>
+    </div>
   </div>
 </body>
 </html>

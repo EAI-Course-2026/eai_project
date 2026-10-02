@@ -59,7 +59,7 @@ class CartesianLinePlanner:
         self.recovery_iterations = recovery_iterations
         self.minimum_recovery_progress_m = minimum_recovery_progress_m
 
-    def plan(self, start_joint_degrees: Sequence[float], target_position: Sequence[float]) -> CartesianPlan:
+    def plan(self, start_joint_degrees: Sequence[float], target_position: Sequence[float], *, on_step=None) -> CartesianPlan:
         seed = np.asarray(start_joint_degrees, dtype=float).reshape(5)
         start_position = self.fk.forward_kinematics(seed)[:3, 3]
         target = np.asarray(target_position, dtype=float).reshape(3)
@@ -83,6 +83,8 @@ class CartesianLinePlanner:
         previous_requested = start_position.copy()
 
         for index in range(1, number_of_steps + 1):
+            if on_step is not None:
+                on_step()
             requested = start_position + displacement * (index / number_of_steps)
             result = self.ik.solve(requested, seed)
 

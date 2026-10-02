@@ -4,6 +4,10 @@ import time
 from .calibration import JOINTS, MODEL_NUMBER, validate, DEFAULT_FEEDBACK_SLACK, feedback_in_range
 
 
+class MotionPaused(Exception):
+    """Desk-requested cancellation that retains torque after a verified hold."""
+
+
 class ArmController:
     def __init__(self, backend, calibration, margin=0, max_step=5, interval=0.05,
                  velocity=None, tolerance=10, timeout=5.0, motion="direct",
@@ -26,6 +30,7 @@ class ArmController:
         self.progress_timeout = progress_timeout
         self.enabled = False
         self.torque_touched = False
+        self.motion_guard = None
         for cal in calibration.values():
             cal.bounds(margin)
             if cal.range_max - cal.range_min >= 900 and not allow_wide_range:
@@ -238,6 +243,8 @@ class ArmController:
         targets = {cal.id: cal.position(value, self.margin)
                    for cal, value in zip((self.calibration[n] for n in JOINTS), ratios, strict=True)}
         try:
+            if self.motion_guard:
+                self.motion_guard()
             current = self.positions()
             self._check_pose(current)
             if self.motion == "direct":
@@ -250,6 +257,8 @@ class ArmController:
                 delta = max(abs(targets[sid] - current[sid]) for sid in targets)
                 steps = max(1, math.ceil(delta / self.max_step))
                 for step in range(1, steps + 1):
+                    if self.motion_guard:
+                        self.motion_guard()
                     next_pose = {sid: round(start + (targets[sid] - start) * step / steps)
                                  for sid, start in current.items()}
                     self.backend.sync_positions(next_pose)
@@ -263,6 +272,8 @@ class ArmController:
             progress_at = {sid: time.monotonic() for sid in targets}
             best_error = {sid: abs(current[sid] - targets[sid]) for sid in targets}
             while True:
+                if self.motion_guard:
+                    self.motion_guard()
                 feedback = self.positions()
                 self._check_pose(feedback)
                 if all(abs(feedback[sid] - targets[sid]) <= self.tolerance for sid in targets):
@@ -286,6 +297,8 @@ class ArmController:
                     error.targets = dict(targets)
                     raise error
                 time.sleep(self.interval)
+        except MotionPaused:
+            raise
         except BaseException:
             self.disable()
             raise
