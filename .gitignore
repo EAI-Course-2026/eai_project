@@ -29,6 +29,7 @@ dist/
 # Machine-specific hardware configuration
 configs/*.local.toml
 configs/*.local.json
+configs/policy/*.local.json
 
 # Preserved host-specific diagnostics
 /local_artifacts/

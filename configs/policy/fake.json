@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "policy_type": "fake",
+  "framework_sha": "6a077907c7989635218969ee78f5436f8faec92b",
+  "state_order": ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper"],
+  "action_order": ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll", "gripper"],
+  "state_units": "scs215_calibrated_percent",
+  "action_units": "scs215_calibrated_percent",
+  "action_mode": "absolute",
+  "action_hz": 30,
+  "max_chunk_steps": 3,
+  "cameras": {"observation.images.front": {"source": "front", "shape": [3, 32, 32]}},
+  "calibration_sha256": "",
+  "motion_verified": false,
+  "compatibility_evidence": "Software fixture only"
+}
