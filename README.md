@@ -101,6 +101,7 @@ git switch -c codex/your-task
 
 - [协作与分支生命周期](CONTRIBUTING.md) · [代理工作约定](AGENTS.md)
 - [架构](docs/architecture.md) · [硬件](docs/hardware.md) · [Windows/CUDA/Conda](docs/environments.md)
+- [VLA 部署阶段方案](docs/vla_deployment.md) · [下一 session handoff](docs/handoffs/vla_next_session.md)
 - [课程基线](docs/course/README.md) · [35 文件迁移清单](docs/course/COVERAGE.md)
 - [2026-10-02 功能报告](docs/reports/2026-10-02.md) · [2026-10-03 仓库与 CI 修复报告](docs/reports/2026-10-03.md)
 
