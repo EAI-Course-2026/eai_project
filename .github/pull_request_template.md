@@ -1,6 +1,22 @@
-Describe the behavior changed and the module affected.
+## 问题与结果
 
-- Offline tests and installation checks:
-- Hardware used and calibration snapshot (or: no hardware connected):
-- Any changes to limits, action units, torque, stopping or control frequency:
-- macOS / Windows validation:
+说明触发条件、最终行为和涉及模块。
+
+- PR 类型：日常任务 → develop / develop → main 集成 / main hotfix / main → develop 同步
+- 操作人 / 实物或 GPU 验收人（未安排则注明）：
+
+## 验证证据
+
+- 本地离线测试、环境、文档/前端检查和构建：
+- macOS / Windows 托管检查（对应最终提交）：
+- 硬件、标定快照、日期、日志 / 视频（或：未连接硬件）：
+- GPU 软件安装 / 真实 GPU 运算 / 实际训练分别说明：
+- 待验收能力及使用边界：
+
+## 影响范围
+
+- 限位、动作单位、方向、扭矩、停止和控制频率的变化（或：无）：
+- 依赖变更：固定框架提交与根目录 / 训练项目锁文件是否一致（或：无）：
+- 文档、回退方案、main hotfix 同步 develop 安排：
+
+合并者核对至少一位其他 CODEOWNER 批准、讨论解决、三项检查成功；合并后核对目标 SHA 的 push CI。仅在任务结束、无独有提交且目标 CI 成功后清理临时分支。main/develop 保留。

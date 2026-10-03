@@ -152,10 +152,14 @@ Voice had documentation only; no working speech implementation existed to
 migrate. Data recording, trained policies and end-to-end evaluation are also
 not certified by this migration.
 
-Work from the application repository's latest `main`, use a feature branch and
-PR, and include offline results plus hardware evidence when applicable. Changes
-to the LeRobot dependency must update the commit and lock in a dedicated PR.
-macOS and Windows CI run the same offline suite. Do not force-push shared main.
+Develop from the application repository's latest `develop`, use a task branch
+and PR targeting develop, and promote develop to main through an integration PR.
+Both branches are permanent and protected. Include offline results plus hardware
+evidence when applicable; verify the target branch's post-merge CI as well as PR
+checks. Dependency changes update the commit and both relevant locks in a
+separate PR. See [CONTRIBUTING](../../CONTRIBUTING.md) for roles, hotfix
+synchronization, review and cleanup rules. Mac/Windows share source;
+CUDA uses the separate training environment, not a permanent platform branch.
 
 ## Keyboard motion evidence
 
