@@ -199,7 +199,7 @@ class SCS215SO101Follower(Robot):
             observation[name] = cam.async_read()
         return observation
 
-    def send_action(self, action):
+    def send_action(self, action, *, before_write=None):
         if not self.motion_enabled or not self.bus.is_connected:
             raise RuntimeError(
                 "Motion requires explicit enable_motion() or --robot.enable_motion=true"
@@ -224,6 +224,8 @@ class SCS215SO101Follower(Robot):
                 normalize=False,
                 num_retry=self.config.num_read_retries,
             )
+            if self.bus.read("Torque_Enable", name, normalize=False) != 1:
+                raise RuntimeError(f"{name}: torque lost; explicit re-enable required")
             if self.bus.read("Status", name, normalize=False) or not feedback_in_range(
                 raw, c.range_min, c.range_max
             ):
@@ -244,6 +246,8 @@ class SCS215SO101Follower(Robot):
                     raise ValueError(f"{name}: action exceeds max_relative_target")
             goals[name] = float(value)
         if goals:
+            if before_write is not None:
+                before_write()
             self.bus.sync_write("Goal_Position", goals)
         return {f"{name}.pos": value for name, value in goals.items()}
 

@@ -53,3 +53,4 @@ jobs:
           python-version: '3.12'
       - run: .\scripts\setup_training_windows.cmd --software-only
       - run: uv run --no-sync --project environments/training lerobot-train --help
+      - run: uv run --no-sync --project environments/training python scripts/policy.py doctor

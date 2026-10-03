@@ -3,7 +3,7 @@ name = "eai-training-environment"
 version = "0.1.0"
 description = "Separate course-fork training runtime: NVIDIA CUDA on Windows/Linux, native PyTorch on Mac"
 requires-python = ">=3.12,<3.13"
-dependencies = ["lerobot_robot_scs215==0.1.0", "lerobot[training,core_scripts,feetech]==0.6.2", "torch>=2.7,<2.12", "torchvision>=0.22,<0.27"]
+dependencies = ["lerobot_robot_scs215==0.1.0", "lerobot[training,core_scripts,feetech,smolvla,pi]==0.6.2", "torch>=2.7,<2.12", "torchvision>=0.22,<0.27"]
 
 [tool.uv]
 required-version = "==0.11.7"
