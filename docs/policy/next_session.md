@@ -3,6 +3,8 @@
 2026-10-03。先读[完整操作指南](README.md)，再检查当前分支、PR head 与 CI。
 实现分支 `codex/policy-infrastructure` 从 develop `be9ac819fed847ad2a00245c7e569d8a7c417146`
 创建；没有合并 PR #10，没有推 main/develop，也没有代替另一位维护者审查。
+实现已提交到[草稿 PR #11](https://github.com/EAI-Course-2026/eai_project/pull/11)，托管检查
+需核对该 PR 最新 head；未合并，最终托管回执与本地结果分别报告。
 历史方案与旧 handoff 已从 `codex/vla-handoff` 读完，保留在 PR #10。
 
 ## 已完成
@@ -20,7 +22,9 @@
 - `teleoperation.py/recording.py/datasets.py`：follower-only 人工键盘示范、实际发送标签与
   后续反馈、标准 LeRobot 本地导出、episode/scene 训练评估隔离，三模型训练 argv 生成。
 - `scripts/policy.py`：doctor/fetch/checkpoint-info/freeze/dry-run/serve/shadow/run/
-  record-demo/validate-episode/export-dataset/training-recipe。
+  record-demo/validate-episode/export-dataset/training-recipe/label-episode/evaluate-episodes。
+- `evaluation.py`：操作者标签及历史、全部试验分母、未标注成功率待定、拒绝原因与
+  归一化目标反馈误差/采集跨度/tick 间隔汇总；不从可动推断任务成功。
 - 真实 ACT 保存重载、官方标准化一次、回环 HTTP、门禁故障、人工录制、标准数据导出、
   π0.5 加载错误都有离线回归。Windows 训练软件 CI 增加三模型导入诊断。
 
@@ -36,7 +40,7 @@
 | CUDA 必需诊断 | 当前 Mac 按预期失败 | 需真实 NVIDIA 主机与实际算子/模型检测 |
 | 硬件/相机 | 未打开，未启用扭矩，未运动 | 本机 camera 配置为空；串口存在只作枚举证据 |
 
-本地完整测试 181 项通过（其中 policy 27 项、插件新增 2 项故障回归）；根环境检查、
+本地完整测试 182 项通过（其中 policy 28 项、插件新增 2 项故障回归）；根环境检查、
 训练环境检查、训练入口、文档链接/仓库策略检查、前端语法与两个 wheel 构建通过。
 本地结果与 PR 托管结果分开；尚未合并，故没有 post-merge CI 结果。
 

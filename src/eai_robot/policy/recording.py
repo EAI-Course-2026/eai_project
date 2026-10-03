@@ -39,7 +39,7 @@ class Journal:
         path.write_text(json.dumps(header, indent=2) + "\n")
 
 
-def validate_episode(directory, manifest, *, demonstrations=False, budgets=None):
+def validate_episode(directory, manifest, *, demonstrations=False, budgets=None, allow_empty=False):
     from .safety import Budgets
     budgets = budgets or Budgets()
     directory = Path(directory)
@@ -49,7 +49,7 @@ def validate_episode(directory, manifest, *, demonstrations=False, budgets=None)
     if demonstrations and (not header["complete"] or header["mode"] != "demonstration" or header["outcome"] != "success"):
         raise ValueError("Only complete, explicitly successful demonstrations are trainable")
     rows = [json.loads(line) for line in (directory / "frames.jsonl").read_text().splitlines()]
-    if not rows or (header["complete"] and header.get("frames") != len(rows)):
+    if (not rows and not allow_empty) or (header["complete"] and header.get("frames") != len(rows)):
         raise ValueError("Empty or truncated episode")
     previous = None
     for index, row in enumerate(rows):
@@ -69,4 +69,11 @@ def validate_episode(directory, manifest, *, demonstrations=False, budgets=None)
             if previous is not None and row["captured_at"] - previous > 2.0 / header["action_hz"]:
                 raise ValueError("Demonstration timing gap exceeds two action periods")
         previous = row["captured_at"]
+        for field in ("requested", "sent", "feedback"):
+            if row.get(field) is not None:
+                vector(row[field], bounded=field != "requested")
+        if row.get("feedback_at") is not None:
+            stamp = row["feedback_at"]
+            if isinstance(stamp, bool) or not isinstance(stamp, (int, float)) or not np.isfinite(stamp) or stamp < row["completed_at"]:
+                raise ValueError("Invalid subsequent feedback time")
     return {"frames": len(rows), "header": header, "rows": rows}

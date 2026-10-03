@@ -255,6 +255,31 @@ class TransportTests(unittest.TestCase):
 
 
 class RecordingTests(unittest.TestCase):
+    def test_outcome_evaluation_counts_failures_and_requires_all_labels(self):
+        from eai_robot.policy.evaluation import evaluate_episodes, label_episode
+        manifest = fixture()
+        with tempfile.TemporaryDirectory() as directory:
+            paths = []
+            for i in range(2):
+                path = Path(directory) / f"run-{i}"
+                journal = Journal(path, manifest, mode="rollout")
+                obs = fake_observation(manifest)
+                journal.append(obs, requested=obs.state, sent=dict(zip(KEYS, obs.state)), feedback=obs.state, feedback_at=obs.completed_at + .001)
+                journal.close(complete=True)
+                paths.append(path)
+            label_episode(paths[0], "success", "Operator observed fixed task criterion met")
+            pending = evaluate_episodes(paths, manifest)
+            self.assertIsNone(pending["success_rate"])
+            self.assertEqual(pending["success_rate_pending_labels"], 1)
+            label_episode(paths[1], "failure", "Operator observed object missed")
+            report = evaluate_episodes(paths, manifest)
+            self.assertEqual(report["trials"], 2)
+            self.assertEqual(report["success_rate"], .5)
+            self.assertEqual(report["target_feedback_error_normalized"]["max"], 0)
+            self.assertTrue((paths[1] / "labels.jsonl").is_file())
+            with self.assertRaises(ValueError):
+                evaluate_episodes([paths[0], paths[0]], manifest)
+
     def test_native_dataset_export_uses_sent_labels_and_episode_split(self):
         manifest = fixture()
         with tempfile.TemporaryDirectory() as directory:

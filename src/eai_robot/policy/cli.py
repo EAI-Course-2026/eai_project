@@ -214,6 +214,14 @@ def parser():
     recipe.add_argument("--base-bundle")
     recipe.add_argument("--output-dir", required=True)
     recipe.add_argument("--output")
+    label = sub.add_parser("label-episode", help="Explicit operator outcome label with preserved history")
+    label.add_argument("--episode", required=True)
+    label.add_argument("--outcome", choices=["success", "failure", "aborted"], required=True)
+    label.add_argument("--evidence", required=True)
+    evaluate = sub.add_parser("evaluate-episodes")
+    evaluate.add_argument("--manifest", required=True)
+    evaluate.add_argument("--episodes", nargs="+", required=True)
+    evaluate.add_argument("--output")
     return p
 
 
@@ -262,6 +270,13 @@ def main(argv=None):
         elif args.command == "training-recipe":
             from .datasets import training_recipe
             emit(training_recipe(args.policy_type, args.dataset_root, args.repo_id, output_dir=args.output_dir, base_bundle=args.base_bundle), args.output)
+        elif args.command == "label-episode":
+            from .evaluation import label_episode
+            label_episode(args.episode, args.outcome, args.evidence)
+            emit({"outcome": args.outcome, "operator_evidence": args.evidence})
+        elif args.command == "evaluate-episodes":
+            from .evaluation import evaluate_episodes
+            emit(evaluate_episodes(args.episodes, Manifest.load(args.manifest)), args.output)
         return 0
     except KeyboardInterrupt:
         print("Stopped by operator", file=sys.stderr)

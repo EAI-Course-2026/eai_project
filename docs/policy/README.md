@@ -206,6 +206,26 @@ uv run --locked --project environments/training python scripts/policy.py trainin
 相机键、`n_action_steps` 和归一化必须评审；`pretrained_path` 加载权重，与部署 `path`
 加载完整 checkpoint 设置不同。记录 seed、数据 fingerprint、训练/评估场景与模型 SHA。
 
+## 任务评估
+
+操作者用外部固定成功判据标注 rollout 的结果；模型输出或关节可动不能自动标成功。
+标签修改保留 append-only `labels.jsonl` 历史。未完成或空 session 不允许标成功，
+shadow 也不能标为实物任务试验。
+
+```sh
+uv run --locked python scripts/policy.py label-episode --episode outputs/policy/rollout-001 \
+  --outcome failure --evidence 'Operator: object missed the defined target region'
+uv run --locked python scripts/policy.py evaluate-episodes \
+  --manifest configs/policy/model.local.json \
+  --episodes outputs/policy/rollout-001 outputs/policy/rollout-002 \
+  --output outputs/policy/evaluation.local.json
+```
+
+评估汇总包括全部提交的试验、成功/失败/中止/未标注计数、拒绝原因、即时目标-反馈误差、
+采集跨度与反馈 tick 间隔。任何 trial 未标注时 `success_rate=null`；失败/中止计入总数，
+不删除失败数据后再算成功率。即时归一化关节误差不是 settled-position 或 Cartesian 精度。
+用户仍需定义任务成功标准、独立评估布局、试验数量，并完成真实试验。
+
 ## 复验和限制
 
 ```sh
