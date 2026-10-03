@@ -89,6 +89,8 @@ git switch -c codex/your-task
 
 ## 文件导航
 
+**作业成品统一放在 `deliverables/`。** 第三次作业已提交的成品位于 `deliverables/assignment-03/2026-10-02-r01/`，报告、视频、固定源码和提交 ZIP 放在一起；旧版本放该作业的 `archive/`。目录指南提交 Git，作业正文、附件和 ZIP 保留本机。见[作业目录](deliverables/README.md)与[工作区规则](docs/workspace.md)。
+
 | 路径 | 用途 |
 |---|---|
 | `src/eai_robot/arm/`、`hardware/` | 标定、控制、上位机与原生协议 |
@@ -98,6 +100,9 @@ git switch -c codex/your-task
 | `calibration/`、`configs/` | 共享标定、历史回执和本机配置模板 |
 | `tests/`、`scripts/` | 离线回归、环境核验和操作入口 |
 | `docs/reports/` | 按日期记录交付、证据、问题与验收范围 |
+| `deliverables/` | 按作业、日期与修订号存放提交成品，正文与附件不上传 Git |
+| `local_artifacts/` | 本机验收证据、历史快照、诊断和有生命周期的临时工作区 |
+| `outputs/` | 程序生成的运行输出；需要长期保留的结果整理到成品或证据目录 |
 
 - [协作与分支生命周期](CONTRIBUTING.md) · [代理工作约定](AGENTS.md)
 - [架构](docs/architecture.md) · [硬件](docs/hardware.md) · [Windows/CUDA/Conda](docs/environments.md)

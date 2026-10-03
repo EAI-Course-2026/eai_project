@@ -22,9 +22,9 @@ dist/
 !/calibration/history/
 !/calibration/README.md
 
-# Coursework hand-in stays on this computer, including its report, video, and dependencies.
-/assignment2_handin/
-/scripts/package_assignment2.py
+# Hand-in payloads stay local. Commit only the directory guides.
+/deliverables/*/*
+!/deliverables/*/README.md
 
 # Machine-specific hardware configuration
 configs/*.local.toml
