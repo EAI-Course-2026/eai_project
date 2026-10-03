@@ -1,7 +1,13 @@
 name: Shared baseline tests
 on:
   push:
+    branches: [main, develop]
   pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+concurrency:
+  group: shared-baseline-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
   contents: read
 env:
@@ -15,6 +21,7 @@ jobs:
       matrix:
         os: [macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2, same as pinned fork
@@ -30,6 +37,8 @@ jobs:
         run: uv run --no-sync python -m unittest discover -s tests -q
       - if: runner.os == 'Windows'
         run: .\scripts\setup_windows.cmd
+      - run: uv run --no-sync python scripts/check_repository.py
+      - run: node --check src/eai_robot/arm/desk_assets/app.js
       - run: uv build --wheel --all-packages
   windows-training-install:
     name: Windows CUDA training software (no GPU)

@@ -2,8 +2,10 @@
 import sys
 import time
 import unittest
+from threading import Event
+from types import SimpleNamespace
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -103,16 +105,59 @@ class CartesianDeskTests(unittest.TestCase):
     def test_lease_timeout_holds_and_late_renewal_cannot_restart(self):
         service, bus = self.ready()
         before = dict(bus.packets[-1])
-        service.submit('cartesian_start', {'owner': 'one', 'sequence': 1, 'direction': [1, 0, 0], 'speed': 15})
-        state = self.settle(service, timeout=2)
-        self.assertEqual(state['motion_state'], 'paused')
-        self.assertTrue(state['torque_on'])
-        self.assertNotEqual(bus.packets[-1], before)
+        clock = Mock(return_value=time.monotonic())
+        service_time = SimpleNamespace(monotonic=clock, time=time.time, sleep=time.sleep)
+        # Only the service clock is controlled. Runner speed cannot consume
+        # the modeled lease; real solver and hardware paths still execute.
+        with patch('eai_robot.arm.desk_service.time', service_time):
+            service.submit('cartesian_start', {'owner': 'one', 'sequence': 1, 'direction': [1, 0, 0], 'speed': 15})
+            deadline = time.monotonic() + 30
+            while dict(bus.packets[-1]) == before:
+                state = service.snapshot()
+                self.assertTrue(state['busy'], state['status'])
+                self.assertLess(time.monotonic(), deadline, 'no Cartesian target was written')
+                time.sleep(.01)
+            self.assertNotEqual(bus.packets[-1], before)
+            clock.return_value += LEASE_SECONDS + .01
+            state = self.settle(service, timeout=30)
+            self.assertEqual(state['motion_state'], 'paused')
+            self.assertTrue(state['torque_on'])
+            self.assertEqual(bus.packets[-1], service.arm.positions())
+            count = len(bus.packets)
+            with self.assertRaisesRegex(RuntimeError, '连续控制已停止'):
+                service.submit('cartesian_intent', {'owner': 'one', 'sequence': 2, 'direction': [1, 0, 0], 'speed': 15})
+            time.sleep(.1)
+            self.assertEqual(len(bus.packets), count)
+
+    def test_input_expired_before_worker_start_never_moves(self):
+        service, bus = self.ready()
+        before = dict(bus.packets[-1])
         count = len(bus.packets)
-        with self.assertRaisesRegex(RuntimeError, '连续控制已停止'):
-            service.submit('cartesian_intent', {'owner': 'one', 'sequence': 2, 'direction': [1, 0, 0], 'speed': 15})
-        time.sleep(.1)
-        self.assertEqual(len(bus.packets), count)
+        entered, release = Event(), Event()
+        self.addCleanup(release.set)
+        clock = Mock(return_value=time.monotonic())
+        service_time = SimpleNamespace(monotonic=clock, time=time.time, sleep=time.sleep)
+        continuous = service._continuous_cartesian
+
+        def delayed_start():
+            entered.set()
+            if not release.wait(30):
+                raise RuntimeError('test did not release the worker')
+            return continuous()
+
+        with (patch('eai_robot.arm.desk_service.time', service_time),
+              patch.object(service, '_continuous_cartesian', side_effect=delayed_start)):
+            service.submit('cartesian_start', {'owner': 'expired', 'sequence': 1, 'direction': [1, 0, 0], 'speed': 15})
+            self.assertTrue(entered.wait(30))
+            clock.return_value += LEASE_SECONDS + .01
+            release.set()
+            state = self.settle(service, timeout=30)
+            self.assertEqual(state['motion_state'], 'paused')
+            self.assertTrue(state['control_enabled'])
+            self.assertTrue(state['torque_on'])
+            self.assertEqual(bus.packets[count:], [before])
+            with self.assertRaisesRegex(RuntimeError, '连续控制已停止'):
+                service.submit('cartesian_intent', {'owner': 'expired', 'sequence': 2, 'direction': [1, 0, 0], 'speed': 15})
 
     def test_owner_ordering_and_pause_are_independent_of_snapshot_heartbeat(self):
         service, bus = self.ready()
