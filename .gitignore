@@ -34,5 +34,5 @@ configs/policy/*.local.json
 # Preserved host-specific diagnostics
 /local_artifacts/
 
-# Local agent workspace state (session memory, skills); never part of the repository
-.workbuddy/
+# WorkBuddy local state and related files/directories, at any depth (case-insensitive).
+*[Ww][Oo][Rr][Kk][Bb][Uu][Dd][Dd][Yy]*

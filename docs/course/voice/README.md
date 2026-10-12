@@ -1,10 +1,10 @@
 # 语音命令调度（白名单意图 + 姿态调度）
 
-2026-10-12。应用层实现位于 `src/eai_robot/voice/`，入口为
-`uv run --locked python scripts/voice.py`。默认干跑：导入、解析、计划与预览都不打开
-串口；运动只在 `--enable` 且显式确认后发生。
+2026-10-12。课程命令层实现位于 `src/eai_robot/course/voice/`，入口为
+`uv run --locked eai-course voice`。默认干跑：导入、解析、计划与预览都不打开
+串口；也可用 `uv run --locked python scripts/course.py voice` 从源码启动。运动只在 `--enable` 且显式确认后发生。
 
-本层衔接课程的语音边界（[交接文档第 9 节](../course/source/HANDOFF.md)）：
+本层衔接课程的语音边界（[交接文档第 9 节](../source/HANDOFF.md)）：
 
 ```text
 音频输入 -> 语音识别 -> 白名单意图 -> 动作调度 -> 统一控制器
@@ -20,7 +20,7 @@
 |---|---|---|
 | 白名单解析 | 7 条固定命令、中英文关键词、标点归一化、否定词拒绝、`stop` 优先；27 项离线回归 | 真实口音、噪声下的识别文本覆盖率实测 |
 | 动作调度 | 意图 → 姿态序列（`wave` 复用既有 `raise/left/right/left/stand`），缺姿态整体拒绝 | 真机逐命令验收与动作幅度确认 |
-| 停止抢占 | `stop` 置标志、丢剩余步骤与挂起队列；读线程可即时抢占；[回归用例](../../tests/test_voice.py)覆盖 | 电机运动中的实际中断时延测量 |
+| 停止抢占 | `stop` 置标志、丢剩余步骤与挂起队列；读线程可即时抢占；[回归用例](../../../tests/test_voice.py)覆盖 | 电机运动中的实际中断时延测量 |
 | 干跑/预览 | 不打开串口打印计划与逐姿态原始目标换算 | 无（软件检查） |
 | 夹爪命令 | 命令已定义，参考姿态文件尚无 `gripper_open/gripper_close`，当前整体拒绝并反馈 | 用既有 `record-pose` 记录夹爪姿态后启用 |
 
@@ -45,7 +45,7 @@
 | `close_gripper` | 闭合夹爪、抓住、抓取、夹住 | `gripper_close` | 否，需先记录 |
 | `stop` | 停止、停下、停住、别动、急停 | 无（抢占并保持当前姿态） | 不适用 |
 
-解析规则（`src/eai_robot/voice/intent.py`）：
+解析规则（`src/eai_robot/course/voice/intent.py`）：
 
 1. `stop` 最先判定；一句话同时含停止词与其他命令词时按 `stop` 处理。
 2. 中文字关键词允许作为子串命中；纯 ASCII 关键词必须与整句完全一致，
@@ -61,7 +61,7 @@
 - `stop` 立即置停止标志，丢弃剩余步骤与挂起命令；运动模式下通过控制器的
   `motion_guard` 在写寄存器前抛出中断，粒度是单个姿态动作。
 - 停止不关闭扭矩：机械臂保持当前姿态。关闭扭矩需先支撑机械臂，见
-  [上位机操作指南](../experiments/scs215_desk.md)的释放约定。
+  [上位机操作指南](../../experiments/scs215_desk.md)的释放约定。
 - 停止后新的普通命令重新开放调度；执行序列期间到达的普通命令被拒绝并反馈，
   避免连续意外运动。
 - 与会话门禁一致：停止后不恢复旧计划，不存在“断开/超时后继续跑”的路径。
@@ -70,15 +70,15 @@
 
 ```sh
 # 单条文本，干跑
-uv run --locked python scripts/voice.py --text "挥手"
+uv run --locked eai-course voice --text "挥手"
 # 打印姿态到原始目标的换算表（离线预览，不打开串口）
-uv run --locked python scripts/voice.py --text "站立" --preview
+uv run --locked eai-course voice --text "站立" --preview
 # 从管道读取识别结果，每条一行
-edge_inference_lab ... mic_asr.py --mode live --emit text | uv run --locked python scripts/voice.py --stdin
+edge_inference_lab ... mic_asr.py --mode live --emit text | uv run --locked eai-course voice --stdin
 # 事件留证（JSONL，每行一条命令与会话结果）
-uv run --locked python scripts/voice.py --stdin --events outputs/voice/session.jsonl
+uv run --locked eai-course voice --stdin --events outputs/voice/session.jsonl
 # 真机运动：先断开 GUI 与其他控制进程，支撑机械臂，再显式确认
-uv run --locked python scripts/voice.py --stdin --enable
+uv run --locked eai-course voice --stdin --enable
 ```
 
 运动模式说明：

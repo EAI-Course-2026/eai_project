@@ -4,11 +4,11 @@
 
 ```sh
 # 单条文本（干跑）
-uv run --locked python scripts/voice.py --text "挥手"
+uv run --locked eai-course voice --text "挥手"
 # 从管道读取识别结果（每条一行），对接 edge_inference_lab 的 mic_asr.py
-mic_asr.py --mode live --emit text | uv run --locked python scripts/voice.py --stdin
+mic_asr.py --mode live --emit text | uv run --locked eai-course voice --stdin
 # 真机运动：--enable 且必须显式确认；同一串口只允许一个进程
-uv run --locked python scripts/voice.py --stdin --enable
+uv run --locked eai-course voice --stdin --enable
 ```
 
 运动前置条件与既有工具一致：GUI 与其他控制进程先断开、操作者支撑机械臂、串口独占。
@@ -27,8 +27,8 @@ from pathlib import Path
 from eai_robot.arm.calibration import JOINTS, load as load_calibration
 from eai_robot.course.poses.control_presets import POSES_PATH, load_poses
 from eai_robot.course.robot import DEFAULT_CALIBRATION, default_port
-from eai_robot.voice import intent as intent_module
-from eai_robot.voice.dispatcher import Dispatcher
+from eai_robot.course.voice import intent as intent_module
+from eai_robot.course.voice.dispatcher import Dispatcher
 
 CONFIRM_PHRASE = "START VOICE CONTROL"
 
