@@ -288,6 +288,33 @@ assert not robot.is_connected
         self.assertEqual(set(hardware.torque.values()), {0})
         self.assertTrue(all(r == "Torque_Enable" for r, _, _ in hardware.writes))
 
+    def test_lost_torque_rejects_without_goal_write(self):
+        hardware = SimulatedHardware()
+        with hardware.active():
+            robot = make_robot_from_config(self.config(enable_motion=True))
+            robot.connect()
+            hardware.torque["shoulder_pan"] = 0
+            hardware.writes.clear()
+            with self.assertRaisesRegex(RuntimeError, "torque lost"):
+                robot.send_action({"shoulder_pan.pos": 0.0})
+            self.assertEqual(hardware.writes, [])
+            robot.disconnect()
+
+    def test_expired_policy_lease_checked_after_bus_validation_before_goal_write(self):
+        hardware = SimulatedHardware()
+        with hardware.active():
+            robot = make_robot_from_config(self.config(enable_motion=True))
+            robot.connect()
+            hardware.writes.clear()
+
+            def expired():
+                raise RuntimeError("lease expired during validation")
+
+            with self.assertRaisesRegex(RuntimeError, "lease expired"):
+                robot.send_action({"shoulder_pan.pos": 0.0}, before_write=expired)
+            self.assertEqual(hardware.writes, [])
+            robot.disconnect()
+
     def test_subset_enable_does_not_release_preexisting_gripper_torque(self):
         hardware = SimulatedHardware()
         hardware.torque["gripper"] = 1

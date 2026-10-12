@@ -89,6 +89,11 @@ git switch -c codex/your-task
 
 ## 文件导航
 
+ACT、SmolVLA、π0.5 的模型加载、跨机推理、本地执行门禁与示范数据工具见
+[推理基建指南](docs/policy/README.md)及[下一步交接](docs/policy/next_session.md)。
+SmolVLA 已完成 Mac MPS 的真实离线加载与动作块输出；GPU、本机模型适配和自主实物任务
+仍待验收，不能由基础模型输出或软件 CI 替代。
+
 | 路径 | 用途 |
 |---|---|
 | `src/eai_robot/arm/`、`hardware/` | 标定、控制、上位机与原生协议 |
