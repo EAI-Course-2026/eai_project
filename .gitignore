@@ -33,3 +33,6 @@ configs/policy/*.local.json
 
 # Preserved host-specific diagnostics
 /local_artifacts/
+
+# Local agent workspace state (session memory, skills); never part of the repository
+.workbuddy/
