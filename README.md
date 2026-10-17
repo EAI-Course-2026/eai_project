@@ -15,6 +15,7 @@
 | 终端键盘末端控制 | 操作者已确认可移动；显示请求 TCP、编码器 FK 与关节误差 | 实际轴向、距离、模型零点的测量 |
 | 上位机 FK/IK、单步/连续 XYZ、路径预览 | 离线回归与模拟页面验证 | 新版 GUI 末端实物验收；无碰撞规划，仅约束位置 |
 | 标准 LeRobot 标定、遥操作、录制 | 插件发现、模拟标准 CLI 与本地 RGB episode；插件实物只读验证 | 真机械臂与摄像头同步录制、回放 |
+| 语音命令调度（白名单 + 干跑） | 7 条固定命令的解析、姿态计划、`stop` 抢占与 27 项离线回归；默认干跑不打开串口 | 真机逐命令验收、夹爪姿态记录、真实识别文本覆盖率 |
 | Windows / CUDA 环境 | Mac/Windows 离线 CI；Windows CUDA 软件安装与训练入口检查 | Windows 实物访问、真实 GPU 运算、训练与策略评估 |
 
 CI 绿色表示上述软件检查通过；每次合并后的分支检查也必须通过。它不能替代实物或 GPU 验收。当前没有宣称完成整机验收的发布版本。见[里程碑](docs/milestones.md)和[报告](docs/reports/2026-10-03.md)。
@@ -72,6 +73,16 @@ uv run --locked eai-course plan --delta-mm 0 0 10
 
 终端键盘控制使用 `uv run --locked eai-course keyboard --port PORT --speed-mm-s 15`，显式确认后开启运动。GUI 必须先断开。标准 `lerobot-calibrate`、`lerobot-teleoperate`、`lerobot-record` 选择 `--robot.type=scs215_so101_follower`；实际运动另需 `--robot.enable_motion=true`。完整示例见[插件指南](docs/lerobot_plugin.md)。
 
+语音命令调度默认干跑，只做白名单解析、姿态计划与 `stop` 抢占，不打开串口：
+
+```sh
+uv run --locked eai-course voice --text "挥手"
+uv run --locked eai-course voice --list-commands
+```
+
+识别文本从标准输入逐行进入（每次识别结果一行）；真机运动需要 `--enable` 与显式确认，
+详见[语音命令调度](docs/course/voice/README.md)。
+
 ## 日常协作
 
 ```sh
@@ -97,7 +108,8 @@ SmolVLA 已完成 Mac MPS 的真实离线加载与动作块输出；GPU、本机
 | 路径 | 用途 |
 |---|---|
 | `src/eai_robot/arm/`、`hardware/` | 标定、控制、上位机与原生协议 |
-| `src/eai_robot/course/` | 课程 FK/IK、规划、键盘和视觉 |
+| `src/eai_robot/course/` | 课程 FK/IK、规划、键盘、视觉与语音白名单调度 |
+| `src/eai_robot/policy/` | 策略推理基建与执行门禁 |
 | `plugins/lerobot_robot_scs215/` | 可安装总线与 LeRobot Robot 插件 |
 | `environments/training/` | 独立训练项目与 CUDA 锁文件 |
 | `calibration/`、`configs/` | 共享标定、历史回执和本机配置模板 |
@@ -107,7 +119,11 @@ SmolVLA 已完成 Mac MPS 的真实离线加载与动作块输出；GPU、本机
 - [协作与分支生命周期](CONTRIBUTING.md) · [代理工作约定](AGENTS.md)
 - [架构](docs/architecture.md) · [硬件](docs/hardware.md) · [Windows/CUDA/Conda](docs/environments.md)
 - [VLA 部署阶段方案](docs/vla_deployment.md) · [下一 session handoff](docs/handoffs/vla_next_session.md)
+- [策略推理基建](docs/policy/README.md) · [语音命令调度](docs/course/voice/README.md)
 - [课程基线](docs/course/README.md) · [35 文件迁移清单](docs/course/COVERAGE.md)
 - [2026-10-02 功能报告](docs/reports/2026-10-02.md) · [2026-10-03 仓库与 CI 修复报告](docs/reports/2026-10-03.md)
 
-历史课程资料保留在 `docs/course/source/`，其旧安装命令不作为当前入口。语音只有历史设计资料。项目整体开源许可证尚待团队选择；第三方资料已有声明保持原样，上游贡献需另行准备许可和可复现实物证据。
+历史课程资料保留在 `docs/course/source/`，其旧安装命令不作为当前入口。语音的识别端在本机
+`edge_inference_lab` 实验中验证，本仓库只接收识别文本并做白名单命令调度；判断标准与真机
+验收前置见[语音命令调度](docs/course/voice/README.md)。项目整体开源许可证尚待团队选择；第三方资料
+已有声明保持原样，上游贡献需另行准备许可和可复现实物证据。
