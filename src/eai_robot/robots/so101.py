@@ -1,4 +1,4 @@
-"""Course compatibility entry points use the same registered Robot as standard LeRobot CLIs."""
+"""SO-101 factory helpers shared by application and LeRobot command paths."""
 
 from pathlib import Path
 from lerobot_robot_scs215 import (
@@ -10,8 +10,8 @@ from eai_robot.config import ROOT, load_config
 from eai_robot.arm.calibration import load
 
 DEFAULT_CALIBRATION = ROOT / "calibration/scs215_so101.json"
-CourseMotorsBus = SCS215MotorsBus
-CourseFollower = SCS215SO101Follower
+SO101MotorsBus = SCS215MotorsBus
+SO101Follower = SCS215SO101Follower
 
 
 def default_port():

@@ -9,6 +9,9 @@ LeRobot 0.6.2 fork (`6a07790`). A port name is not a robot identity.
 | `calibration/scs215_so101.json` | Joint IDs, direction, offsets and command ranges in raw encoder counts | Yes |
 | `calibration/scs215_so101.meta.json` | Hardware asset label, capture method/date and verification evidence | Yes |
 | `calibration/history/` | Superseded snapshots, inactive candidates, paired old poses and write receipts | Yes; never selected by default |
+| `calibration/vision/` | Reviewed camera intrinsics and robot-camera hand-eye results, keyed by stable asset IDs | Yes, after review |
+| `src/eai_robot/vision/calibration/` | Calibration algorithms and command workflows | Yes; source code |
+| `local_artifacts/experiments/` | Raw captures, pose samples, solver intermediates and unreviewed candidates | No; ignored |
 | `configs/hardware.local.toml` | This computer's serial port and camera index | No; ignored by Git |
 | `outputs/` | Machine-specific captures and diagnostic logs | No; ignored by Git |
 
@@ -16,6 +19,24 @@ The metadata `hardware_id` is the team's asset label `scs215_so101`, not a USB
 adapter name, serial port or OS-specific LeRobot cache ID. Metadata must not
 contain host ports, host usernames or absolute paths. Generic device examples
 in setup documentation are examples, not shared runtime values.
+
+## Vision calibration
+
+Follow LeRobot's code/data boundary: calibration workflows are implemented and
+versioned with application source; calibration outputs are stored separately,
+keyed to stable hardware identities, and loaded by the runtime. For this team,
+reviewed shared results live in `calibration/vision/` so collaborators use one
+reproducible camera/rig configuration. Raw samples and intermediate results
+remain machine-local under `local_artifacts/experiments/` until a result is
+reviewed. Do not put executable calibration scripts or raw captures beside the
+active shared JSON files.
+
+LeRobot's standard `lerobot-calibrate` entry point dispatches to the selected
+robot or teleoperator's `calibrate()` implementation. Its calibration files
+normally live in the user cache under a device-type and device-ID path; that
+default is useful for per-installation robot data. The team-shared SCS215 file
+is an intentional project-level source of truth, so the repo keeps it in Git
+instead of silently switching machines to independent caches.
 
 ## Limits and verification
 

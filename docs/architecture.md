@@ -6,14 +6,37 @@
 
 SCS215 适配维护在独立仓库 `EAI-Course-2026/eai_project`，以可安装插件
 `lerobot_robot_scs215` 放在 `plugins/lerobot_robot_scs215/`。直接脚本、网页默认后端、
-课程机器人和标准 LeRobot CLI 共用这个插件中的电机总线。
+SO-101 机器人构造器和标准 LeRobot CLI 共用这个插件中的电机总线。
+
+## Python 包边界
+
+课程是本仓库的交付背景，不是 Python 能力分类。课程说明、作业迁移记录和验收材料放在
+`docs/course/`；`src/eai_robot/` 按技术职责组织，不保留 `eai_robot.course` 包。机械臂、
+运动学、视觉、姿态和语音实现分别放在对应能力包，`eai_robot.cli` 只负责把命令分派给这些
+模块。保留 `eai-course` 命令名是用户入口兼容，不代表实现仍按课程目录组织。
 
 ```text
-arm_lerobot.py / 网页 / demo / 课程姿态
+eai_robot/
+  arm/          手臂控制器、上位机与手臂工作流
+  hardware/     原生协议和总线后端
+  robots/       LeRobot 机器人类型与构造器
+  kinematics/   关节映射、FK/IK、笛卡尔规划
+  vision/       相机、视觉检测、视觉伺服与视觉标定程序
+  poses/        姿态数据和姿态工作流
+  voice/        命令解析与调度
+  control/      跨设备的通用控制组件
+  cli.py        用户命令分派
+```
+
+能力包可被课程文档中的不同任务共同使用；新增功能应按职责放入能力包，不能因为首次用于某周
+课程就放进 `course/`。
+
+```text
+arm_lerobot.py / 网页 / demo / 姿态工作流
     → ArmController（0..1、归位、插值、反馈停止）
     → LeRobotBackend ──────────────────────┐
                                           │
-课程 FK/IK、键盘、视觉 / 标准 LeRobot CLI     │
+运动学 FK/IK、键盘、视觉 / 标准 LeRobot CLI    │
     → SCS215SO101Follower（Robot 接口）      │
     → get_observation / send_action ───────┤
                                           ▼
@@ -23,10 +46,10 @@ arm_lerobot.py / 网页 / demo / 课程姿态
 arm_serial.py / 原生诊断选项 → SerialBackend → 项目内 SCS 协议 → 舵机
 ```
 
-`CourseFollower`、`CourseMotorsBus` 是兼容别名，没有第二份通信或机器人实现。
+`eai_robot.robots.so101` 提供应用侧构造器，仍使用同一个注册插件，没有第二份通信或机器人实现。
 原生后端保留作协议诊断与迁移对照；网页和 demo 默认选择插件。`ArmController` 仍负责
 本项目的接管、归位与插值，插件 `Robot` 提供标准观测/动作接口。网页关节与末端控制
-由单一硬件线程调度；独立课程 CLI 和标准 CLI 各有进程生命周期。
+由单一硬件线程调度；应用 CLI 与标准 LeRobot CLI 各有进程生命周期。
 同一串口同时只运行一个控制进程。
 
 ## 框架源码边界
@@ -84,7 +107,7 @@ arm_serial.py / 原生诊断选项 → SerialBackend → 项目内 SCS 协议 �
 
 启动仅加载配置、标定与起点文件并创建服务，连接请求才创建后端、ArmController
 和硬件对象。串口候选来自系统枚举。当前姿态接管独立于归位/演示入口，先确认保持
-目标，再启用扭矩。DeskCartesian 共用课程 URDF、关节映射、NumPy FK、DLS
+目标，再启用扭矩。DeskCartesian 共用 SO-101 URDF、关节映射、NumPy FK、DLS
 位置 IK 和直线规划。编码器经映射和 FK 得到 XYZ；XYZ 请求经整条路径预检、
 IK 与范围检查生成 raw 目标，由同一个后端执行。夹爪保持原位，可单独点动。
 

@@ -8,8 +8,8 @@ from typing import Sequence
 
 import numpy as np
 
-from eai_robot.course.kinematics.kinematics_backend import ForwardKinematics
-from eai_robot.course.kinematics.position_ik import IKResult, PositionIK
+from eai_robot.kinematics.kinematics_backend import ForwardKinematics
+from eai_robot.kinematics.position_ik import IKResult, PositionIK
 
 
 @dataclass(frozen=True)

@@ -52,7 +52,7 @@ uv run --locked python scripts/check_repository.py
 - [训练环境](../../environments/training/README.md)：双锁与真实 CUDA 要求。
 - `plugins/lerobot_robot_scs215/src/lerobot_robot_scs215/robot.py`：观测、动作、启用与断开。
 - `src/eai_robot/arm/desk_service.py`、`desk_cartesian.py`：单硬件线程、输入租期与反馈故障。
-- `src/eai_robot/course/kinematics/keyboard_control.py`：目标回读、扭矩验证与 encoder FK。
+- `src/eai_robot/kinematics/keyboard_control.py`：目标回读、扭矩验证与 encoder FK。
 - `tests/test_lerobot_plugin.py`、`test_desk_cartesian.py`：已有模拟与故障回归。
 
 共享六关节 raw 范围：169–898、60–740、196–772、67–681、47–974、239–640。

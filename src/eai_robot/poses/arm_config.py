@@ -1,6 +1,6 @@
 """Load per-robot joint ranges from LeRobot's local calibration file."""
 
-from eai_robot.course.robot import CourseFollower as SO101Follower, make_robot, DEFAULT_CALIBRATION, default_port
+from eai_robot.robots.so101 import SO101Follower, make_robot, DEFAULT_CALIBRATION, default_port
 
 
 JOINTS = (

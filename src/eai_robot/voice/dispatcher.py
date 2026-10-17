@@ -8,7 +8,7 @@
 - ``stop`` 在任意时刻生效：置停止标志、丢弃剩余步骤与挂起队列；为保持当前姿态，
   停止不会关闭扭矩（关闭扭矩需先支撑机械臂，见 README 的释放约定）。
 - 序列执行期间不接受新的普通命令（避免意想不到的连续运动），只接受 ``stop``。
-- 复用 ``eai_robot.course.poses.control_presets.load_poses`` 做姿态文件校验与
+- 复用 ``eai_robot.poses.control_presets.load_poses`` 做姿态文件校验与
   标定换算：姿态文件必须携带来源标定，换算后的原始目标必须落在当前标定范围内。
 
 本模块不导入串口；运动模式下的 ``arm`` 由调用方注入 ``ArmController``。

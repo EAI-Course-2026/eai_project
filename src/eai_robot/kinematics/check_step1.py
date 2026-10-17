@@ -5,9 +5,9 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from eai_robot.course.robot import CourseFollower as SO101Follower, make_robot, DEFAULT_CALIBRATION, default_port
+from eai_robot.robots.so101 import SO101Follower, make_robot, DEFAULT_CALIBRATION, default_port
 
-from eai_robot.course.kinematics.joint_mapping import ARM_JOINT_NAMES, GRIPPER_NAME, SO101JointMapper, URDF_LIMITS
+from eai_robot.kinematics.joint_mapping import ARM_JOINT_NAMES, GRIPPER_NAME, SO101JointMapper, URDF_LIMITS
 
 
 def parse_args() -> argparse.Namespace:

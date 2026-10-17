@@ -3,9 +3,9 @@ import unittest
 from unittest.mock import patch, PropertyMock
 from lerobot_robot_scs215 import SCS215MotorsBus
 from eai_robot.arm.calibration import feedback_in_range
-from eai_robot.course.robot import make_robot
-from eai_robot.course.kinematics.joint_mapping import SO101JointMapper
-from eai_robot.course.kinematics.run_steps3_to5 import raw_outside_calibration
+from eai_robot.robots.so101 import make_robot
+from eai_robot.kinematics.joint_mapping import SO101JointMapper
+from eai_robot.kinematics.run_steps3_to5 import raw_outside_calibration
 
 
 class RestFeedbackTests(unittest.TestCase):

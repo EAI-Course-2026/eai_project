@@ -12,10 +12,10 @@ from pathlib import Path
 
 import numpy as np
 
-from eai_robot.course.robot import CourseFollower as SO101Follower, make_robot, DEFAULT_CALIBRATION, default_port
+from eai_robot.robots.so101 import SO101Follower, make_robot, DEFAULT_CALIBRATION, default_port
 
-from eai_robot.course.kinematics.joint_mapping import ARM_JOINT_NAMES, SO101JointMapper, URDF_LIMITS
-from eai_robot.course.kinematics.kinematics_backend import ForwardKinematics, create_fk_solver
+from eai_robot.kinematics.joint_mapping import ARM_JOINT_NAMES, SO101JointMapper, URDF_LIMITS
+from eai_robot.kinematics.kinematics_backend import ForwardKinematics, create_fk_solver
 
 
 DEFAULT_URDF = Path(__file__).with_name("so101_new_calib.urdf")

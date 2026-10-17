@@ -1,14 +1,14 @@
-"""Hardware-free Cartesian desk model, sharing the course's URDF and solvers."""
+"""Hardware-free Cartesian desk model, sharing the robot's URDF and solvers."""
 from pathlib import Path
 import math
 import numpy as np
 
-from eai_robot.course.kinematics.joint_mapping import ARM_JOINT_NAMES, SO101JointMapper
-from eai_robot.course.kinematics.urdf_fk import URDFFK
-from eai_robot.course.kinematics.position_ik import DampedLeastSquaresIK
-from eai_robot.course.kinematics.cartesian_planner import CartesianLinePlanner
+from eai_robot.kinematics.joint_mapping import ARM_JOINT_NAMES, SO101JointMapper
+from eai_robot.kinematics.urdf_fk import URDFFK
+from eai_robot.kinematics.position_ik import DampedLeastSquaresIK
+from eai_robot.kinematics.cartesian_planner import CartesianLinePlanner
 
-URDF = Path(__file__).parents[1] / 'course/kinematics/so101_new_calib.urdf'
+URDF = Path(__file__).parents[1] / 'kinematics/so101_new_calib.urdf'
 PERIOD = .05
 LEASE_SECONDS = .30
 

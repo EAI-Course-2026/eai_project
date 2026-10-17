@@ -10,12 +10,12 @@ import unittest
 from unittest.mock import Mock, patch, PropertyMock
 
 from eai_robot.arm.calibration import JOINTS, load
-from eai_robot.course.robot import CourseMotorsBus, CourseFollower, DEFAULT_CALIBRATION, make_robot
-from eai_robot.course.poses.control_presets import load_poses, POSES_PATH
-from eai_robot.course.kinematics.kinematics_backend import create_fk_solver
-from eai_robot.course.kinematics.check_step2_fk import DEFAULT_URDF
-from eai_robot.course.kinematics.joint_mapping import SO101JointMapper
-from eai_robot.course.cli import COMMANDS
+from eai_robot.robots.so101 import SO101MotorsBus, SO101Follower, DEFAULT_CALIBRATION, make_robot
+from eai_robot.poses.control_presets import load_poses, POSES_PATH
+from eai_robot.kinematics.kinematics_backend import create_fk_solver
+from eai_robot.kinematics.check_step2_fk import DEFAULT_URDF
+from eai_robot.kinematics.joint_mapping import SO101JointMapper
+from eai_robot.cli import COMMANDS
 from lerobot.motors.feetech import FeetechMotorsBus
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -35,7 +35,7 @@ class IntegrationTests(unittest.TestCase):
                          [(169,898),(60,740),(196,772),(67,681),(47,974),(239,640)])
 
     def test_constructing_course_robot_uses_shared_file_without_serial(self):
-        with patch.object(CourseMotorsBus, "connect", side_effect=AssertionError("serial opened")):
+        with patch.object(SO101MotorsBus, "connect", side_effect=AssertionError("serial opened")):
             robot = make_robot("FAKE", "scs215_com5")
             self.assertEqual(robot.calibration_fpath, DEFAULT_CALIBRATION)
             self.assertEqual([m.model for m in robot.bus.motors.values()], ["scs215"]*6)
@@ -100,7 +100,7 @@ class IntegrationTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError,"enable_motion"):
             robot.send_action({"shoulder_pan.pos":0})
         robot.motion_enabled=True
-        with patch.object(CourseMotorsBus,"is_connected",new_callable=PropertyMock,return_value=True):
+        with patch.object(SO101MotorsBus,"is_connected",new_callable=PropertyMock,return_value=True):
             for action in ({"shoulder_pan.pos":float("nan")},{"gripper.pos":-1},{"shoulder_pan.pos":101},{"bad.pos":0}):
                 with self.assertRaises(ValueError):
                     robot.send_action(action)

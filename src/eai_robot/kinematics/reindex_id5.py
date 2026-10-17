@@ -16,8 +16,8 @@ from datetime import datetime
 from pathlib import Path
 
 from lerobot.motors import Motor, MotorNormMode
-from eai_robot.course.robot import CourseMotorsBus as FeetechMotorsBus
-from eai_robot.course.robot import CourseFollower as SO101Follower, make_robot, DEFAULT_CALIBRATION, default_port
+from eai_robot.robots.so101 import SO101MotorsBus as FeetechMotorsBus
+from eai_robot.robots.so101 import SO101Follower, make_robot, DEFAULT_CALIBRATION, default_port
 from lerobot.utils.utils import enter_pressed
 
 

@@ -8,7 +8,7 @@ from eai_robot.arm.backends import LeRobotBackend
 from eai_robot.arm.calibration import JOINTS, load
 from eai_robot.arm.controller import ArmController
 from eai_robot.config import ROOT, load_config
-from eai_robot.course.robot import DEFAULT_CALIBRATION, default_port
+from eai_robot.robots.so101 import DEFAULT_CALIBRATION, default_port
 
 
 def main():

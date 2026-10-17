@@ -7,8 +7,8 @@ from typing import Protocol, Sequence
 
 import numpy as np
 
-from eai_robot.course.kinematics.joint_mapping import ARM_JOINT_NAMES, URDF_LIMITS
-from eai_robot.course.kinematics.kinematics_backend import ForwardKinematics
+from eai_robot.kinematics.joint_mapping import ARM_JOINT_NAMES, URDF_LIMITS
+from eai_robot.kinematics.kinematics_backend import ForwardKinematics
 
 
 @dataclass(frozen=True)

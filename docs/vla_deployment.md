@@ -86,7 +86,8 @@ GPU 尚未确认时，可以开展模型契约、假策略、录制和离线回�
 ```text
 plugins/lerobot_robot_scs215/  已有：唯一硬件 Robot 与总线
 src/eai_robot/arm/            已有：GUI、人工控制、单硬件线程
-src/eai_robot/course/         已有：FK/IK、键盘与课程视觉
+src/eai_robot/kinematics/     已有：FK/IK 与键盘笛卡尔控制
+src/eai_robot/vision/         已有：相机视觉与视觉伺服
 src/eai_robot/policy/         拟新增
   contracts.py               observation/action/model manifest
   observations.py            图像/六关节/语言任务的模型输入适配

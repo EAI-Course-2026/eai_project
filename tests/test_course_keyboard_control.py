@@ -5,11 +5,11 @@ from unittest.mock import Mock
 
 import numpy as np
 
-from eai_robot.course.kinematics.keyboard_control import (
+from eai_robot.kinematics.keyboard_control import (
     direction_from_keys,
     read_motion_feedback,
 )
-from eai_robot.course.kinematics.joint_mapping import ARM_JOINT_NAMES
+from eai_robot.kinematics.joint_mapping import ARM_JOINT_NAMES
 
 
 class KeyboardDirectionTest(unittest.TestCase):

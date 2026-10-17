@@ -1,4 +1,4 @@
-"""Black-ball image-based closed-loop control for the course SCS215 arm.
+"""Black-ball image-based closed-loop control for the SCS215 arm.
 
 The script uses this repository's SCS215-adapted ``SOFollower`` and reuses the
 Week 4 Task 2 calibration mapping, FK, IK and Cartesian line planner.  Without
@@ -17,26 +17,26 @@ from typing import Sequence
 
 import cv2
 import numpy as np
-from eai_robot.course.input import keyboard
+from eai_robot.input import keyboard
 
 from lerobot.cameras import ColorMode
 from lerobot.cameras.opencv import OpenCVCameraConfig
 from eai_robot.config import default_camera_index
-from eai_robot.course.robot import CourseFollower as SO101Follower, make_robot, DEFAULT_CALIBRATION, default_port
+from eai_robot.robots.so101 import SO101Follower, make_robot, DEFAULT_CALIBRATION, default_port
 
-from eai_robot.course.kinematics.cartesian_planner import CartesianLinePlanner, CartesianPlan  # noqa: E402
-from eai_robot.course.kinematics.joint_mapping import ARM_JOINT_NAMES, SO101JointMapper  # noqa: E402
-from eai_robot.course.kinematics.kinematics_backend import create_fk_solver  # noqa: E402
-from eai_robot.course.kinematics.position_ik import create_position_ik_solver  # noqa: E402
-from eai_robot.course.kinematics.run_steps3_to5 import (  # noqa: E402
+from eai_robot.kinematics.cartesian_planner import CartesianLinePlanner, CartesianPlan  # noqa: E402
+from eai_robot.kinematics.joint_mapping import ARM_JOINT_NAMES, SO101JointMapper  # noqa: E402
+from eai_robot.kinematics.kinematics_backend import create_fk_solver  # noqa: E402
+from eai_robot.kinematics.position_ik import create_position_ik_solver  # noqa: E402
+from eai_robot.kinematics.run_steps3_to5 import (  # noqa: E402
     arm_degrees_from_raw,
     ensure_execution_start_is_safe,
     raw_outside_calibration,
     read_raw_motors,
 )
 
-from eai_robot.course.vision.ball_detector import BallDetection, BlackBallDetector, annotate_frame
-from eai_robot.course.vision.visual_math import AXIS_INDEX, axis_delta, damped_image_step, validate_image_jacobian
+from eai_robot.vision.ball_detector import BallDetection, BlackBallDetector, annotate_frame
+from eai_robot.vision.visual_math import AXIS_INDEX, axis_delta, damped_image_step, validate_image_jacobian
 
 
 DEFAULT_URDF = Path(__file__).resolve().parents[1] / "kinematics/so101_new_calib.urdf"
@@ -337,7 +337,7 @@ class VisionArmRuntime:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Black-ball image-based closed-loop control for the SCS215 course arm."
+        description="Black-ball image-based closed-loop control for the SCS215 arm."
     )
     parser.add_argument("--port", default=default_port())
     parser.add_argument("--robot-id", default="scs215_so101")

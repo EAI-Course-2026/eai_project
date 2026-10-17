@@ -14,15 +14,15 @@ from pathlib import Path
 from typing import Iterable
 
 import numpy as np
-from eai_robot.course.input import keyboard
+from eai_robot.input import keyboard
 
-from eai_robot.course.robot import CourseFollower as SO101Follower, make_robot, DEFAULT_CALIBRATION, default_port
+from eai_robot.robots.so101 import SO101Follower, make_robot, DEFAULT_CALIBRATION, default_port
 
-from eai_robot.course.kinematics.cartesian_planner import CartesianLinePlanner
-from eai_robot.course.kinematics.joint_mapping import ARM_JOINT_NAMES, SO101JointMapper
-from eai_robot.course.kinematics.kinematics_backend import create_fk_solver
-from eai_robot.course.kinematics.position_ik import create_position_ik_solver
-from eai_robot.course.kinematics.run_steps3_to5 import (
+from eai_robot.kinematics.cartesian_planner import CartesianLinePlanner
+from eai_robot.kinematics.joint_mapping import ARM_JOINT_NAMES, SO101JointMapper
+from eai_robot.kinematics.kinematics_backend import create_fk_solver
+from eai_robot.kinematics.position_ik import create_position_ik_solver
+from eai_robot.kinematics.run_steps3_to5 import (
     arm_degrees_from_raw,
     ensure_execution_start_is_safe,
     raw_outside_calibration,

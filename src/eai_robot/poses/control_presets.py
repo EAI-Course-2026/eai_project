@@ -9,8 +9,8 @@ from eai_robot.arm.calibration import JOINTS, JointCalibration, load, validate
 from eai_robot.arm.backends import LeRobotBackend
 from eai_robot.arm.controller import ArmController
 from eai_robot.config import load_config
-from eai_robot.course.input import read_key
-from eai_robot.course.robot import DEFAULT_CALIBRATION, default_port
+from eai_robot.input import read_key
+from eai_robot.robots.so101 import DEFAULT_CALIBRATION, default_port
 
 POSES_PATH = Path(__file__).with_name("poses.reference.json")
 POSE_KEYS = {"1": "stand", "2": "raise", "3": "left", "4": "right"}

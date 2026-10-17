@@ -21,6 +21,15 @@ dist/
 !/calibration/scs215_so101.meta.json
 !/calibration/history/
 !/calibration/README.md
+!/calibration/vision/
+/calibration/vision/**
+!/calibration/vision/README.md
+!/calibration/vision/cameras/
+!/calibration/vision/cameras/*/
+!/calibration/vision/cameras/*/intrinsics.json
+!/calibration/vision/rigs/
+!/calibration/vision/rigs/*/
+!/calibration/vision/rigs/*/hand_eye.json
 
 # Coursework hand-in stays on this computer, including its report, video, and dependencies.
 /assignment2_handin/

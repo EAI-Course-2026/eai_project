@@ -1,4 +1,4 @@
-"""One portable command dispatcher for the migrated course tools."""
+"""Portable command dispatcher for the EAI robot application."""
 import importlib
 import sys
 
@@ -8,6 +8,7 @@ COMMANDS = {
     "plan": "kinematics.run_steps3_to5",
     "keyboard": "kinematics.keyboard_control",
     "vision": "vision.visual_closed_loop",
+    "aruco-preview": "vision.aruco_preview",
     "voice": "voice.cli",
     "poses": "poses.control_presets",
     "record-pose": "poses.record_pose",
@@ -24,7 +25,7 @@ def main():
         print(f"Unknown command: {command}", file=sys.stderr)
         return 2
     try:
-        return importlib.import_module("eai_robot.course." + COMMANDS[command]).main() or 0
+        return importlib.import_module("eai_robot." + COMMANDS[command]).main() or 0
     except KeyboardInterrupt:
         print("Interrupted.", file=sys.stderr)
         return 130

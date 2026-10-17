@@ -25,10 +25,10 @@ import threading
 from pathlib import Path
 
 from eai_robot.arm.calibration import JOINTS, load as load_calibration
-from eai_robot.course.poses.control_presets import POSES_PATH, load_poses
-from eai_robot.course.robot import DEFAULT_CALIBRATION, default_port
-from eai_robot.course.voice import intent as intent_module
-from eai_robot.course.voice.dispatcher import Dispatcher
+from eai_robot.poses.control_presets import POSES_PATH, load_poses
+from eai_robot.robots.so101 import DEFAULT_CALIBRATION, default_port
+from eai_robot.voice import intent as intent_module
+from eai_robot.voice.dispatcher import Dispatcher
 
 CONFIRM_PHRASE = "START VOICE CONTROL"
 

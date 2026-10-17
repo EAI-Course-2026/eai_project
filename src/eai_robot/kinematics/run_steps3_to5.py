@@ -16,12 +16,12 @@ import numpy as np
 
 from eai_robot.arm.calibration import feedback_in_range
 
-from eai_robot.course.robot import CourseFollower as SO101Follower, make_robot, DEFAULT_CALIBRATION, default_port
+from eai_robot.robots.so101 import SO101Follower, make_robot, DEFAULT_CALIBRATION, default_port
 
-from eai_robot.course.kinematics.cartesian_planner import CartesianLinePlanner, CartesianPlan
-from eai_robot.course.kinematics.joint_mapping import ALL_MOTOR_NAMES, ARM_JOINT_NAMES, SO101JointMapper, URDF_LIMITS
-from eai_robot.course.kinematics.kinematics_backend import create_fk_solver
-from eai_robot.course.kinematics.position_ik import create_position_ik_solver
+from eai_robot.kinematics.cartesian_planner import CartesianLinePlanner, CartesianPlan
+from eai_robot.kinematics.joint_mapping import ALL_MOTOR_NAMES, ARM_JOINT_NAMES, SO101JointMapper, URDF_LIMITS
+from eai_robot.kinematics.kinematics_backend import create_fk_solver
+from eai_robot.kinematics.position_ik import create_position_ik_solver
 
 
 DEFAULT_URDF = Path(__file__).with_name("so101_new_calib.urdf")

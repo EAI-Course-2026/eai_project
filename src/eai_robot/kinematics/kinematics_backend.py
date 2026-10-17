@@ -8,8 +8,8 @@ from typing import Protocol, Sequence
 
 import numpy as np
 
-from eai_robot.course.kinematics.joint_mapping import ARM_JOINT_NAMES
-from eai_robot.course.kinematics.urdf_fk import URDFFK
+from eai_robot.kinematics.joint_mapping import ARM_JOINT_NAMES
+from eai_robot.kinematics.urdf_fk import URDFFK
 
 
 class ForwardKinematics(Protocol):
