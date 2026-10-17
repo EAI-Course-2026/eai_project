@@ -2,7 +2,8 @@
 
 下一阶段的 VLA 模型部署、观测/动作契约与推理执行方案见
 [VLA 部署规划](vla_deployment.md)和[接续 handoff](handoffs/vla_next_session.md)。
-其中 `policy/` 与推理运行器是拟新增模块，不属于已实现架构。
+`policy/` 与推理运行器现已实现，当前能力和未验收项见
+[推理基础设施指南](policy/README.md)；早期规划中的“拟新增”表述应按该实现状态理解。
 
 SCS215 适配维护在独立仓库 `EAI-Course-2026/eai_project`，以可安装插件
 `lerobot_robot_scs215` 放在 `plugins/lerobot_robot_scs215/`。直接脚本、网页默认后端、
@@ -10,26 +11,20 @@ SO-101 机器人构造器和标准 LeRobot CLI 共用这个插件中的电机总
 
 ## Python 包边界
 
-课程是本仓库的交付背景，不是 Python 能力分类。课程说明、作业迁移记录和验收材料放在
-`docs/course/`；`src/eai_robot/` 按技术职责组织，不保留 `eai_robot.course` 包。机械臂、
-运动学、视觉、姿态和语音实现分别放在对应能力包，`eai_robot.cli` 只负责把命令分派给这些
-模块。保留 `eai-course` 命令名是用户入口兼容，不代表实现仍按课程目录组织。
+当前目录分工和依赖约束见 [`src/README.md`](../src/README.md)，
+标定与协作者视觉接入见[标定能力说明](../src/eai_robot/calibration/README.md)。
+用户流程放 `applications/`，目标与动作计划放 `motion/`，几何求解放 `kinematics/`，
+在线执行控制放 `control/`，协议与硬件检查放 `hardware/`，机器人装配放 `robots/`。
+`vision/` 提供图像观测，视觉控制律在 `control/`；复杂标定流程在同级 `calibration/`。
+`arm/`、`poses/` 及旧步骤文件保留兼容导入，不能再作为新实现目录。
 
-```text
-eai_robot/
-  arm/          手臂控制器、上位机与手臂工作流
-  hardware/     原生协议和总线后端
-  robots/       LeRobot 机器人类型与构造器
-  kinematics/   关节映射、FK/IK、笛卡尔规划
-  vision/       相机、视觉检测、视觉伺服与视觉标定程序
-  poses/        姿态数据和姿态工作流
-  voice/        命令解析与调度
-  control/      跨设备的通用控制组件
-  cli.py        用户命令分派
-```
+`policy/` 保持模型、数据与策略执行门禁的生命周期内聚，`voice/` 负责白名单意图与动作调度。
+`eai_robot.cli` 只负责分派，保留 `eai-course` 命令名以兼容已有使用方式。
+课程说明、迁移记录和历史验收材料在 `docs/course/`。
 
-能力包可被课程文档中的不同任务共同使用；新增功能应按职责放入能力包，不能因为首次用于某周
-课程就放进 `course/`。
+运行时读取 `calibration/results.py`，不导入标定采样流程；应用侧舵机流程已迁入
+`calibration/servo.py`，插件侧流程独立在插件的 `calibration.py`，没有新增发行包循环依赖。
+本次按职责归位没有将所有设备执行路径合并为一个控制器，下列双路径仍有效。
 
 ```text
 arm_lerobot.py / 网页 / demo / 姿态工作流

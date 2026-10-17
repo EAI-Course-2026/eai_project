@@ -1,28 +1,8 @@
-"""Load per-robot joint ranges from LeRobot's local calibration file."""
+"""Compatibility alias; new code uses ``eai_robot.robots.joint_ranges``."""
+import importlib as _importlib
+import sys as _sys
 
-from eai_robot.robots.so101 import SO101Follower, make_robot, DEFAULT_CALIBRATION, default_port
-
-
-JOINTS = (
-    "shoulder_pan",
-    "shoulder_lift",
-    "elbow_flex",
-    "wrist_flex",
-    "wrist_roll",
-    "gripper",
-)
-
-
-def load_calibrated_ranges(port: str, robot_id: str) -> dict[int, tuple[int, int]]:
-    """Return servo ID -> raw minimum/maximum without opening the serial port."""
-    robot = make_robot(port, robot_id)
-    if not robot.calibration:
-        raise FileNotFoundError(f"No calibration found at {robot.calibration_fpath}")
-
-    return {
-        servo_id: (
-            robot.calibration[joint].range_min,
-            robot.calibration[joint].range_max,
-        )
-        for servo_id, joint in enumerate(JOINTS, start=1)
-    }
+_impl = _importlib.import_module("eai_robot.robots.joint_ranges")
+if __name__ == "__main__" and hasattr(_impl, "main"):
+    raise SystemExit(_impl.main())
+_sys.modules[__name__] = _impl

@@ -1,1 +1,1 @@
-"""Six-joint SCS215 arm, with interchangeable serial backends."""
+"""Compatibility imports for applications, control, hardware and calibration."""

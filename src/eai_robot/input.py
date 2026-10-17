@@ -31,3 +31,11 @@ def read_key():
         return sys.stdin.read(1).lower()
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, previous)
+
+
+def parse_ratios(text):
+    import math
+    values = [float(part) for part in text.replace(",", " ").split()]
+    if len(values) != 6 or not all(math.isfinite(v) and 0 <= v <= 1 for v in values):
+        raise ValueError("请输入六个 0..1 的有限数值，以空格或逗号分隔")
+    return values

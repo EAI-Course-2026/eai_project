@@ -1,1 +1,1 @@
-"""Camera intrinsic and robot-camera hand-eye calibration workflows."""
+"""Legacy placeholder; new calibration workflows use eai_robot.calibration."""

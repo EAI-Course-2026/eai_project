@@ -1,44 +1,17 @@
-# Vision calibration tools
+# 视觉标定旧占位目录
 
-This package is for camera and hand-eye calibration programs. Calibration
-results are durable robot configuration, not source code: reviewed, shared
-results belong under the repository-level `calibration/vision/` directory.
-Keep both separate from `eai_robot.arm.calibration`, which implements SCS215
-joint endpoint calibration.
+此目录目前只有占位说明与 `__init__.py`，没有相机内参或手眼标定算法。
+复杂标定流程统一放在同级 `eai_robot/calibration/`，详见
+[独立标定设计](../../calibration/README.md)与[源码分工](../../../README.md)。
+新增内参、手眼和采样代码请直接放在新目录，不在这里创建第二套流程。
+当前保留此占位包；新目录已承接舵机流程，视觉求解器仍待协作者实现。
 
-## Reserved modules
+审核后的共享视觉结果仍存于仓库根
+[`calibration/vision/`](../../../../calibration/vision/README.md)。
+原始图片、配对位姿、求解中间文件及候选结果留在
+`local_artifacts/experiments/<timestamp>_vision-calibration/` 或受控数据存储。
+相机本机编号放 `configs/hardware.local.toml` 或显式命令参数；
+稳定资产编号、分辨率、坐标系、变换方向、误差及来源随审核结果记录。
 
-- The command layer should follow LeRobot's split: one small dispatcher selects
-  a calibration workflow, while each workflow owns its capture/solve/validate
-  procedure. Keep reusable algorithms in this package rather than adding
-  calibration logic to the ArUco detector or the robot-motion controller.
-- `intrinsics.py` — collect/read checkerboard image samples, solve camera
-  intrinsics and distortion, report per-view and overall reprojection error.
-- `hand_eye.py` — consume paired robot/tool and camera/target poses, solve the
-  hand-eye transform, report residuals and frame conventions.
-- `capture.py` — optional camera-only checkerboard capture helpers shared by
-  the calibration commands. Any paired robot pose capture must remain read-only
-  and must not command arm motion.
-
-Register one `calibrate` command in `src/eai_robot/cli.py` when workflow
-inputs and output schemas are agreed. It should dispatch to intrinsics or
-hand-eye calibration, much as `lerobot-calibrate` dispatches to a selected
-device's `calibrate()` implementation. Keep the workflow-specific procedures
-in this package. Use the existing `aruco-preview` command for camera-only
-marker detection in the meantime.
-
-## Data and safety boundary
-
-- Keep host camera indices in ignored `configs/hardware.local.toml` or pass
-  them on the command line.
-- Write raw images, paired pose samples, and candidate results under
-  `local_artifacts/experiments/<timestamp>_vision-calibration/`.
-- Promote approved camera/rig calibration into `calibration/vision/`, alongside
-  the existing joint calibration assets but isolated from them. Keep candidate
-  files and raw captures out of this shared runtime location.
-- Record units, stable camera/rig identity, capture date, source commit, solver
-  version, residuals, and transform direction with each approved result.
-- Intrinsics are tied to the camera/lens/resolution configuration. Hand-eye
-  calibration is tied to a specific camera-to-tool mounting configuration.
-- A paired pose collector may read the robot and camera; it must not move the
-  robot. Motion experiments require a separate, explicitly authorized workflow.
+现阶段使用 `eai-course aruco-preview` 做相机检测预览。
+手眼配对采集可读取设备，不隐式命令运动；运行时读取标定不得触发重新求解。

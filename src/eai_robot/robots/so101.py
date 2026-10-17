@@ -7,7 +7,7 @@ from lerobot_robot_scs215 import (
     SCS215SO101FollowerConfig,
 )
 from eai_robot.config import ROOT, load_config
-from eai_robot.arm.calibration import load
+from eai_robot.calibration.results import load
 
 DEFAULT_CALIBRATION = ROOT / "calibration/scs215_so101.json"
 SO101MotorsBus = SCS215MotorsBus

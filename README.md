@@ -100,6 +100,9 @@ git switch -c codex/your-task
 
 ## 文件导航
 
+源码各子目录的职责、兼容边界和新增能力的放置规则见
+[`src/README.md`](src/README.md)。本次已分离标定、动作目标、执行控制和用户流程；不同设备执行路径仍保留各自门禁。
+
 ACT、SmolVLA、π0.5 的模型加载、跨机器推理、本地执行门禁与示范数据工具见
 [推理基础设施指南](docs/policy/README.md)及[后续工作交接](docs/policy/next_session.md)。
 SmolVLA 已完成 Mac MPS 的真实离线加载与动作块输出；GPU、本机模型适配和自主实物任务
@@ -107,10 +110,14 @@ SmolVLA 已完成 Mac MPS 的真实离线加载与动作块输出；GPU、本机
 
 | 路径 | 用途 |
 |---|---|
-| `src/eai_robot/arm/` | 机械臂控制器、上位机和手臂专用工作流 |
-| `src/eai_robot/hardware/`、`robots/` | 总线协议、硬件适配和 LeRobot 机器人构造 |
-| `src/eai_robot/kinematics/`、`control/` | FK/IK、关节映射、笛卡尔规划与控制算法 |
-| `src/eai_robot/vision/`、`poses/`、`voice/` | 视觉、姿态和语音能力模块 |
+| `src/eai_robot/applications/` | 网页、CLI、键盘、视觉闭环等用户流程与设备会话 |
+| `src/eai_robot/calibration/` | 独立舵机标定流程与结果契约；相机内参/手眼的新代码接入点 |
+| `src/eai_robot/motion/` | 命名关节姿态、演示计划与笛卡尔目标模型 |
+| `src/eai_robot/control/` | 在线控制器、反馈检查、阶段执行与视觉伺服控制律 |
+| `src/eai_robot/kinematics/` | 关节映射、URDF、FK/IK 与几何路径 |
+| `src/eai_robot/hardware/`、`robots/` | 协议、设备后端与硬件检查；机器人装配 |
+| `src/eai_robot/vision/`、`voice/` | 图像检测与标记位姿估计；识别文本的意图解析与动作调度 |
+| `src/eai_robot/arm/`、`poses/` | 旧导入路径兼容层，新实现不再放入这里 |
 | `src/eai_robot/cli.py` | `eai-course` 命令入口；按能力模块分派命令 |
 | `docs/course/` | 课程说明、历史材料、作业迁移记录和验收文档 |
 | `src/eai_robot/policy/` | 策略推理基建与执行门禁 |

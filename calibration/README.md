@@ -10,7 +10,7 @@ LeRobot 0.6.2 fork (`6a07790`). A port name is not a robot identity.
 | `calibration/scs215_so101.meta.json` | Hardware asset label, capture method/date and verification evidence | Yes |
 | `calibration/history/` | Superseded snapshots, inactive candidates, paired old poses and write receipts | Yes; never selected by default |
 | `calibration/vision/` | Reviewed camera intrinsics and robot-camera hand-eye results, keyed by stable asset IDs | Yes, after review |
-| `src/eai_robot/vision/calibration/` | Calibration algorithms and command workflows | Yes; source code |
+| `src/eai_robot/calibration/` | Calibration algorithms and command workflows | Yes; source code |
 | `local_artifacts/experiments/` | Raw captures, pose samples, solver intermediates and unreviewed candidates | No; ignored |
 | `configs/hardware.local.toml` | This computer's serial port and camera index | No; ignored by Git |
 | `outputs/` | Machine-specific captures and diagnostic logs | No; ignored by Git |

@@ -23,7 +23,7 @@ and [environment setup](../environments.md), not their old Conda/COM commands.
 | `HANDOFF.md` | [`docs/course/source/HANDOFF.md`](../../docs/course/source/HANDOFF.md) | Historical document; current commands are in the shared course/environment guides |
 | `README.md` | [`docs/course/source/README.md`](../../docs/course/source/README.md) | Historical document; current commands are in the shared course/environment guides |
 | `calibration/README.md` | [`docs/course/source/calibration/README.md`](../../docs/course/source/calibration/README.md) | Historical document; current commands are in the shared course/environment guides |
-| `calibration/scs215_com5.reference.json` | [`src/eai_robot/poses/poses.reference.json`](../../src/eai_robot/poses/poses.reference.json) | Original reference retained in the calibration binding; active hardware snapshot is separate |
+| `calibration/scs215_com5.reference.json` | [`src/eai_robot/motion/poses.reference.json`](../../src/eai_robot/motion/poses.reference.json) | Original reference retained in the calibration binding; active hardware snapshot is separate |
 | `setup_windows.cmd` | [`scripts/setup_windows.cmd`](../../scripts/setup_windows.cmd) | Replaced by locked uv control setup; CUDA setup has its own installer |
 | `vision/README.md` | [`docs/course/source/vision/README.md`](../../docs/course/source/vision/README.md) | Historical document; current commands are in the shared course/environment guides |
 | `vision/REPORT.md` | [`docs/course/source/vision/REPORT.md`](../../docs/course/source/vision/REPORT.md) | Historical document; current commands are in the shared course/environment guides |
@@ -37,7 +37,7 @@ and [environment setup](../environments.md), not their old Conda/COM commands.
 | `week4/task1/README.md` | [`docs/course/source/week4/task1/README.md`](../../docs/course/source/week4/task1/README.md) | Historical document; current commands are in the shared course/environment guides |
 | `week4/task1/arm_config.py` | [`src/eai_robot/poses/arm_config.py`](../../src/eai_robot/poses/arm_config.py) | Adapted to shared control, read-only capture and portable terminal input |
 | `week4/task1/control_presets.py` | [`src/eai_robot/poses/control_presets.py`](../../src/eai_robot/poses/control_presets.py) | Adapted to shared control, read-only capture and portable terminal input |
-| `week4/task1/poses.json` | [`src/eai_robot/poses/poses.reference.json`](../../src/eai_robot/poses/poses.reference.json) | Original poses retained and bound to reference calibration; playback preserves raw targets |
+| `week4/task1/poses.json` | [`src/eai_robot/motion/poses.reference.json`](../../src/eai_robot/motion/poses.reference.json) | Original poses retained and bound to reference calibration; playback preserves raw targets |
 | `week4/task1/record_pose.py` | [`src/eai_robot/poses/record_pose.py`](../../src/eai_robot/poses/record_pose.py) | Adapted to shared control, read-only capture and portable terminal input |
 | `week4/task2/README.md` | [`docs/course/source/week4/task2/README.md`](../../docs/course/source/week4/task2/README.md) | Historical document; current commands are in the shared course/environment guides |
 | `week4/task2/cartesian_planner.py` | [`src/eai_robot/kinematics/cartesian_planner.py`](../../src/eai_robot/kinematics/cartesian_planner.py) | Adapted package imports, shared calibration/ports and consistent NumPy backend |

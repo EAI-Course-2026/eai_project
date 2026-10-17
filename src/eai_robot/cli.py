@@ -3,16 +3,16 @@ import importlib
 import sys
 
 COMMANDS = {
-    "mapping": "kinematics.check_step1",
-    "fk": "kinematics.check_step2_fk",
-    "plan": "kinematics.run_steps3_to5",
-    "keyboard": "kinematics.keyboard_control",
-    "vision": "vision.visual_closed_loop",
-    "aruco-preview": "vision.aruco_preview",
-    "voice": "voice.cli",
-    "poses": "poses.control_presets",
-    "record-pose": "poses.record_pose",
-    "reindex": "kinematics.reindex_id5",
+    "mapping": "applications.check_mapping",
+    "fk": "applications.check_fk",
+    "plan": "applications.cartesian_plan",
+    "keyboard": "applications.keyboard_control",
+    "vision": "applications.visual_closed_loop",
+    "aruco-preview": "applications.aruco_preview",
+    "voice": "applications.voice_cli",
+    "poses": "applications.pose_control",
+    "record-pose": "applications.record_pose",
+    "reindex": "applications.reindex_id5",
 }
 
 

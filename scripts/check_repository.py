@@ -15,6 +15,7 @@ def check() -> list[str]:
     errors: list[str] = []
     documents = [ROOT / name for name in ("README.md", "CONTRIBUTING.md", "AGENTS.md")]
     documents += list((ROOT / "docs").rglob("*.md"))
+    documents += list((ROOT / "src").rglob("*.md"))
     documents += [ROOT / "calibration/README.md", ROOT / "environments/training/README.md"]
     for document in documents:
         # Original migrated documents intentionally keep their historical paths.

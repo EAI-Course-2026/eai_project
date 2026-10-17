@@ -9,12 +9,13 @@ of this scaffold connects to or moves the arm.
 
 - `src/eai_robot/vision/aruco.py` detects a configured marker and can
   estimate its pose from supplied intrinsics and physical marker size.
-- Calibration implementation work is reserved in
-  `src/eai_robot/vision/calibration/`; its README defines the planned
-  intrinsics and hand-eye modules and their data boundary.
+- Camera and hand-eye calibration belong to the independent
+  [calibration capability](../../src/eai_robot/calibration/README.md).
+  `vision/calibration/` is retained as the earlier placeholder; neither location
+  currently contains camera or hand-eye calibration algorithms.
 - `eai-course aruco-preview --camera-index N --marker-id ID` shows a
   camera-only detection preview. It does not connect to the robot.
-- `src/eai_robot/vision/aruco_ibvs.py` builds the four-corner image
+- `src/eai_robot/control/aruco_ibvs.py` builds the four-corner image
   error, point-feature interaction matrix, and a bounded damped least-squares
   camera-frame velocity command.
 - Add offline math and detector regression coverage before connecting this

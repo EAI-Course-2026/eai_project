@@ -2,7 +2,7 @@
 
 This is the repository location for reviewed, shared camera and hand-eye
 calibration results. It is deliberately separate from both the calibration
-programs in `src/eai_robot/vision/calibration/` and the SCS215 joint
+programs in `src/eai_robot/calibration/` and the SCS215 joint
 calibration files directly under `calibration/`.
 
 Reserve these artifact families:
