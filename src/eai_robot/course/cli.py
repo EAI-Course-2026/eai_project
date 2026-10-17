@@ -8,6 +8,7 @@ COMMANDS = {
     "plan": "kinematics.run_steps3_to5",
     "keyboard": "kinematics.keyboard_control",
     "vision": "vision.visual_closed_loop",
+    "voice": "voice.cli",
     "poses": "poses.control_presets",
     "record-pose": "poses.record_pose",
     "reindex": "kinematics.reindex_id5",

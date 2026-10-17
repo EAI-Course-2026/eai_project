@@ -56,6 +56,7 @@ uv run --locked eai-course mapping
 uv run --locked eai-course fk
 uv run --locked eai-course plan --delta-mm 0 0 10
 uv run --locked eai-course poses
+uv run --locked eai-course voice --text "挥手"
 ```
 
 These commands run offline. `python scripts/course.py COMMAND` is an equivalent
@@ -65,6 +66,13 @@ requires an interactive confirmation. `keyboard` and `vision --execute` retain
 their explicit startup confirmations. `vision --preview` uses only the camera.
 macOS interactive global keys may require Input Monitoring/Accessibility
 permission; imports, tests, help and offline planning do not request it.
+
+The course voice command layer lives in `src/eai_robot/course/voice/` alongside
+the pose tools it dispatches. Use `eai-course voice` or `python scripts/course.py
+voice`; it defaults to a hardware-free dry run. ASR remains an external text
+producer, while generic learned-policy inference stays in `src/eai_robot/policy/`.
+See the [voice guide](voice/README.md) for the whitelist, stdin interface and
+explicit motion enable requirements.
 
 The common FK/IK backend is the migrated NumPy implementation on both systems.
 Installing Placo no longer silently changes the default solver. The optional

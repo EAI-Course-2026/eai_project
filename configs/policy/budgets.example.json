@@ -1,0 +1,8 @@
+{
+  "max_observation_age_s": 0.25,
+  "max_acquisition_skew_s": 0.1,
+  "response_timeout_s": 0.25,
+  "action_ttl_s": 0.5,
+  "max_step": 1.0,
+  "max_tracking_error": 3.0
+}

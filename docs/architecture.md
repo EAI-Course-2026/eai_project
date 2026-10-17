@@ -1,5 +1,9 @@
 # 架构与 LeRobot 接入状态
 
+下一阶段的 VLA 模型部署、观测/动作契约与推理执行方案见
+[VLA 部署规划](vla_deployment.md)和[接续 handoff](handoffs/vla_next_session.md)。
+其中 `policy/` 与推理运行器是拟新增模块，不属于已实现架构。
+
 SCS215 适配维护在独立仓库 `EAI-Course-2026/eai_project`，以可安装插件
 `lerobot_robot_scs215` 放在 `plugins/lerobot_robot_scs215/`。直接脚本、网页默认后端、
 课程机器人和标准 LeRobot CLI 共用这个插件中的电机总线。
