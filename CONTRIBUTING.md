@@ -41,7 +41,7 @@ uv sync --locked
 uv run --locked python scripts/check_env.py
 uv run --locked python -m unittest discover -s tests -q
 uv run --locked python scripts/check_repository.py
-node --check src/eai_robot/arm/desk_assets/app.js
+node --check src/eai_robot/applications/desk_assets/app.js
 uv build --wheel --all-packages
 ```
 

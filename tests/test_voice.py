@@ -14,11 +14,11 @@ if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))
 
 from eai_robot.arm.calibration import load as load_calibration  # noqa: E402
-from eai_robot.course.poses.control_presets import POSES_PATH, load_poses  # noqa: E402
-from eai_robot.course.robot import DEFAULT_CALIBRATION  # noqa: E402
-from eai_robot.course.voice import cli as voice_cli  # noqa: E402
-from eai_robot.course.voice import intent as voice_intent  # noqa: E402
-from eai_robot.course.voice.dispatcher import Dispatcher, POSE_SEQUENCES, build_plan  # noqa: E402
+from eai_robot.poses.control_presets import POSES_PATH, load_poses  # noqa: E402
+from eai_robot.robots.so101 import DEFAULT_CALIBRATION  # noqa: E402
+from eai_robot.voice import cli as voice_cli  # noqa: E402
+from eai_robot.voice import intent as voice_intent  # noqa: E402
+from eai_robot.voice.dispatcher import Dispatcher, POSE_SEQUENCES, build_plan  # noqa: E402
 
 POSES = load_poses(POSES_PATH, load_calibration(DEFAULT_CALIBRATION))
 
@@ -241,7 +241,7 @@ class CliTests(unittest.TestCase):
 class ModuleBoundaryTests(unittest.TestCase):
     def test_intent_and_dispatcher_do_not_import_hardware_modules(self):
         source = "\n".join(
-            (ROOT / "src/eai_robot/course/voice" / name).read_text(encoding="utf-8")
+            (ROOT / "src/eai_robot/voice" / name).read_text(encoding="utf-8")
             for name in ("intent.py", "dispatcher.py"))
         for forbidden in ("import serial", "pyserial", "from lerobot", "import lerobot"):
             self.assertNotIn(forbidden, source)

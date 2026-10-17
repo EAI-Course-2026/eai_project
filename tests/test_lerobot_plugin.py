@@ -25,8 +25,8 @@ from lerobot_robot_scs215 import (
 )
 from lerobot_robot_scs215.safety import JOINTS, feedback_in_range
 from eai_robot.arm.calibration import load
-from eai_robot.course.robot import DEFAULT_CALIBRATION, CourseFollower, CourseMotorsBus
-from eai_robot.course.kinematics import keyboard_control as keyboard_controller
+from eai_robot.robots.so101 import DEFAULT_CALIBRATION, SO101Follower, SO101MotorsBus
+from eai_robot.kinematics import keyboard_control as keyboard_controller
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -238,8 +238,8 @@ assert not robot.is_connected
         from eai_robot.hardware.lerobot_scs215 import SCS215MotorsBus as DirectBus
 
         self.assertIs(DirectBus, SCS215MotorsBus)
-        self.assertIs(CourseMotorsBus, SCS215MotorsBus)
-        self.assertIs(CourseFollower, SCS215SO101Follower)
+        self.assertIs(SO101MotorsBus, SCS215MotorsBus)
+        self.assertIs(SO101Follower, SCS215SO101Follower)
         from eai_robot.arm import calibration as native
 
         self.assertEqual(native.JOINTS, JOINTS)
