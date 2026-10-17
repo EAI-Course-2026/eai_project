@@ -5,8 +5,8 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 from eai_robot.config import load_config
-from eai_robot.arm.backends import SerialBackend
-from eai_robot.arm.controller import inspect_hardware
+from eai_robot.hardware.backends import SerialBackend
+from eai_robot.control.arm_controller import inspect_hardware
 
 
 def main(argv=None):

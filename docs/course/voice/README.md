@@ -1,6 +1,6 @@
 # 语音命令调度（白名单意图 + 姿态调度）
 
-2026-10-12。课程命令层实现位于 `src/eai_robot/course/voice/`，入口为
+2026-10-12。课程命令层实现位于 `src/eai_robot/voice/`，入口为
 `uv run --locked eai-course voice`。默认干跑：导入、解析、计划与预览都不打开
 串口；也可用 `uv run --locked python scripts/course.py voice` 从源码启动。运动只在 `--enable` 且显式确认后发生。
 
@@ -45,7 +45,7 @@
 | `close_gripper` | 闭合夹爪、抓住、抓取、夹住 | `gripper_close` | 否，需先记录 |
 | `stop` | 停止、停下、停住、别动、急停 | 无（抢占并保持当前姿态） | 不适用 |
 
-解析规则（`src/eai_robot/course/voice/intent.py`）：
+解析规则（`src/eai_robot/voice/intent.py`）：
 
 1. `stop` 最先判定；一句话同时含停止词与其他命令词时按 `stop` 处理。
 2. 中文字关键词允许作为子串命中；纯 ASCII 关键词必须与整句完全一致，

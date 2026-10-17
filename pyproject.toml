@@ -9,7 +9,7 @@ dependencies = ["lerobot_robot_scs215==0.1.0", "lerobot[core_scripts,feetech]==0
 experiments = ["matplotlib>=3.9,<4"]
 
 [project.scripts]
-eai-course = "eai_robot.course.cli:main"
+eai-course = "eai_robot.cli:main"
 
 [tool.uv]
 required-version = "==0.11.7"

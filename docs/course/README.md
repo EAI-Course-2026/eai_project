@@ -9,8 +9,9 @@ this environment.
 
 The local `lerobot_robot_scs215` package now supplies the shared bus and Robot.
 Standard LeRobot CLI selects it with `--robot.type=scs215_so101_follower`;
-`CourseFollower`/`CourseMotorsBus` are compatibility aliases. This integration
-adds no fork edits. See the [plugin guide](../lerobot_plugin.md) and
+the `eai_robot.robots.so101` factory constructs that same registered Robot for
+application workflows. This integration adds no fork edits. See the
+[plugin guide](../lerobot_plugin.md) and
 [architecture](../architecture.md) for commands, motion enable and calibration behavior.
 
 ## Install and verify on macOS and Windows
@@ -57,6 +58,7 @@ uv run --locked eai-course fk
 uv run --locked eai-course plan --delta-mm 0 0 10
 uv run --locked eai-course poses
 uv run --locked eai-course voice --text "挥手"
+uv run --locked eai-course aruco-preview --camera-index 0 --marker-id 7
 ```
 
 These commands run offline. `python scripts/course.py COMMAND` is an equivalent
@@ -67,12 +69,18 @@ their explicit startup confirmations. `vision --preview` uses only the camera.
 macOS interactive global keys may require Input Monitoring/Accessibility
 permission; imports, tests, help and offline planning do not request it.
 
-The course voice command layer lives in `src/eai_robot/course/voice/` alongside
-the pose tools it dispatches. Use `eai-course voice` or `python scripts/course.py
-voice`; it defaults to a hardware-free dry run. ASR remains an external text
-producer, while generic learned-policy inference stays in `src/eai_robot/policy/`.
+Course code is organized in `eai_robot` by technical capability; `docs/course/`
+is the course-specific documentation layer. The voice command implementation
+lives in `src/eai_robot/voice/` alongside the pose tools it dispatches. Use
+`eai-course voice` or `python scripts/course.py voice`; it defaults to a
+hardware-free dry run. ASR remains an external text producer, while generic
+learned-policy inference stays in `src/eai_robot/policy/`.
 See the [voice guide](voice/README.md) for the whitelist, stdin interface and
 explicit motion enable requirements.
+
+The ArUco preview is camera-only and does not connect to the arm. The IBVS math
+and calibration/robot integration boundary are described in the
+[ArUco visual-servo scaffold](aruco_visual_servo.md).
 
 The common FK/IK backend is the migrated NumPy implementation on both systems.
 Installing Placo no longer silently changes the default solver. The optional

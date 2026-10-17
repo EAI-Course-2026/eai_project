@@ -13,9 +13,9 @@ manual calibration supersedes its limits; see [CALIBRATION.md](CALIBRATION.md).
 - Application baseline before migration: `eai_project` commit `375cd10`.
 - Collaborator source: `EAI-Course-2026/eai-course-lerobot` commit
   `6a077907c7989635218969ee78f5436f8faec92b` (LeRobot package 0.6.2).
-- Week 4 Task 1 -> `src/eai_robot/course/poses/`.
-- Week 4 Task 2 -> `src/eai_robot/course/kinematics/`, including its URDF.
-- Vision -> `src/eai_robot/course/vision/`, including the black-ball target page.
+- Week 4 Task 1 -> `src/eai_robot/poses/`.
+- Week 4 Task 2 -> `src/eai_robot/kinematics/`, including its URDF.
+- Vision -> `src/eai_robot/vision/`, including the black-ball target page.
 - All five collaborator test files -> root `tests/test_course_*.py`.
 - Original documentation and license -> `docs/course/source/`.
 - Framework adaptation stays in the pinned fork dependency; this application

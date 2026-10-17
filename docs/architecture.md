@@ -2,18 +2,36 @@
 
 下一阶段的 VLA 模型部署、观测/动作契约与推理执行方案见
 [VLA 部署规划](vla_deployment.md)和[接续 handoff](handoffs/vla_next_session.md)。
-其中 `policy/` 与推理运行器是拟新增模块，不属于已实现架构。
+`policy/` 与推理运行器现已实现，当前能力和未验收项见
+[推理基础设施指南](policy/README.md)；早期规划中的“拟新增”表述应按该实现状态理解。
 
 SCS215 适配维护在独立仓库 `EAI-Course-2026/eai_project`，以可安装插件
 `lerobot_robot_scs215` 放在 `plugins/lerobot_robot_scs215/`。直接脚本、网页默认后端、
-课程机器人和标准 LeRobot CLI 共用这个插件中的电机总线。
+SO-101 机器人构造器和标准 LeRobot CLI 共用这个插件中的电机总线。
+
+## Python 包边界
+
+当前目录分工和依赖约束见 [`src/README.md`](../src/README.md)，
+标定与协作者视觉接入见[标定能力说明](../src/eai_robot/calibration/README.md)。
+用户流程放 `applications/`，目标与动作计划放 `motion/`，几何求解放 `kinematics/`，
+在线执行控制放 `control/`，协议与硬件检查放 `hardware/`，机器人装配放 `robots/`。
+`vision/` 提供图像观测，视觉控制律在 `control/`；复杂标定流程在同级 `calibration/`。
+`arm/`、`poses/` 及旧步骤文件保留兼容导入，不能再作为新实现目录。
+
+`policy/` 保持模型、数据与策略执行门禁的生命周期内聚，`voice/` 负责白名单意图与动作调度。
+`eai_robot.cli` 只负责分派，保留 `eai-course` 命令名以兼容已有使用方式。
+课程说明、迁移记录和历史验收材料在 `docs/course/`。
+
+运行时读取 `calibration/results.py`，不导入标定采样流程；应用侧舵机流程已迁入
+`calibration/servo.py`，插件侧流程独立在插件的 `calibration.py`，没有新增发行包循环依赖。
+本次按职责归位没有将所有设备执行路径合并为一个控制器，下列双路径仍有效。
 
 ```text
-arm_lerobot.py / 网页 / demo / 课程姿态
+arm_lerobot.py / 网页 / demo / 姿态工作流
     → ArmController（0..1、归位、插值、反馈停止）
     → LeRobotBackend ──────────────────────┐
                                           │
-课程 FK/IK、键盘、视觉 / 标准 LeRobot CLI     │
+运动学 FK/IK、键盘、视觉 / 标准 LeRobot CLI    │
     → SCS215SO101Follower（Robot 接口）      │
     → get_observation / send_action ───────┤
                                           ▼
@@ -23,10 +41,10 @@ arm_lerobot.py / 网页 / demo / 课程姿态
 arm_serial.py / 原生诊断选项 → SerialBackend → 项目内 SCS 协议 → 舵机
 ```
 
-`CourseFollower`、`CourseMotorsBus` 是兼容别名，没有第二份通信或机器人实现。
+`eai_robot.robots.so101` 提供应用侧构造器，仍使用同一个注册插件，没有第二份通信或机器人实现。
 原生后端保留作协议诊断与迁移对照；网页和 demo 默认选择插件。`ArmController` 仍负责
 本项目的接管、归位与插值，插件 `Robot` 提供标准观测/动作接口。网页关节与末端控制
-由单一硬件线程调度；独立课程 CLI 和标准 CLI 各有进程生命周期。
+由单一硬件线程调度；应用 CLI 与标准 LeRobot CLI 各有进程生命周期。
 同一串口同时只运行一个控制进程。
 
 ## 框架源码边界
@@ -84,7 +102,7 @@ arm_serial.py / 原生诊断选项 → SerialBackend → 项目内 SCS 协议 �
 
 启动仅加载配置、标定与起点文件并创建服务，连接请求才创建后端、ArmController
 和硬件对象。串口候选来自系统枚举。当前姿态接管独立于归位/演示入口，先确认保持
-目标，再启用扭矩。DeskCartesian 共用课程 URDF、关节映射、NumPy FK、DLS
+目标，再启用扭矩。DeskCartesian 共用 SO-101 URDF、关节映射、NumPy FK、DLS
 位置 IK 和直线规划。编码器经映射和 FK 得到 XYZ；XYZ 请求经整条路径预检、
 IK 与范围检查生成 raw 目标，由同一个后端执行。夹爪保持原位，可单独点动。
 

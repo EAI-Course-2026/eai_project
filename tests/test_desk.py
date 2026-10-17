@@ -303,7 +303,8 @@ class DeskTests(unittest.TestCase):
             service.submit('save_calibration')
             state=self.settle(service)
             self.assertIsNone(state['error'],state['error'])
-            self.assertEqual(len([p for p in (Path(d)/'calibration').glob('scs215_manual_*.json') if not p.name.endswith('.meta.json')]),1)
+            self.assertEqual(len(list((Path(d)/'local_artifacts/experiments').glob('*_servo-calibration/candidate.json'))),1)
+            self.assertFalse((Path(d)/'calibration').exists())
             self.assertEqual(bus.writes,[])
 
     def test_manual_control_works_without_matching_home(self):

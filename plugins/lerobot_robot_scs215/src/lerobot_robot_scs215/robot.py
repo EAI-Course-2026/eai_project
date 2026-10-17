@@ -1,17 +1,13 @@
 """Registered SCS215 SO101 Robot; standard CLIs use the same implementation as course tools."""
 
 from dataclasses import dataclass, field, replace, asdict
-from datetime import datetime, timezone
 from functools import cached_property
-import json
 import math
 from numbers import Real
 from pathlib import Path
-import shutil
 
 from lerobot.cameras import CameraConfig, make_cameras_from_configs
 from lerobot.cameras.configs import ColorMode
-from lerobot.motors import MotorCalibration
 from lerobot.robots import Robot, RobotConfig
 from .bus import SCS215MotorsBus
 from .safety import JOINTS, feedback_in_range
@@ -252,107 +248,8 @@ class SCS215SO101Follower(Robot):
         return {f"{name}.pos": value for name, value in goals.items()}
 
     def calibrate(self):
-        if not self.bus.is_connected:
-            raise RuntimeError("Connect read-only before calibrating")
-        if any(self.bus.read("Torque_Enable", n, normalize=False) for n in JOINTS):
-            if (
-                input("Support the arm. Type RELEASE to disable torque: ").strip()
-                != "RELEASE"
-            ):
-                raise RuntimeError("Calibration cancelled; torque unchanged")
-            self.bus.disable_torque()
-            self.motion_enabled = False
-            self.torque_touched = False
-            self._torque_motors.clear()
-        if (
-            self.calibration
-            and input(
-                "ENTER verifies current calibration; type c for new manual ranges: "
-            )
-            .strip()
-            .lower()
-            != "c"
-        ):
-            if not self.is_calibrated:
-                raise RuntimeError(
-                    "Current software calibration does not fit EEPROM limits"
-                )
-            print(f"Verified {self.calibration_fpath}; no EEPROM writes")
-            return
-        input(
-            "Support the torque-off arm. Move joints slowly through safe, collision-free ranges; ENTER starts sampling: "
-        )
-        mins, maxes = self.bus.record_ranges_of_motion()
-        result = {}
-        for name in JOINTS:
-            hwlow, hwhigh = self.bus.hardware_limits[name]
-            low = max(int(mins[name]), hwlow)
-            high = min(int(maxes[name]), hwhigh)
-            if high - low < 20:
-                raise ValueError(
-                    f"{name}: insufficient safe travel inside EEPROM limits"
-                )
-            drive = self.calibration[name].drive_mode if name in self.calibration else 0
-            result[name] = MotorCalibration(
-                self.bus.motors[name].id, drive, 0, low, high
-            )
-        self._validate_calibration(result)
-        print(json.dumps({n: asdict(c) for n, c in result.items()}, indent=2))
-        if (
-            input(
-                "Type SAVE to replace software calibration (EEPROM unchanged): "
-            ).strip()
-            != "SAVE"
-        ):
-            raise RuntimeError("Calibration cancelled; file unchanged")
-        for name in JOINTS:
-            if self.bus.read("Torque_Enable", name, normalize=False) or self.bus.read(
-                "Status", name, normalize=False
-            ):
-                raise RuntimeError(
-                    f"{name}: torque/alarm changed during calibration; file unchanged"
-                )
-        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
-        if self.calibration_fpath.exists():
-            shutil.copy2(
-                self.calibration_fpath,
-                self.calibration_fpath.with_suffix(f".{stamp}.bak.json"),
-            )
-        temporary = self.calibration_fpath.with_suffix(".json.tmp")
-        try:
-            temporary.write_text(
-                json.dumps({n: asdict(c) for n, c in result.items()}, indent=2) + "\n",
-                encoding="utf-8",
-            )
-            temporary.replace(self.calibration_fpath)
-        finally:
-            temporary.unlink(missing_ok=True)
-        metadata = self.calibration_fpath.with_suffix(".meta.json")
-        if metadata.exists():
-            metadata.replace(metadata.with_suffix(f".{stamp}.bak.json"))
-        # Retire the old hardware receipt: it describes the previous software file.
-        # New manual software calibration makes no claim of EEPROM modification.
-        metadata.write_text(
-            json.dumps(
-                {
-                    "schema_version": 1,
-                    "method": "lerobot_plugin_manual_software_ranges",
-                    "captured": datetime.now(timezone.utc).isoformat(),
-                    "eeprom_modified": False,
-                    "manual_endpoints_verified": True,
-                    "powered_motion_verified": False,
-                    "ranges": {
-                        n: [c.range_min, c.range_max] for n, c in result.items()
-                    },
-                },
-                indent=2,
-            )
-            + "\n",
-            encoding="utf-8",
-        )
-        self.calibration = result
-        self.bus.calibration = result
-        print(f"Software calibration saved: {self.calibration_fpath}; EEPROM unchanged")
+        from .calibration import calibrate_robot
+        return calibrate_robot(self)
 
     def disconnect(self):
         errors = []
