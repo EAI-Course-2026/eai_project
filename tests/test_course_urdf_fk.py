@@ -5,11 +5,11 @@ from pathlib import Path
 
 import numpy as np
 
-from eai_robot.kinematics.joint_mapping import ARM_JOINT_NAMES, URDF_LIMITS
-from eai_robot.kinematics.urdf_fk import URDFFK
+from eai_robot.control.kinematics.joint_mapping import ARM_JOINT_NAMES, URDF_LIMITS
+from eai_robot.control.kinematics.urdf_fk import URDFFK
 
 
-URDF_PATH = Path(__file__).resolve().parents[1] / "src/eai_robot/kinematics/so101_new_calib.urdf"
+URDF_PATH = Path(__file__).resolve().parents[1] / "src/eai_robot/control/kinematics/so101_new_calib.urdf"
 
 
 class URDFFKTest(unittest.TestCase):

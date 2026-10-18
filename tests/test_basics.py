@@ -8,8 +8,8 @@ import io
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
-from eai_robot.control.mapping import ratio_to_position
-from eai_robot.hardware.scs import command, parse_reply, ProtocolError
+from eai_robot.control.planning.mapping import ratio_to_position
+from eai_robot.hardware.drivers.scs import command, parse_reply, ProtocolError
 from eai_robot.config import ROOT as CONFIG_ROOT, load_config
 
 

@@ -7,7 +7,7 @@ import time
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 import serial
 from eai_robot.config import load_config
-from eai_robot.hardware.scs import Bus, command
+from eai_robot.hardware.drivers.scs import Bus, command
 
 
 def main():

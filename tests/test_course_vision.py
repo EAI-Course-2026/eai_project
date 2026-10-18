@@ -5,8 +5,8 @@ import unittest
 import cv2
 import numpy as np
 
-from eai_robot.vision.ball_detector import BlackBallDetector
-from eai_robot.vision.visual_math import axis_delta, damped_image_step, validate_image_jacobian
+from eai_robot.vision.detection.ball import BlackBallDetector
+from eai_robot.control.visual_servo.math import axis_delta, damped_image_step, validate_image_jacobian
 
 
 class BlackBallDetectorTest(unittest.TestCase):

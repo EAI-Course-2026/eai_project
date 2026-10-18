@@ -42,3 +42,7 @@ configs/policy/*.local.json
 
 # Preserved host-specific diagnostics
 /local_artifacts/
+
+# Versioned Python data tools; raw datasets remain ignored.
+!/src/eai_robot/policy/data/
+!/src/eai_robot/policy/data/*.py

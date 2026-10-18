@@ -1,0 +1,22 @@
+schema_version = 1
+description = "2026-10-18 real-arm center-region MVP; 10 recorded correction cycles. Not a precision or four-corner acceptance."
+
+[servo]
+target = "aruco"
+joint_center = true
+marker_id = 0
+dictionary = "DICT_4X4_50"
+center_region_fraction = 0.2
+deadband_px = 30.0
+stable_frames = 8
+base_step_counts = 15
+wrist_step_counts = 12
+max_travel_mm = 100.0
+max_joint_excursion_deg = 40.0
+max_joint_step_deg = 5.0
+joint_margin_deg = 2.0
+max_runtime_s = 0.0
+control_hz = 5.0
+feedback_hz = 2.0
+feature_samples = 3
+torque_settle_s = 1.0

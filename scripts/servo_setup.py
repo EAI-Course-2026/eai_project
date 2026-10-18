@@ -15,8 +15,8 @@ import argparse
 import time
 import serial
 
-from eai_robot.hardware.scs import Bus, ProtocolError
-from eai_robot.calibration.results import JOINTS, MODEL_NUMBER
+from eai_robot.hardware.drivers.scs import Bus, ProtocolError
+from eai_robot.calibration.servo.results import JOINTS, MODEL_NUMBER
 
 
 def scan(bus, ids):

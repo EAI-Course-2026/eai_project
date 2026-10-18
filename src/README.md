@@ -1,84 +1,86 @@
-# 源码分工与扩展约定
+# 源码目录与扩展规则
 
-应用包为 `eai_robot`；独立安装的 LeRobot 硬件插件在
-[`plugins/lerobot_robot_scs215/`](../plugins/lerobot_robot_scs215/)。
-使用命令见[根 README](../README.md)，共享参数见[标定契约](../calibration/README.md)。
-
-## 如何理解控制、动作与位姿
-
-| 要解决的问题 | 唯一主要归属 | 示例 |
-|---|---|---|
-| 用户按了什么、需要组织哪个流程？ | `applications/` | 网页、键盘、相机预览、CLI、设备维护 |
-| 要做哪个动作、依次经过哪些目标？ | `motion/` | `stand` / `raise` 命名关节姿态、演示计划、笛卡尔目标适配 |
-| 给定关节角，末端在哪里；给定 XYZ，关节如何解？ | `kinematics/` | FK、IK、URDF、几何路径 |
-| 何时下发目标，如何接管、读取反馈、停止？ | `control/` | `ArmController`、反馈检查、分段执行、IBVS 控制律 |
-| 怎样读写设备？ | `hardware/` | 串口协议、后端、型号和硬件限位检查 |
-| 如何识别设备参数与坐标变换？ | `calibration/` | 舵机端点采集、结果校验；相机内参/手眼的新增位置 |
-
-“命名关节姿态”是保存的一组关节目标，不等于相机位姿估计或 TCP 位姿求解。
-`motion` 表达动作目标，`kinematics` 计算几何解，`control` 管在线执行。
-例如笛卡尔线段插值与逐点 IK 属于 `kinematics`，动作顺序属于 `motion`，
-实时下发、到位检查和取消属于执行层或持有会话的应用服务。
-
-## 当前目录
+本项目只保留六个一级能力目录。第一层回答“属于哪种能力”，第二层回答“在哪个功能组”。
+函数、类和文件名表达更细的职责；不为每个概念再创建目录。
+独立 LeRobot 插件仍在 [`plugins/lerobot_robot_scs215/`](../plugins/lerobot_robot_scs215/)。
 
 ```text
 eai_robot/
-  applications/  用户流程、界面适配、设备会话和显式启用
-  calibration/   标定结果模型与舵机采集/保存流程；视觉标定接入点
-  motion/        命名关节姿态、固定起点与演示计划、笛卡尔目标模型
-  control/       在线控制器、反馈检查、动作阶段执行、视觉伺服控制律
-  kinematics/    关节映射、FK/IK、URDF、几何路径
-  vision/        黑球/ArUco 图像检测、标记位姿估计、视觉目标图案
-  policy/        学习策略、观测动作契约、推理、示范数据与评估
-  voice/         白名单文本意图与动作调度
-  robots/        应用侧机器人配置装配与关节范围读取
-  hardware/      应用侧设备后端、原生协议与硬件检查
-  arm/           旧导入路径兼容层，不新增实现
-  poses/         旧导入路径兼容层，不新增实现
-  cli.py         eai-course 命令分派
-  config.py      仓库配置定位与读取
-  input.py       键盘输入与命令数值解析
+├── applications/              用户入口与设备会话
+│   ├── desktop/               网页服务、硬件工作线程、assets/
+│   ├── teleoperation/         键盘、姿态示教/回放、语音意图与调度
+│   ├── visual_servo/          相机共享预览、中央区域MVP、只读演练与实验
+│   └── tools/                 检查、维护、规划、演示和策略 CLI
+├── calibration/               参数识别与标定结果
+│   ├── servo/                 六关节结果契约、端点采集和候选保存
+│   └── vision/                相机内参/手眼流程的协作者接入说明，算法待加入
+├── control/                   从目标计算到在线控制
+│   ├── kinematics/            关节映射、FK/IK、URDF、几何路径
+│   ├── planning/              命名姿态、固定起点、动作计划、笛卡尔目标
+│   ├── execution/             接管、反馈、到位/超时、动作阶段执行
+│   └── visual_servo/          图像/关节雅可比、实测响应选择与观测门禁
+├── vision/                    图像观测
+│   ├── detection/             ArUco/黑球检测与标记位姿估计
+│   ├── tracking/              物体光流跟踪
+│   ├── targets/               可打印/展示的视觉目标
+│   └── features.py            检测与跟踪共用的观测契约
+├── policy/                    学习策略生命周期
+│   ├── inference/             模型工件、推理运行器、远程传输
+│   ├── execution/             策略设备所有权、门禁、示范采集
+│   ├── data/                  片段记录、数据集导出与评估
+│   ├── contracts.py           模型/动作/资源清单的共同契约
+│   └── observations.py        各推理路径共用的观测结构
+├── hardware/                  设备接入
+│   ├── drivers/               原生协议、后端、寄存器与硬件限位检查
+│   └── robots/                Robot 配置装配与关节范围读取
+├── cli.py                     eai-course 命令分派
+├── config.py                  仓库配置定位与读取
+└── input.py                   终端/键盘输入与数值解析
 ```
 
-| 目录 | 关键实现与边界 |
-|---|---|
-| `applications/` | `arm_cli.py`、`desk_server.py` / `desk_service.py`、`demo.py`、`pose_control.py`、`record_pose.py`、`keyboard_control.py`、`cartesian_plan.py`、`visual_closed_loop.py`、`aruco_preview.py`、`voice_cli.py`、映射/FK 检查与 ID5 维护；拥有交互、线程、设备会话，调用能力模块 |
-| `calibration/` | `results.py` 保存六关节数据契约、读取/校验和显式写文件函数；`servo.py` 实现人工端点、EEPROM 范围导入、GUI 候选保存。读取不会触发采样；[视觉接入说明](eai_robot/calibration/README.md) |
-| `motion/` | `poses.py` 校验姿态文件并保持原始编码器目标；`demo.py` 验证起点并生成动作序列；`cartesian.py` 将原始反馈与几何目标接合，内部只有计算，不创建设备；`poses.reference.json` 保存默认参考姿态 |
-| `control/` | `arm_controller.py` 接管/插值/回读/超时；`robot_feedback.py` 供多个入口复用反馈检查；`demo.py` 执行动作阶段；`aruco_ibvs.py` / `visual_math.py` 提供纯图像控制律。旧 `mapping.py` 转调统一的 `JointCalibration.position()` |
-| `kinematics/` | `joint_mapping.py`、`urdf_fk.py`、`position_ik.py`、`cartesian_planner.py`、`kinematics_backend.py` 和 URDF；旧步骤/键盘/维护文件只有兼容转发 |
-| `vision/` | `ball_detector.py`、`aruco.py` 产生图像观测；检测可用已提供内参估计标记位姿，不能因此称为“已实现相机标定”。旧预览、闭环与控制律文件只有兼容转发 |
-| `robots/` | `so101.py` 装配插件 Robot，`joint_ranges.py` 读取范围；不实现另一份通信或运动学 |
-| `hardware/` | `scs.py` 原生协议，`backends.py` 双后端，`inspection.py` 型号/限位检查与显式释放，`lerobot_scs215.py` 兼容导出插件总线 |
-| `policy/` | 保留按策略生命周期内聚的模型、数据、CLI 与执行门禁；暂未与其他执行路径合并 |
-| `voice/` | `intent.py` 解析识别文本，`dispatcher.py` 将白名单意图展开为动作并管理抢占；识别模型不在本仓库，`cli.py` 为兼容入口 |
+## 如何找代码
 
-## 依赖和扩展规则
+| 要做的事 | 位置 | 边界 |
+|---|---|---|
+| 打开上位机或维护设备会话 | `applications/desktop/` | HTTP 线程排队，单硬件线程操作设备 |
+| 键盘/语音控制、保存和回放姿态 | `applications/teleoperation/` | 组织输入、确认与会话；调用控制模块 |
+| 相机预览与视觉控制流程 | `applications/visual_servo/` | 组织采集、共享帧、MVP执行/暂停和离线统计；[模块说明](eai_robot/applications/visual_servo/README.md)区分只读与真机入口 |
+| 单次检查、规划、维护或演示命令 | `applications/tools/` | 薄 CLI，复用能力，不作为其他模块的公共库 |
+| 求 FK/IK 或几何路径 | `control/kinematics/` | 接收数值/模型，不拥有设备 |
+| 生成动作目标和序列 | `control/planning/` | `poses.py` 读取命名关节姿态，`demo.py` 生成演示计划，`cartesian.py` 接合反馈与几何目标；不下发运动 |
+| 接管、下发与监测运动 | `control/execution/` | `arm.py` 为既有 ArmController，`feedback.py` 共用回读检查，`demo.py` 执行阶段 |
+| 计算相机/关节控制建议 | `control/visual_servo/` | `aruco_ibvs.py` / `math.py` 为图像数学，`joint_adapter.py` 为关节适配，`empirical.py` 为MVP纯数值响应与反馈判据；不拥有设备 |
+| 从图像检测或跟踪目标 | `vision/detection/`、`tracking/` | 输出观测；不创建机械臂或发动作 |
+| 标定舵机或加入内参/手眼求解 | `calibration/servo/`、`vision/` | [标定说明](eai_robot/calibration/README.md)；采集/求解与运行时读取分开 |
+| 添加模型、数据工具或策略执行 | `policy/inference/`、`data/`、`execution/` | 保留策略专用门禁，不声称已与其他执行路径统一 |
+| 新设备通信或机器人构造 | `hardware/drivers/`、`robots/` | 只做接入；可安装插件不反向依赖应用 |
 
-- `cli.py` 只分派。新用户流程进入 `applications/`，不把硬件循环塞入数学模块。
-- `motion/`、`kinematics/`、检测器和控制律只接收数据；设备由应用显式创建、持有和关闭。
-- 运行时从 `calibration.results` 读取选定结果，不导入采样/求解流程。`robots/` 已不再依赖 `arm/`。
-- 标定流程通过参数接收设备后端；不导入网页服务。设备检查放 `hardware/inspection.py`，标定不反向依赖在线控制器。
-- 新代码不得依赖兼容层 `arm/`、`poses/` 或旧步骤脚本。兼容层指向同一实现，不复制状态或安全逻辑。
-- 插件保持独立发行：应用依赖插件，插件不得反向导入 `eai_robot`。插件的舵机流程已从 `robot.py` 抽到插件自己的 `calibration.py`，标准 Robot 方法只委派。
-- 新内参/手眼流程进入 `calibration/`，新检测器进入 `vision/`，新控制律进入 `control/`，新命名动作进入 `motion/`，新设备在 `robots/` 装配并通过 `hardware/` 适配。
+## 放置与依赖约束
 
-## 兼容性与仍需区分的边界
+- 新实现先进入已有功能组；只有出现多个内聚模块和明确边界，才新增第二级目录。
+  不用 `common/`、`misc/` 收集无法归类的内容，也不为单个函数建立一串空包。
+- `applications/` 组织交互、线程与设备生命周期；其他能力不得反向导入应用入口。
+  `cli.py` 只分派，命令参数保持现有使用方式。
+- `control/` 内部按“几何 → 计划 → 执行”区分，属于一个完整控制能力。
+  命名关节姿态是一组保存的关节目标，不是相机位姿或任意 TCP 位姿。
+- 运行时读取 `calibration/servo/results.py`，不带入采集和求解流程。
+  内参和手眼的新实现放 `calibration/vision/`，结果格式由实现与协作者约定。
+- 图片特征属于 `vision/`，控制律属于 `control/visual_servo/`，实际闭环会话属于
+  `applications/visual_servo/`。三个阶段通过数据契约连接。
+- 共享标定仍在根 `calibration/`，原始样本/候选在本机实验目录；模型、数据与视频不进入源码。
+- 顶层 `features.py`、`contracts.py`、`observations.py` 是被同能力多个功能组共同使用的小型契约，
+  不是新的平铺业务区；其余实现归入第二级分组。
 
-`eai-course`、`scripts/arm_*.py` 的命令参数不变；旧 Python 模块可继续导入，
-旧模块执行入口也可调用。默认参考姿态和网页资源已迁入各自的拥有目录，
-使用显式旧资源路径的本机脚本应更新；默认命令会自动解析新位置。
+## 迁移与验证范围
 
-上位机新采集的舵机候选改存于
-`local_artifacts/experiments/<timestamp>_servo-calibration/candidate.json`。
-审核后显式选择该文件并示教匹配起点；不会自动替换共享结果。
-原有 CLI/LeRobot 的显式标定保存方式和已有共享数据保持兼容。
+旧 `arm/`、`poses/`、`motion/`、`kinematics/`、`voice/`、`robots/` 包及转发文件已退出源码。
+仓库内脚本、测试、CLI 和资源定位全部迁往新路径，不再叠加永久兼容目录。
+外部代码的 Python 导入需按[路径对照](../docs/source_layout_migration.md)更新；
+`eai-course` 和 `scripts/` 的用户命令、参数不变。
 
-这是模块职责重构，**不是统一安全执行器改造**：桌面/姿态经 `ArmController`，
-键盘/视觉/策略仍有插件 Robot 执行路径，各自安全门禁继续保留。
-ArUco 当前只生成相机坐标系速度，未接入机械臂执行；相机内参和手眼算法待协作者加入。
-`config.py` 仍依赖源码仓库布局，wheel 构建成功不等于脱离仓库可独立运行。
-
-2026-10-17 的重构保持关节方向、单位、限位、控制周期和扭矩策略，
-用离线回归核对兼容与故障停止；不代表新版实物验收。
+目录迁移将 ArUco/物体跟踪代码一并归位，路径对照记录迁移前后的接口。
+2026-10-18 已完成 ArUco 中央区域真机 MVP，10次纠偏/27步反馈动作；范围和不足见
+[本轮报告](../docs/reports/2026-10-18-visual-servo-round1.md)，不代表精密四角点或任意物体跟随验收。
+现场结束后已卸扭矩；此后源码整理与发布检查只做离线验证，未重新启用真机。
+桌面/姿态仍经 `ArmController`，视觉/策略保留各自的插件执行路径与门禁。
+目录迁移不扩大共享限位，也不把软件检查当作硬件验收。

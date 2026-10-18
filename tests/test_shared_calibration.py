@@ -11,7 +11,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT/'src'))
 from eai_robot import config
-from eai_robot.vision import visual_closed_loop as vision
+from eai_robot.applications.visual_servo import ball as vision
 
 
 class SharedCalibrationTests(unittest.TestCase):

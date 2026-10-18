@@ -24,9 +24,9 @@ from lerobot_robot_scs215 import (
     SCS215SO101FollowerConfig,
 )
 from lerobot_robot_scs215.safety import JOINTS, feedback_in_range
-from eai_robot.arm.calibration import load
-from eai_robot.robots.so101 import DEFAULT_CALIBRATION, SO101Follower, SO101MotorsBus
-from eai_robot.kinematics import keyboard_control as keyboard_controller
+from eai_robot.calibration.servo.results import load
+from eai_robot.hardware.robots.so101 import DEFAULT_CALIBRATION, SO101Follower, SO101MotorsBus
+from eai_robot.applications.teleoperation import keyboard as keyboard_controller
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -235,12 +235,12 @@ assert not robot.is_connected
         )
 
     def test_course_and_direct_bus_share_the_plugin_classes(self):
-        from eai_robot.hardware.lerobot_scs215 import SCS215MotorsBus as DirectBus
+        from eai_robot.hardware.drivers.lerobot_scs215 import SCS215MotorsBus as DirectBus
 
         self.assertIs(DirectBus, SCS215MotorsBus)
         self.assertIs(SO101MotorsBus, SCS215MotorsBus)
         self.assertIs(SO101Follower, SCS215SO101Follower)
-        from eai_robot.arm import calibration as native
+        from eai_robot.calibration.servo import results as native
 
         self.assertEqual(native.JOINTS, JOINTS)
         for raw in (-1, 0, 57, 59, 60, 740, 743, 744, 1023, 1024, True):
@@ -249,12 +249,12 @@ assert not robot.is_connected
             )
 
     def test_direct_backend_keeps_original_connection_error_and_configured_baud(self):
-        from eai_robot.arm.backends import LeRobotBackend
+        from eai_robot.hardware.drivers.backends import LeRobotBackend
 
         bus = Mock(is_connected=False)
         bus.connect.side_effect = OSError("device unavailable")
         with patch(
-            "eai_robot.hardware.lerobot_scs215.SCS215MotorsBus", return_value=bus
+            "eai_robot.hardware.drivers.lerobot_scs215.SCS215MotorsBus", return_value=bus
         ) as factory:
             with self.assertRaisesRegex(OSError, "device unavailable"):
                 LeRobotBackend("FAKE", 500_000)

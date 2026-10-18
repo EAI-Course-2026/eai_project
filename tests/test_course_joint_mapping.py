@@ -4,7 +4,12 @@ import unittest
 
 from lerobot.motors import MotorCalibration
 
-from eai_robot.kinematics.joint_mapping import ALL_MOTOR_NAMES, ARM_JOINT_NAMES, SO101JointMapper, URDF_LIMITS
+from eai_robot.control.kinematics.joint_mapping import (
+    ALL_MOTOR_NAMES,
+    ARM_JOINT_NAMES,
+    SO101JointMapper,
+    URDF_LIMITS,
+)
 
 
 def make_calibration() -> dict[str, MotorCalibration]:

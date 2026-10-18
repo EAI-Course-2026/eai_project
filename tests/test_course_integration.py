@@ -9,12 +9,12 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch, PropertyMock
 
-from eai_robot.arm.calibration import JOINTS, load
-from eai_robot.robots.so101 import SO101MotorsBus, SO101Follower, DEFAULT_CALIBRATION, make_robot
-from eai_robot.poses.control_presets import load_poses, POSES_PATH
-from eai_robot.kinematics.kinematics_backend import create_fk_solver
-from eai_robot.kinematics.check_step2_fk import DEFAULT_URDF
-from eai_robot.kinematics.joint_mapping import SO101JointMapper
+from eai_robot.calibration.servo.results import JOINTS, load
+from eai_robot.hardware.robots.so101 import SO101MotorsBus, SO101Follower, DEFAULT_CALIBRATION, make_robot
+from eai_robot.applications.teleoperation.poses import load_poses, POSES_PATH
+from eai_robot.control.kinematics.kinematics_backend import create_fk_solver
+from eai_robot.applications.tools.check_fk import DEFAULT_URDF
+from eai_robot.control.kinematics.joint_mapping import SO101JointMapper
 from eai_robot.cli import COMMANDS
 from lerobot.motors.feetech import FeetechMotorsBus
 

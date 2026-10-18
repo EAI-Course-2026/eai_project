@@ -9,10 +9,10 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'src'))
 from eai_robot.config import ROOT, load_config
-from eai_robot.hardware.backends import SerialBackend, LeRobotBackend
-from eai_robot.calibration.results import JOINTS, load
-from eai_robot.control.arm_controller import ArmController, inspect_hardware
-from eai_robot.applications.demo import check_start, check_status, load_home
+from eai_robot.hardware.drivers.backends import SerialBackend, LeRobotBackend
+from eai_robot.calibration.servo.results import JOINTS, load
+from eai_robot.control.execution.arm import ArmController, inspect_hardware
+from eai_robot.applications.tools.demo import check_start, check_status, load_home
 
 CURRENT = ROOT / 'calibration/scs215_so101.json'
 HOME = ROOT / 'configs/demo_home.json'
