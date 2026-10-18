@@ -301,6 +301,21 @@ class AsyncDetectorTests(unittest.TestCase):
         finally:
             worker.close()
 
+    def test_the_latency_clock_resolves_below_one_millisecond(self):
+        """A 15.6 ms tick cannot measure a 3 ms model.
+
+        Windows implements ``time.monotonic`` on ``GetTickCount64``, so a fast
+        detector reports exactly 0.0 s and every percentile becomes a multiple
+        of the tick. The behavioural assertion above only fails on Windows, so
+        this guard names the clock itself and stays visible everywhere.
+        """
+        import time
+        worker = AsyncDetector(GatedDetector([]))
+        try:
+            self.assertIs(worker._clock, time.perf_counter)
+        finally:
+            worker.close()
+
     def test_a_model_crash_is_data_not_a_control_loop_exception(self):
         inner = GatedDetector(failure="weights unreadable")
         worker = AsyncDetector(inner, failure_limit=2)

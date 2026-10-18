@@ -68,10 +68,19 @@ class DetectorHealth:
 
 
 class AsyncDetector:
-    """Single-slot worker around any :class:`ObjectDetector`."""
+    """Single-slot worker around any :class:`ObjectDetector`.
+
+    The clock defaults to :func:`time.perf_counter`, not ``time.monotonic``:
+    Windows implements the latter on ``GetTickCount64``, whose 15.6 ms tick is
+    larger than the latency it is supposed to measure, so a fast detector
+    reports exactly 0.0 and every percentile becomes a multiple of the tick.
+    ``perf_counter`` is the high-resolution monotonic clock on both platforms,
+    and this class never compares its readings against a caller's timestamp --
+    ``captured_at`` is stored untouched -- so the two clock domains stay apart.
+    """
 
     def __init__(self, detector: ObjectDetector, *, history: int = 32,
-                 failure_limit: int = 3, clock=time.monotonic):
+                 failure_limit: int = 3, clock=time.perf_counter):
         if not isinstance(detector, ObjectDetector):
             raise TypeError("detector must satisfy the ObjectDetector protocol")
         if failure_limit < 1:
