@@ -1,0 +1,24 @@
+schema_version = 1
+description = "2026-10-19 fixed-rule 1cm servo: 5 image regions, guarded forward approach. Offline-validated only; no real-arm acceptance yet."
+
+[servo]
+target = "aruco"
+fixed_rule = true
+marker_id = 0
+dictionary = "DICT_4X4_50"
+marker_length_m = 0.025
+rule_band = 0.4
+rule_step_mm = 10.0
+rule_stop_side_px = 120.0
+rule_min_standoff_m = 0.1
+rule_gate_px = 24.0
+rule_max_steps = 40
+rule_max_request_counts = 18.0
+max_travel_mm = 100.0
+max_joint_excursion_deg = 40.0
+max_joint_step_deg = 5.0
+joint_margin_deg = 2.0
+max_runtime_s = 0.0
+feedback_hz = 2.0
+feature_samples = 5
+torque_settle_s = 2.0

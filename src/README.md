@@ -21,7 +21,9 @@ eai_robot/
 │   └── visual_servo/          图像/关节雅可比、实测响应选择与观测门禁
 ├── vision/                    图像观测
 │   ├── detection/             ArUco/黑球检测与标记位姿估计
-│   ├── tracking/              物体光流跟踪
+│   ├── geometry/              目标几何表示与表观尺寸→距离，纯numpy
+│   ├── perception/            模型规格、检测器注册表、单槽异步推理
+│   ├── tracking/              支撑点/光流跟踪与检测器融合状态机
 │   ├── targets/               可打印/展示的视觉目标
 │   └── features.py            检测与跟踪共用的观测契约
 ├── policy/                    学习策略生命周期
@@ -51,6 +53,8 @@ eai_robot/
 | 接管、下发与监测运动 | `control/execution/` | `arm.py` 为既有 ArmController，`feedback.py` 共用回读检查，`demo.py` 执行阶段 |
 | 计算相机/关节控制建议 | `control/visual_servo/` | `aruco_ibvs.py` / `math.py` 为图像数学，`joint_adapter.py` 为关节适配，`empirical.py` 为MVP纯数值响应与反馈判据；不拥有设备 |
 | 从图像检测或跟踪目标 | `vision/detection/`、`tracking/` | 输出观测；不创建机械臂或发动作 |
+| 表示任意物体并估计距离 | `vision/geometry/` | `targets.py` 统一四角点/圆/手部关键点/掩膜；`scale.py` 用一次参考测量替代焦距+真实尺寸；纯数值 |
+| 接入新模型 | `vision/perception/` | `spec.py` 规格与设备、`registry.py` 目录与缺依赖报文、`async_detector.py` 单槽工作线程；[说明](../docs/experiments/perception_infrastructure.md) |
 | 标定舵机或加入内参/手眼求解 | `calibration/servo/`、`vision/` | [标定说明](eai_robot/calibration/README.md)；采集/求解与运行时读取分开 |
 | 添加模型、数据工具或策略执行 | `policy/inference/`、`data/`、`execution/` | 保留策略专用门禁，不声称已与其他执行路径统一 |
 | 新设备通信或机器人构造 | `hardware/drivers/`、`robots/` | 只做接入；可安装插件不反向依赖应用 |
