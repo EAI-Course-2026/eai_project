@@ -1,8 +1,11 @@
-# 图像观测与标记位姿
+# 图像观测
 
-`ball_detector.py` 和 `aruco.py` 检测图像特征；给定内参后可估计标记位姿。
-相机预览和黑球闭环流程在 `applications/`，纯视觉伺服控制律在 `control/`。
-复杂内参、手眼采集与求解新增在同级 `calibration/`，原 `vision/calibration/` 只保留说明。
-检测器不创建设备执行会话，也不自动重新标定。
+| 功能组 | 分工 |
+|---|---|
+| `detection/` | aruco.py 标记检测/位姿估计，ball.py 黑球检测。 |
+| `tracking/` | optical_flow.py 对显式选定区域做光流跟踪，不静默更换目标。 |
+| `targets/` | black_ball.html 是展示/打印目标图案。 |
+| `features.py` | 检测/跟踪共享观测契约，保留在能力父目录。 |
 
-完整分工与兼容规则见 [`src/README.md`](../../README.md)。
+应用层拥有会话；算法、数据与结果读取不隐式开启设备。不同执行路径继续保留原有门禁。
+完整目录与依赖规则见 [`src/README.md`](../../README.md)。

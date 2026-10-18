@@ -16,6 +16,7 @@
 | 上位机 FK/IK、单步/连续 XYZ、路径预览 | 离线回归与模拟页面验证 | 新版 GUI 末端实物验收；无碰撞规划，仅约束位置 |
 | LeRobot 标定、遥操作、录制 | 插件发现、标准命令行模拟、本地 RGB 数据片段；插件实物只读验证 | 真机械臂与摄像头同步录制、回放 |
 | 语音命令调度（白名单 + 演练模式） | 7 条固定命令的解析、姿态计划、`stop` 抢占与 27 项离线回归；默认演练模式不打开串口 | 真机逐条命令验收、夹爪姿态记录、真实识别文本覆盖率 |
+| ArUco 中央区域伺服 | 2026-10-18末端相机真机10次纠偏、27步反馈确认，已录制demo | 精密四角点、自动前进、任意物体真机跟随 |
 | Windows / CUDA 环境 | Mac/Windows 离线 CI；Windows CUDA 软件安装与训练入口检查 | Windows 实物访问、真实 GPU 运算、训练与策略评估 |
 
 持续集成检查通过表示上述软件检查通过；每次合并后，目标分支的检查也必须通过。这些检查不能替代实物或 GPU 验收。目前没有宣称已完成整机验收的发布版本。见[里程碑](docs/milestones.md)和[报告](docs/reports/2026-10-03.md)。
@@ -71,6 +72,20 @@ uv run --locked eai-course fk
 uv run --locked eai-course plan --delta-mm 0 0 10
 ```
 
+ArUco 视觉伺服可用 `uv run --locked eai-course visual-servo --image PATH_TO_IMAGE --marker-id 0`
+演练简单版；`--mode ibvs` 加内参与标记边长可演练四角点控制。
+增加 `--target object --roi X Y W H` 可用光流跟踪选定的有纹理物体。
+该入口只输出相机运动建议，尚未接入机械臂执行，见
+[视觉伺服分步实现](docs/course/aruco_visual_servo.md)。
+
+2026-10-18另通过 `vision --profile configs/visual_servo/aruco_center_mvp.toml --execute`
+完成中央区域真机MVP，日志记录10次纠偏；普通检测不加 `--execute`。
+这与只读 `visual-servo` 演练入口不同，精密四角点和自动前进尚未验收。
+源码已按六个一级能力目录和第二级功能组整理；旧 Python 导入路径需按[迁移对照](docs/source_layout_migration.md)更新。
+参数和证据见[本轮报告](docs/reports/2026-10-18-visual-servo-round1.md)，
+下一阶段见[精细伺服计划](docs/experiments/visual_servo_precision.md)。
+离线复盘使用 `scripts/summarize_visual_servo.py --log LOG --output-dir OUTPUT`，不访问设备。
+
 终端键盘控制使用 `uv run --locked eai-course keyboard --port PORT --speed-mm-s 15`，明确确认后才会开始运动。图形上位机必须先断开连接。标准命令 `lerobot-calibrate`、`lerobot-teleoperate`、`lerobot-record` 使用 `--robot.type=scs215_so101_follower`；实际运动还需要设置 `--robot.enable_motion=true`。完整示例见[插件指南](docs/lerobot_plugin.md)。
 
 语音命令调度默认处于演练模式，只进行白名单解析、姿态规划和 `stop` 抢占，不打开串口：
@@ -101,7 +116,7 @@ git switch -c codex/your-task
 ## 文件导航
 
 源码各子目录的职责、兼容边界和新增能力的放置规则见
-[`src/README.md`](src/README.md)。本次已分离标定、动作目标、执行控制和用户流程；不同设备执行路径仍保留各自门禁。
+[`src/README.md`](src/README.md)。一级收敛为六个能力目录，第二级按实际功能分组；不同设备执行路径仍保留各自门禁。
 
 ACT、SmolVLA、π0.5 的模型加载、跨机器推理、本地执行门禁与示范数据工具见
 [推理基础设施指南](docs/policy/README.md)及[后续工作交接](docs/policy/next_session.md)。
@@ -110,17 +125,14 @@ SmolVLA 已完成 Mac MPS 的真实离线加载与动作块输出；GPU、本机
 
 | 路径 | 用途 |
 |---|---|
-| `src/eai_robot/applications/` | 网页、CLI、键盘、视觉闭环等用户流程与设备会话 |
-| `src/eai_robot/calibration/` | 独立舵机标定流程与结果契约；相机内参/手眼的新代码接入点 |
-| `src/eai_robot/motion/` | 命名关节姿态、演示计划与笛卡尔目标模型 |
-| `src/eai_robot/control/` | 在线控制器、反馈检查、阶段执行与视觉伺服控制律 |
-| `src/eai_robot/kinematics/` | 关节映射、URDF、FK/IK 与几何路径 |
-| `src/eai_robot/hardware/`、`robots/` | 协议、设备后端与硬件检查；机器人装配 |
-| `src/eai_robot/vision/`、`voice/` | 图像检测与标记位姿估计；识别文本的意图解析与动作调度 |
-| `src/eai_robot/arm/`、`poses/` | 旧导入路径兼容层，新实现不再放入这里 |
-| `src/eai_robot/cli.py` | `eai-course` 命令入口；按能力模块分派命令 |
+| `src/eai_robot/applications/` | desktop、teleoperation、visual_servo、tools：用户流程与设备会话 |
+| `src/eai_robot/calibration/` | servo、vision：舵机标定与相机/手眼接入 |
+| `src/eai_robot/control/` | kinematics、planning、execution、visual_servo：计算目标到在线执行 |
+| `src/eai_robot/vision/` | detection、tracking、targets：检测、跟踪与目标图案 |
+| `src/eai_robot/policy/` | inference、execution、data：策略推理、执行与数据生命周期 |
+| `src/eai_robot/hardware/` | drivers、robots：设备通信与机器人装配 |
+| `src/eai_robot/cli.py` | eai-course 命令分派，用户命令与参数不变 |
 | `docs/course/` | 课程说明、历史材料、作业迁移记录和验收文档 |
-| `src/eai_robot/policy/` | 策略推理基建与执行门禁 |
 | `plugins/lerobot_robot_scs215/` | 可安装总线与 LeRobot Robot 插件 |
 | `environments/training/` | 独立训练项目与 CUDA 锁文件 |
 | `calibration/`、`configs/` | 共享标定、历史回执和本机配置模板 |

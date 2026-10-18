@@ -10,9 +10,9 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
-from eai_robot.arm.calibration import JOINTS, JointCalibration, load, save
-from eai_robot.arm.demo import PROFILES, build_plan, check_start, load_home, main, run_stage
-from eai_robot.arm.controller import ArmController
+from eai_robot.calibration.servo.results import JOINTS, JointCalibration, load, save
+from eai_robot.applications.tools.demo import PROFILES, build_plan, check_start, load_home, main, run_stage
+from eai_robot.control.execution.arm import ArmController
 from test_arm import FakeArm
 
 
@@ -82,7 +82,7 @@ class DemoTests(unittest.TestCase):
     def test_offline_preview_never_opens_serial(self):
         with tempfile.TemporaryDirectory() as d:
             _, path, home = self.config(d)
-            with patch('eai_robot.arm.backends.LeRobotBackend', side_effect=AssertionError('opened port')), contextlib.redirect_stdout(io.StringIO()):
+            with patch('eai_robot.hardware.drivers.backends.LeRobotBackend', side_effect=AssertionError('opened port')), contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(main(['--calibration', str(path), '--home-file', str(home), '--anchor-raw', *(['300'] * 6)]), 0)
 
     def test_complete_sequence_homes_before_demo_and_releases(self):
@@ -92,7 +92,7 @@ class DemoTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             _, path, home = self.config(d)
             log = Path(d) / 'demo.json'
-            with patch('eai_robot.arm.backends.LeRobotBackend', return_value=bus), patch('eai_robot.arm.demo.time.sleep'), contextlib.redirect_stdout(io.StringIO()):
+            with patch('eai_robot.hardware.drivers.backends.LeRobotBackend', return_value=bus), patch('eai_robot.applications.tools.demo.time.sleep'), contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(main(['--calibration', str(path), '--home-file', str(home), '--log', str(log), '--enable']), 0)
             record = json.loads(log.read_text())
             self.assertTrue(record['completed'] and record['homed'])
@@ -111,7 +111,7 @@ class DemoTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             _, path, home = self.config(d)
             log = Path(d) / 'failed.json'
-            with patch('eai_robot.arm.backends.LeRobotBackend', return_value=bus), patch('eai_robot.arm.controller.time.sleep'), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            with patch('eai_robot.hardware.drivers.backends.LeRobotBackend', return_value=bus), patch('eai_robot.control.execution.arm.time.sleep'), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
                 self.assertEqual(main(['--calibration', str(path), '--home-file', str(home), '--log', str(log), '--timeout', '.1', '--enable']), 1)
             record = json.loads(log.read_text())
             self.assertFalse(record['completed'] or record['homed'])
@@ -125,7 +125,7 @@ class DemoTests(unittest.TestCase):
         bus.registers[3]['Status'] = 1
         with tempfile.TemporaryDirectory() as d:
             _, path, home = self.config(d)
-            with patch('eai_robot.arm.backends.LeRobotBackend', return_value=bus), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            with patch('eai_robot.hardware.drivers.backends.LeRobotBackend', return_value=bus), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
                 self.assertEqual(main(['--calibration', str(path), '--home-file', str(home), '--log', str(Path(d)/'log.json'), '--enable']), 1)
         self.assertEqual(bus.writes, [])
         self.assertTrue(bus.closed)
@@ -136,7 +136,7 @@ class DemoTests(unittest.TestCase):
             _, path, _ = self.config(d)
             home = Path(d)/'taught.json'
             args = ['--calibration', str(path), '--teach-home', str(home)]
-            with patch('eai_robot.arm.backends.LeRobotBackend', return_value=bus), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            with patch('eai_robot.hardware.drivers.backends.LeRobotBackend', return_value=bus), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
                 self.assertEqual(main(args), 0)
                 self.assertEqual(main(args), 1)
             self.assertEqual(json.loads(home.read_text())['home_raw'], [450]*6)
@@ -153,7 +153,7 @@ class DemoTests(unittest.TestCase):
         arm = ArmController(bus, self.calibration(), tolerance=15, timeout=.1)
         arm.enabled = True
         item = {'targets': dict.fromkeys(range(1, 7), 350)}
-        with patch('eai_robot.arm.demo.time.sleep'):
+        with patch('eai_robot.applications.tools.demo.time.sleep'):
             feedback = run_stage(arm, item)
         self.assertEqual(feedback[3], 350)
         self.assertEqual([s['tolerance_counts'] for s in item['substeps']], [25, 25, 25, 25, 15])
@@ -168,7 +168,7 @@ class DemoTests(unittest.TestCase):
         arm = ArmController(bus, self.calibration(), tolerance=15, timeout=.1)
         arm.enabled = True
         item = {'targets': dict.fromkeys(range(1, 7), 350)}
-        with patch('eai_robot.arm.demo.time.sleep'), self.assertRaises(TimeoutError):
+        with patch('eai_robot.applications.tools.demo.time.sleep'), self.assertRaises(TimeoutError):
             run_stage(arm, item)
         self.assertFalse(item['substeps'][-1]['reached'])
         self.assertEqual(item['substeps'][-1]['errors'][3], 16)

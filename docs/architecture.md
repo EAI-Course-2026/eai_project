@@ -11,20 +11,17 @@ SO-101 机器人构造器和标准 LeRobot CLI 共用这个插件中的电机总
 
 ## Python 包边界
 
-当前目录分工和依赖约束见 [`src/README.md`](../src/README.md)，
-标定与协作者视觉接入见[标定能力说明](../src/eai_robot/calibration/README.md)。
-用户流程放 `applications/`，目标与动作计划放 `motion/`，几何求解放 `kinematics/`，
-在线执行控制放 `control/`，协议与硬件检查放 `hardware/`，机器人装配放 `robots/`。
-`vision/` 提供图像观测，视觉控制律在 `control/`；复杂标定流程在同级 `calibration/`。
-`arm/`、`poses/` 及旧步骤文件保留兼容导入，不能再作为新实现目录。
+当前源码收敛为六个一级能力目录，第二级按功能组织，详见
+[`src/README.md`](../src/README.md)及[路径迁移对照](source_layout_migration.md)。
+`applications/` 包含桌面、遥操作、视觉流程和命令工具；
+`control/` 包含运动学、动作规划、在线执行和视觉控制律；
+`calibration/` 包含舵机标定与相机/手眼接入；`vision/` 包含检测、跟踪与图案；
+`policy/` 包含推理、策略执行与数据；`hardware/` 包含通信和机器人装配。
 
-`policy/` 保持模型、数据与策略执行门禁的生命周期内聚，`voice/` 负责白名单意图与动作调度。
-`eai_robot.cli` 只负责分派，保留 `eai-course` 命令名以兼容已有使用方式。
-课程说明、迁移记录和历史验收材料在 `docs/course/`。
-
-运行时读取 `calibration/results.py`，不导入标定采样流程；应用侧舵机流程已迁入
-`calibration/servo.py`，插件侧流程独立在插件的 `calibration.py`，没有新增发行包循环依赖。
-本次按职责归位没有将所有设备执行路径合并为一个控制器，下列双路径仍有效。
+旧 `arm/`、`poses/`、`motion/`、`kinematics/`、`voice/`、`robots/` 一级包和转发文件已退出源码，
+仓库调用方同步迁移。命令名仍为 `eai-course`，课程资料保持在 `docs/course/`。
+运行时读取 `calibration/servo/results.py`，不加载标定采样流程；
+插件保持独立安装，不反向依赖应用。目录整理没有把所有执行路径合并为同一个控制器。
 
 ```text
 arm_lerobot.py / 网页 / demo / 姿态工作流
@@ -41,7 +38,7 @@ arm_lerobot.py / 网页 / demo / 姿态工作流
 arm_serial.py / 原生诊断选项 → SerialBackend → 项目内 SCS 协议 → 舵机
 ```
 
-`eai_robot.robots.so101` 提供应用侧构造器，仍使用同一个注册插件，没有第二份通信或机器人实现。
+`eai_robot.hardware.robots.so101` 提供应用侧构造器，仍使用同一个注册插件，没有第二份通信或机器人实现。
 原生后端保留作协议诊断与迁移对照；网页和 demo 默认选择插件。`ArmController` 仍负责
 本项目的接管、归位与插值，插件 `Robot` 提供标准观测/动作接口。网页关节与末端控制
 由单一硬件线程调度；应用 CLI 与标准 LeRobot CLI 各有进程生命周期。

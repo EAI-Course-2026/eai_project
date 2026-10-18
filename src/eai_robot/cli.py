@@ -3,16 +3,18 @@ import importlib
 import sys
 
 COMMANDS = {
-    "mapping": "applications.check_mapping",
-    "fk": "applications.check_fk",
-    "plan": "applications.cartesian_plan",
-    "keyboard": "applications.keyboard_control",
-    "vision": "applications.visual_closed_loop",
-    "aruco-preview": "applications.aruco_preview",
-    "voice": "applications.voice_cli",
-    "poses": "applications.pose_control",
-    "record-pose": "applications.record_pose",
-    "reindex": "applications.reindex_id5",
+    "mapping": "applications.tools.check_mapping",
+    "fk": "applications.tools.check_fk",
+    "plan": "applications.tools.cartesian_plan",
+    "keyboard": "applications.teleoperation.keyboard",
+    "vision": "applications.visual_servo.ball",
+    "aruco-preview": "applications.visual_servo.aruco_preview",
+    "visual-servo": "applications.visual_servo.cli",
+    "aruco-experiment": "applications.visual_servo.experiment",
+    "voice": "applications.teleoperation.voice",
+    "poses": "applications.teleoperation.poses",
+    "record-pose": "applications.teleoperation.record_pose",
+    "reindex": "applications.tools.reindex"
 }
 
 

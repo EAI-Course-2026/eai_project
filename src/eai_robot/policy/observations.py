@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import time
 import numpy as np
 
-from .contracts import KEYS, vector
+from eai_robot.policy.contracts import KEYS, vector
 
 
 @dataclass

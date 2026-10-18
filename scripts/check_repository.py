@@ -16,7 +16,9 @@ def check() -> list[str]:
     documents = [ROOT / name for name in ("README.md", "CONTRIBUTING.md", "AGENTS.md")]
     documents += list((ROOT / "docs").rglob("*.md"))
     documents += list((ROOT / "src").rglob("*.md"))
-    documents += [ROOT / "calibration/README.md", ROOT / "environments/training/README.md"]
+    documents += list((ROOT / "calibration").rglob("*.md"))
+    documents += list((ROOT / "configs/visual_servo").rglob("*.md"))
+    documents += [ROOT / "environments/training/README.md"]
     for document in documents:
         # Original migrated documents intentionally keep their historical paths.
         if (ROOT / "docs/course/source") in document.parents:
