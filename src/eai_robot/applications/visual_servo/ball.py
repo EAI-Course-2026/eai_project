@@ -48,6 +48,7 @@ from eai_robot.control.visual_servo.math import (
 
 
 DEFAULT_URDF = ROOT / "src/eai_robot/control/kinematics/so101_new_calib.urdf"
+DEFAULT_VISION = ROOT / "calibration/vision"
 WINDOW_NAME = "EAI visual servo - Q/Esc stop, Space emergency stop"
 
 
@@ -415,9 +416,45 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--execute", action="store_true", help="Allow automatic arm motion")
     parser.add_argument("--preview", action="store_true", help="Show a Tk/Pillow camera preview")
     parser.add_argument("--local-keys", action="store_true", help="Use Q/Esc/Space in OpenCV preview")
-    parser.add_argument("--target", choices=("black-ball", "aruco"), default="black-ball")
+    parser.add_argument("--target", choices=("black-ball", "aruco"), default=None,
+                        help="Target type; defaults to aruco with --fixed-rule and black-ball otherwise")
     parser.add_argument("--marker-id", type=int, default=0)
     parser.add_argument("--joint-center", action="store_true", help="Empirical image-to-joint centering with verified encoder motion")
+    parser.add_argument("--fixed-rule", action="store_true", help="Five-region fixed rule: step 1 cm toward the marker region, 1 cm forward inside the middle band, stop at standoff")
+    parser.add_argument("--intrinsics", type=Path, default=DEFAULT_VISION / "camera_intrinsics.json", help="Measured pinhole intrinsics for the fixed rule")
+    parser.add_argument("--hand-eye", type=Path, default=DEFAULT_VISION / "hand_eye_result.json", help="Measured gripper_T_camera for the fixed rule")
+    parser.add_argument("--marker-length-m", type=float, default=0.025, help="Outer square side of the ArUco marker, in metres")
+    parser.add_argument("--rule-band", type=float, default=0.4, help="Central fraction of each image axis that requests a forward step")
+    parser.add_argument("--rule-step-mm", type=float, default=10.0, help="The rule's single camera step")
+    parser.add_argument("--rule-stop-side-px", type=float, default=120.0, help="Stop when the marker's apparent side reaches this many pixels")
+    parser.add_argument("--rule-min-standoff-m", type=float, default=0.10, help="Secondary depth standoff; only as good as the intrinsics")
+    parser.add_argument("--rule-gate-px", type=float, default=24.0, help="Centre error below which the rule is allowed to step forward")
+    parser.add_argument("--rule-max-steps", type=int, default=40, help="Hard cap on executed rule steps")
+    parser.add_argument("--rule-max-request-counts", type=float, default=18.0, help="Largest per-joint request the rule may send")
+    parser.add_argument("--object-rule", action="store_true", help="Run the same five-region rule against a tracked object instead of an ArUco marker")
+    parser.add_argument("--tracker", choices=("support", "fused", "detector"), default="fused", help="support: region texture only; fused: texture plus periodic detector arbitration; detector: detector only")
+    parser.add_argument("--roi", help="Selected target region x,y,w,h in pixels; required for --tracker support")
+    parser.add_argument("--prompt", help="Open-vocabulary text prompt, e.g. 'the red cup'")
+    parser.add_argument("--label", help="Detector class label to keep, e.g. 'hand' or 'cup'")
+    parser.add_argument("--target-id", help="Stable identity recorded with every step")
+    parser.add_argument("--detector", default="dark-blob", help="Detector catalogue name; see --list-detectors")
+    parser.add_argument("--detector-weights", help="Local weight file; nothing is downloaded unless --allow-weight-download is set")
+    parser.add_argument("--detector-option", action="append", metavar="KEY=VALUE", help="Detector-specific option; repeatable")
+    parser.add_argument("--selection", choices=("score", "area", "central"), default=None, help="Which candidate wins when several match; required when nothing else identifies the target")
+    parser.add_argument("--model-device", choices=("auto", "cpu", "mps", "cuda"), default="auto", help="Inference device; auto resolves once and is recorded")
+    parser.add_argument("--model-dtype", choices=("float32", "float16", "bfloat16"), default="float32")
+    parser.add_argument("--allow-weight-download", action="store_true", help="Permit an implicit download; off by default so a run is reproducible")
+    parser.add_argument("--list-detectors", action="store_true", help="Print the detector catalogue with its dependency and latency budget, then exit")
+    parser.add_argument("--detector-timeout-s", type=float, default=5.0, help="Bounded wait for the first detection during acquisition")
+    parser.add_argument("--detector-failure-limit", type=int, default=3, help="Consecutive detector failures before health reports degraded")
+    parser.add_argument("--tracker-max-coast-s", type=float, default=0.2, help="Longest interval a detection may stand in for a measurement")
+    parser.add_argument("--tracker-max-age-s", type=float, default=0.25, help="Oldest pose the servo and the guard will accept")
+    parser.add_argument("--tracker-agreement", type=float, default=0.35, help="Fractional centre/extent disagreement that counts as a tracker conflict")
+    parser.add_argument("--tracker-min-inliers", type=int, default=8, help="Optical-flow inliers needed to trust one frame")
+    parser.add_argument("--tracker-seed-margin", type=float, default=1.25, help="Region growth around a detection when seeding texture tracking")
+    parser.add_argument("--tracker-reacquire-attempts", type=int, default=2, help="Re-acquisitions allowed after a mid-step target loss")
+    parser.add_argument("--reference-depth-m", type=float, help="Measured distance at acquisition; the one number arbitrary-object depth needs")
+    parser.add_argument("--target-extent-m", type=float, help="Real extent of the target in metres, if the calibration is trusted")
     parser.add_argument("--center-region-fraction", type=float, default=0.0, help="Joint-center rectangular central region, e.g. 0.2 for the course MVP; zero uses pixel deadband")
     parser.add_argument("--adopt-hold", action="store_true", help="Explicit single-owner handover of a verified powered stationary arm")
     parser.add_argument("--hold-reference", type=Path, help="Preserved original raw pose for handover workspace bounds")
@@ -470,20 +507,131 @@ def parse_args() -> argparse.Namespace:
         except (ValueError, OSError) as exc:
             parser.error(str(exc))
     args = parser.parse_args()
+    # The fixed rule is defined on an ArUco marker, so an omitted target follows
+    # the selected mode instead of forcing the operator to repeat themselves.
+    if args.target is None:
+        args.target = "aruco" if args.fixed_rule else "black-ball"
     if not 1.0 <= args.max_joint_excursion_deg <= 40.0:
         parser.error("--max-joint-excursion-deg must be within 1..40")
     if not 5 <= args.base_step_counts <= 15 or not 8 <= args.wrist_step_counts <= 12:
         parser.error("base step must be 5..15 counts and wrist step 8..12 counts")
-    if args.adopt_hold and (not args.joint_center or not args.execute or not args.hold_reference):
-        parser.error("--adopt-hold requires --joint-center --execute --hold-reference")
-    if args.resume_response and not args.adopt_hold:
-        parser.error("--resume-response requires --adopt-hold")
+    if args.adopt_hold and (not (args.joint_center or args.fixed_rule)
+                            or not args.execute or not args.hold_reference):
+        parser.error("--adopt-hold requires --joint-center or --fixed-rule, "
+                     "--execute and --hold-reference")
+    if args.resume_response and not (args.adopt_hold and args.joint_center):
+        parser.error("--resume-response requires --adopt-hold --joint-center")
     if args.start_paused and not args.adopt_hold:
         parser.error("--start-paused requires --adopt-hold")
     if not 0.0 <= args.center_region_fraction <= 0.4:
         parser.error("--center-region-fraction must be between 0 and 0.4")
     if args.joint_center and args.approach:
         parser.error("--joint-center supports centering only; omit --approach")
+    if args.fixed_rule and args.joint_center:
+        parser.error("--fixed-rule replaces --joint-center; use one servo loop at a time")
+    if args.fixed_rule and args.approach:
+        parser.error("--fixed-rule performs its own forward approach; omit --approach")
+    if args.fixed_rule and args.center_region_fraction:
+        parser.error("--fixed-rule uses --rule-band, not --center-region-fraction")
+    if args.fixed_rule and args.target != "aruco":
+        parser.error("--fixed-rule requires --target aruco")
+    if args.fixed_rule:
+        if not 0.1 <= args.rule_band <= 0.9:
+            parser.error("--rule-band must be within 0.1..0.9")
+        if not 0.2 <= args.rule_step_mm <= 20.0:
+            parser.error("--rule-step-mm must be within 0.2..20")
+        if not 20.0 <= args.rule_stop_side_px <= 400.0:
+            parser.error("--rule-stop-side-px must be within 20..400")
+        if not 0.0 <= args.rule_gate_px <= 200.0:
+            parser.error("--rule-gate-px must be within 0..200")
+        if not 0.02 <= args.rule_min_standoff_m < 1.0:
+            parser.error("--rule-min-standoff-m must be within 0.02..1")
+        if not 1 <= args.rule_max_steps <= 200:
+            parser.error("--rule-max-steps must be within 1..200")
+        if not 5.0 <= args.rule_max_request_counts <= 30.0:
+            parser.error("--rule-max-request-counts must be within 5..30")
+        if not 0.005 <= args.marker_length_m <= 0.2:
+            parser.error("--marker-length-m must be within 0.005..0.2")
+        if not args.intrinsics.is_file() or not args.hand_eye.is_file():
+            parser.error("--fixed-rule needs measured --intrinsics and --hand-eye files")
+    if args.object_rule:
+        if args.fixed_rule or args.joint_center:
+            parser.error("--object-rule replaces --fixed-rule and --joint-center; "
+                         "use one servo loop at a time")
+        if args.approach:
+            parser.error("--object-rule performs its own forward approach; omit --approach")
+        if args.center_region_fraction:
+            parser.error("--object-rule uses --rule-band, not --center-region-fraction")
+        if not args.intrinsics.is_file() or not args.hand_eye.is_file():
+            parser.error("--object-rule needs measured --intrinsics and --hand-eye files")
+        if args.tracker == "support" and not args.roi:
+            parser.error("--tracker support needs --roi x,y,w,h")
+        if args.tracker == "detector" and not (args.prompt or args.label):
+            # With no flow there is nothing holding the identity between two
+            # detections, so "the most confident thing" can become a different
+            # object every frame. Detector-only therefore needs semantics.
+            parser.error("--tracker detector needs --prompt or --label: with no "
+                         "flow tracking, identity has to come from the model")
+        if args.tracker == "detector" and args.roi:
+            parser.error("--tracker detector has no flow to seed from a region; "
+                         "use --tracker fused with --roi")
+        if args.tracker in ("fused", "detector") and not (args.prompt or args.label or args.roi):
+            # A class-agnostic detector finds several candidates and nothing in
+            # the prompt says which one. Picking "the highest score" silently is
+            # how the arm approaches the wrong object, so the operator has to
+            # state the policy instead.
+            if args.selection is None:
+                parser.error(
+                    "--tracker fused with no --prompt, --label or --roi leaves the "
+                    "detector class-agnostic; say which candidate wins with "
+                    "--selection score|area|central")
+        if args.tracker == "support" and args.prompt:
+            parser.error("--prompt needs --tracker fused or detector: the "
+                         "support-point tracker has no semantics to match it with")
+        if args.roi:
+            values = args.roi.split(",")
+            if len(values) != 4:
+                parser.error("--roi must be four comma-separated numbers x,y,w,h")
+            try:
+                numbers = [float(item) for item in values]
+            except ValueError:
+                parser.error("--roi must be four comma-separated numbers x,y,w,h")
+            if numbers[2] <= 0 or numbers[3] <= 0 or min(numbers) < 0:
+                parser.error("--roi needs a non-negative origin and a positive size")
+        if (args.reference_depth_m is None) == (args.target_extent_m is None):
+            parser.error("--object-rule needs exactly one of --reference-depth-m "
+                         "or --target-extent-m: apparent size cannot become a "
+                         "distance without one measurement")
+        if args.reference_depth_m is not None and not 0.02 <= args.reference_depth_m <= 2.0:
+            parser.error("--reference-depth-m must be within 0.02..2")
+        if args.target_extent_m is not None and not 0.002 <= args.target_extent_m <= 1.0:
+            parser.error("--target-extent-m must be within 0.002..1")
+        if not 0.05 <= args.tracker_max_coast_s <= 1.0:
+            parser.error("--tracker-max-coast-s must be within 0.05..1")
+        if not 0.05 <= args.tracker_max_age_s <= 1.0:
+            parser.error("--tracker-max-age-s must be within 0.05..1")
+        if not 0.05 <= args.tracker_agreement <= 1.0:
+            parser.error("--tracker-agreement must be within 0.05..1")
+        if not 4 <= args.tracker_min_inliers <= 100:
+            parser.error("--tracker-min-inliers must be within 4..100")
+        if not 1.0 <= args.tracker_seed_margin <= 3.0:
+            parser.error("--tracker-seed-margin must be within 1..3")
+        if not 0 <= args.tracker_reacquire_attempts <= 5:
+            parser.error("--tracker-reacquire-attempts must be within 0..5")
+        if not 0.5 <= args.detector_timeout_s <= 20.0:
+            parser.error("--detector-timeout-s must be within 0.5..20")
+        if not 1 <= args.detector_failure_limit <= 50:
+            parser.error("--detector-failure-limit must be within 1..50")
+        from eai_robot.vision.perception.registry import available, is_registered
+        if args.detector not in available():
+            parser.error(f"unknown detector {args.detector!r}; "
+                         f"known: {sorted(available())}")
+        if args.tracker in ("fused", "detector") and not is_registered(args.detector):
+            entry = available()[args.detector]
+            parser.error(
+                f"detector {args.detector!r} is catalogued but not implemented yet "
+                f"(install: {entry['install']}). "
+                f"Use --tracker support with --roi, or --detector dark-blob.")
     if args.local_keys and not args.preview:
         parser.error("--local-keys requires --preview")
     if args.camera_index is None or args.camera_index < 0:
@@ -787,6 +935,15 @@ def run_closed_loop(
     print(f"Start TCP xyz (mm): {np.round(runtime.command_position * 1000.0, 2)}")
     if args.joint_center:
         print("Control joints: shoulder_pan, wrist_flex (measured pixel/count response)")
+    elif args.fixed_rule:
+        print(
+            f"Fixed rule: {args.rule_step_mm:.0f} mm toward the marker region, "
+            f"{args.rule_step_mm:.0f} mm forward inside the central "
+            f"{args.rule_band:.0%} band, stop at {args.rule_stop_side_px:.0f} px. "
+            "Forward steps pair shoulder_lift with an opposing wrist_flex.")
+        print(
+            "WARNING: the forward rule has no distance sensor. Verify at least "
+            f"{args.max_travel_mm:.0f} mm of clear space ahead and keep a hand on Esc.")
     else:
         print(f"Control axes: {args.control_axes[0].upper()}, {args.control_axes[1].upper()}")
     print("Q/Esc: normal stop; Space: emergency torque-off")
@@ -796,6 +953,29 @@ def run_closed_loop(
         stop_state.armed.set()
         runtime.hold_reason = 'PREVIEW RESTORED'
         return 0
+
+    if args.object_rule:
+        # The object path owns its own acquisition: the target may be a hand, a
+        # cup or a blob, so there is no single detector to build a median from
+        # here. It still requires the same typed confirmation before torque,
+        # because the confirmation is about the operator's intent, not about
+        # which tracker is running.
+        print(
+            f"Object rule: {args.rule_step_mm:.0f} mm per step, "
+            f"{args.rule_step_mm:.0f} mm forward inside the central "
+            f"{args.rule_band:.0%} band, stop at {args.rule_stop_side_px:.0f} px.")
+        print(
+            "WARNING: the forward rule has no distance sensor and the target is "
+            f"arbitrary. Verify at least {args.max_travel_mm:.0f} mm of clear "
+            "space ahead and keep a hand on Esc.")
+        if input('Type exactly "START VISUAL SERVO" to enable torque: ').strip() \
+                != "START VISUAL SERVO":
+            print("Confirmation did not match. No movement command was sent.")
+            return 0
+        runtime.enable_motion()
+        stop_state.armed.set()
+        from eai_robot.applications.visual_servo.object_servo import run_object_rule
+        return run_object_rule(runtime, args, stop_state, preview)
 
     initial = median_detection(runtime, detector, args.feature_samples)
     if args.target == "aruco":
@@ -823,6 +1003,9 @@ def run_closed_loop(
 
     runtime.enable_motion()
     stop_state.armed.set()
+    if args.fixed_rule:
+        from eai_robot.applications.visual_servo.fixed_rule_servo import run_fixed_rule
+        return run_fixed_rule(runtime, args, stop_state, preview)
     if args.joint_center:
         from eai_robot.applications.visual_servo.joint_center import run_joint_center
         return run_joint_center(runtime, detector, args, stop_state, preview)
@@ -980,8 +1163,34 @@ def run_closed_loop(
     return 0
 
 
+def print_detector_catalogue() -> int:
+    """Show what can be used here and what each one would cost.
+
+    A catalogue is the difference between an extensible pipeline and a dead
+    end: the operator can see that a detector exists, what it needs installed,
+    what evidence it returns and roughly how long it takes, without reading the
+    source or hitting a ``ModuleNotFoundError``.
+    """
+    from eai_robot.vision.perception.registry import available
+    from eai_robot.vision.perception.spec import available_devices
+
+    print(f"Devices on this machine: {', '.join(available_devices())}")
+    # The install command goes on its own line: a git URL and a quoted pin do
+    # not fit a column, and a truncated command is not a command.
+    print(f"{'name':16s} {'ready':6s} {'latency':9s} {'evidence':10s} weights")
+    for name, entry in available().items():
+        print(f"{name:16s} {str(entry['implemented']):6s} "
+              f"{entry['latency_budget_s'] * 1000:6.0f} ms "
+              f"{entry['evidence']:10s} {str(entry['needs_weights']):8s}")
+        print(f"{'':16s} {entry['summary']}")
+        print(f"{'':16s} install: {entry['install']}")
+    return 0
+
+
 def main() -> int:
     args = parse_args()
+    if args.list_detectors:
+        return print_detector_catalogue()
     if not args.urdf.is_file():
         raise FileNotFoundError(f"URDF not found: {args.urdf}")
 
@@ -1022,7 +1231,7 @@ def main() -> int:
             listener.join(timeout=1.0)
         try:
             if runtime.torque_enabled and not stop_state.emergency_requested.is_set() and not failed:
-                if args.joint_center:
+                if args.joint_center or args.fixed_rule:
                     while True:
                         from eai_robot.applications.visual_servo.hold_preview import wait_while_holding
                         response = wait_while_holding(runtime, detector, preview, stop_state)
@@ -1030,8 +1239,12 @@ def main() -> int:
                             break
                         stop_state.stop_requested.clear()
                         stop_state.resume_requested.clear()
-                        from eai_robot.applications.visual_servo.joint_center import run_joint_center
-                        run_joint_center(runtime, detector, args, stop_state, preview)
+                        if args.fixed_rule:
+                            from eai_robot.applications.visual_servo.fixed_rule_servo import run_fixed_rule
+                            run_fixed_rule(runtime, args, stop_state, preview)
+                        else:
+                            from eai_robot.applications.visual_servo.joint_center import run_joint_center
+                            run_joint_center(runtime, detector, args, stop_state, preview)
                         if stop_state.emergency_requested.is_set():
                             break
                 else:

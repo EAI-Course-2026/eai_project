@@ -43,6 +43,11 @@ configs/policy/*.local.json
 # Preserved host-specific diagnostics
 /local_artifacts/
 
+# Editor and agent local state (session memory, caches). Anchored to the root:
+# an older rule matched the name at any depth and was removed for being too
+# broad, which left this directory visible to `git add -A`.
+/.workbuddy/
+
 # Versioned Python data tools; raw datasets remain ignored.
 !/src/eai_robot/policy/data/
 !/src/eai_robot/policy/data/*.py
