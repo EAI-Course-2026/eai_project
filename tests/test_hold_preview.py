@@ -4,7 +4,9 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 import numpy as np
-from eai_robot.applications.visual_servo.hold_preview import wait_while_holding
+from eai_robot.applications.visual_servo.hold_preview import (
+    overlay_label, wait_while_holding,
+)
 
 
 class HoldPreviewTest(unittest.TestCase):
@@ -21,6 +23,7 @@ class HoldPreviewTest(unittest.TestCase):
         def show(f,d,s):
             shown.append(int(f[0,0,0]))
             self.assertIn('PAUSED',s)
+            self.assertTrue(s.isascii())
             if len(shown)==3: stop.resume_requested.set()
         result=wait_while_holding(runtime,detector,SimpleNamespace(show=show),stop,
                                   stream=io.StringIO(),poll=lambda *a:([],[],[]))
@@ -46,8 +49,32 @@ class HoldPreviewTest(unittest.TestCase):
         runtime.read_frame=Mock(side_effect=RuntimeError('stale'))
         def show(f,d,s):
             self.assertIn('CAMERA UNAVAILABLE',s)
+            self.assertTrue(s.isascii())
             self.assertFalse(f.any())
             stop.emergency_requested.set()
         with patch('eai_robot.applications.visual_servo.hold_preview.time.sleep'):
             self.assertEqual(wait_while_holding(runtime,detector,SimpleNamespace(show=show),stop,
                                               stream=io.StringIO(),poll=lambda *a:([],[],[])),'emergency')
+
+
+class OverlayLabelTest(unittest.TestCase):
+    """OpenCV overlay labels must stay ASCII."""
+
+    def test_the_english_gloss_is_used_for_opencv(self):
+        self.assertEqual(
+            overlay_label('关节累计偏移预算已用尽（joint excursion budget 120 deg '
+                          'reached）：已偏 122.9 度'),
+            'joint excursion budg')
+
+    def test_the_check_point_prefix_is_not_what_the_operator_reads(self):
+        # The guard's arrival-poll sentence starts with "measured pose outside
+        # permitted bounds" and then names the bound that actually fired.
+        self.assertEqual(
+            overlay_label('实测位姿越界（measured pose outside permitted bounds）：'
+                          '行程预算已用尽（travel budget 300 mm reached）：相机已移动 '
+                          '301.4 mm'),
+            'travel budget 300 mm')
+
+    def test_a_reason_without_a_gloss_is_passed_through(self):
+        self.assertEqual(overlay_label('控制已暂停 CONTROL PAUSED'),
+                         'CONTROL PAUSED')

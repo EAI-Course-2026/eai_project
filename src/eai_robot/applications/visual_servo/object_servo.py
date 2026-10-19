@@ -53,8 +53,11 @@ from eai_robot.control.execution.feedback import (
     read_raw_motors,
 )
 from eai_robot.control.kinematics.joint_mapping import ARM_JOINT_NAMES
-from eai_robot.control.visual_servo.camera_step import counts_per_degree
+from eai_robot.control.visual_servo.camera_step import ResponseModel, counts_per_degree
 from eai_robot.control.visual_servo.fixed_rule import (
+    phase_label,
+    region_label,
+    MEASURED_COUNT_OFFSETS,
     FixedRuleConfig,
     FixedRuleController,
     Observation,
@@ -75,8 +78,10 @@ from eai_robot.applications.visual_servo.fixed_rule_servo import (
     load_camera_matrix,
     load_hand_eye,
 )
+from eai_robot.applications.visual_servo.hold_preview import overlay_label
 from eai_robot.applications.visual_servo.joint_center import (
     BoundedJointMotion,
+    MotionResponseTimeout,
     TargetLostError,
     wait_for_target,
 )
@@ -335,17 +340,17 @@ def print_tracker_summary(tracker) -> None:
     turns a completed run into a traceback.
     """
     snapshot = tracker.describe()
-    print(f"Tracker {snapshot.get('kind', '?')}: state "
-          f"{snapshot.get('state', '?')}, "
-          f"reacquisitions {snapshot.get('reacquisitions', 0)}, "
-          f"reanchors {snapshot.get('reanchors', 0)}, "
-          f"convention skips {snapshot.get('convention_skips', 0)}", flush=True)
+    print(f"跟踪器（tracker）{snapshot.get('kind', '?')}：状态 "
+          f"{snapshot.get('state', '?')}，"
+          f"重新捕获 {snapshot.get('reacquisitions', 0)} 次，"
+          f"重新锚定 {snapshot.get('reanchors', 0)} 次，"
+          f"约定跳过 {snapshot.get('convention_skips', 0)} 次", flush=True)
     health = snapshot.get("detector_health")
     if health:
-        print(f"Detector: p50 {health['latency_p50_s'] * 1000:.0f} ms, "
-              f"p95 {health['latency_p95_s'] * 1000:.0f} ms, "
-              f"dropped {health['dropped']}, failures {health['failures']}, "
-              f"degraded {health['degraded']}", flush=True)
+        print(f"检测器（detector）：p50 {health['latency_p50_s'] * 1000:.0f} ms，"
+              f"p95 {health['latency_p95_s'] * 1000:.0f} ms，"
+              f"丢弃 {health['dropped']}，失败 {health['failures']}，"
+              f"降级 {health['degraded']}", flush=True)
 
 
 def run_object_rule(runtime, args, stop, preview) -> int:
@@ -378,7 +383,9 @@ def run_object_rule(runtime, args, stop, preview) -> int:
 
     controller = FixedRuleController(
         fk, mount, config, rates, matrix,
-        reference_degrees=initial_q, origin_m=origin)
+        reference_degrees=initial_q, origin_m=origin,
+        gains=ResponseModel(offset_entries=MEASURED_COUNT_OFFSETS),
+        unresponsive_directions=getattr(runtime, "_alignment_unresponsive", ()))
     bounds = BoundedJointMotion(
         runtime, adapter, mapper, args, initial_q, origin,
         record, preview, stop,
@@ -395,7 +402,7 @@ def run_object_rule(runtime, args, stop, preview) -> int:
             cause = reading.status.reason or f"tracker reported {reading.status.state}"
             runtime.hold_reason = f"acquisition failed: {cause}"
             record("acquire_failed", reason=cause, tracker=tracker.describe())
-            print(f"\n{runtime.hold_reason}; HOLDING.", flush=True)
+            print(f"\n{runtime.hold_reason}；已保持。", flush=True)
             return 0
         scale = resolve_scale(args, reading.geometry, float(matrix[0, 0]))
         controller.use_scale(scale)
@@ -406,14 +413,14 @@ def run_object_rule(runtime, args, stop, preview) -> int:
                state=reading.status.state,
                scale=scale.describe(), tracker=tracker.describe())
         print(
-            f"\nObject rule: {config.step_m * 1000:.0f} mm per step, "
-            f"band {config.band:.0%}, stop at {config.stop_side_px:.0f} px, "
-            f"gate {config.approach_gate_px:.0f} px. Tracker {args.tracker}, "
-            f"extent {reading.geometry.extent_name} "
-            f"{reading.geometry.extent_px:.1f} px, depth "
-            f"{scale.depth_m(reading.geometry.extent_px) * 1000:.0f} mm from one "
-            f"reference measurement. Budget {config.max_travel_mm:.0f} mm / "
-            f"{config.max_joint_excursion_deg:.0f} deg. Log: {path}", flush=True)
+            f"\n任意物体规律（object rule）：每步 {config.step_m * 1000:.0f} mm，"
+            f"中央带 {config.band:.0%}，边长 {config.stop_side_px:.0f} px 停靠，"
+            f"接近门限 {config.approach_gate_px:.0f} px。跟踪器 {args.tracker}，"
+            f"尺度量 {reading.geometry.extent_name} "
+            f"{reading.geometry.extent_px:.1f} px，深度 "
+            f"{scale.depth_m(reading.geometry.extent_px) * 1000:.0f} mm（来自一次"
+            f"参考测量）。预算：行程 {config.max_travel_mm:.0f} mm / 关节偏移 "
+            f"{config.max_joint_excursion_deg:.0f} 度 / 步数上限 {args.rule_max_steps} 步。日志：{path}", flush=True)
         record("settings", band=config.band, step_mm=config.step_m * 1000,
                stop_side_px=config.stop_side_px, gate_px=config.approach_gate_px,
                focal_px=matrix[0, 0], tracker_kind=args.tracker,
@@ -424,6 +431,7 @@ def run_object_rule(runtime, args, stop, preview) -> int:
                max_travel_mm=config.max_travel_mm,
                max_joint_excursion_deg=config.max_joint_excursion_deg,
                max_joint_step_deg=config.max_joint_step_deg,
+               max_steps=args.rule_max_steps, max_runtime_s=args.max_runtime_s,
                intrinsics=str(args.intrinsics), hand_eye=str(args.hand_eye),
                initial=initial_raw, reference=initial_q.tolist())
 
@@ -441,41 +449,48 @@ def run_object_rule(runtime, args, stop, preview) -> int:
         while not stop.stop_requested.is_set():
             if args.max_runtime_s > 0 and time.monotonic() - started >= args.max_runtime_s:
                 runtime.hold_reason = "TIME LIMIT"
-                print("\nRuntime reached; HOLDING.", flush=True)
+                record("hold", reason=runtime.hold_reason, **controller.snapshot())
+                print("\n运行时长到达上限，保持（runtime reached; HOLDING）", flush=True)
                 break
             if controller.steps >= args.rule_max_steps:
                 runtime.hold_reason = "step budget reached"
-                print(f"\n{args.rule_max_steps} steps executed; HOLDING.", flush=True)
+                record("hold", reason=runtime.hold_reason, **controller.snapshot())
+                print(f"\n已执行 {args.rule_max_steps}/{args.rule_max_steps} 步，步数预算已用尽（HOLDING）", flush=True)
                 break
 
             action = controller.decide(observation)
             status = (
-                f"{action.phase.upper()} {action.region} "
-                f"extent={action.side_px:.0f}px d={action.depth_m * 1000:.0f}mm "
-                f"e={action.center_error_px:.0f}px step={controller.steps} "
+                f"{phase_label(action.phase)} {region_label(action.region)} "
+                f"尺度={action.side_px:.0f}px 深度={action.depth_m * 1000:.0f}mm "
+                f"误差={action.center_error_px:.0f}px 步数={controller.steps} "
                 f"{tracker.status.state}"
             )
-            print(f"\r{status:72s}", end="", flush=True)
+            print(f"\r{status:82s}", end="", flush=True)
             if preview is not None:
-                label = status if not action.reason else f"{status} | {action.reason}"
+                label = (f"{action.phase.upper()} {action.region} extent={action.side_px:.0f}px "
+                         f"d={action.depth_m * 1000:.0f}mm e={action.center_error_px:.0f}px "
+                         f"step={controller.steps}/{args.rule_max_steps}")
+                if action.reason:
+                    label += " | " + overlay_label(action.reason)
                 preview.show(frame, geometry_annotation(TargetGeometry.from_support_points(
                     observation.corners_px, observation.side_px,
                     observation.image_size, time.monotonic(), "object",
                     extent_name=observation.extent_name)), label)
 
             if action.kind == "reached":
+                runtime.hold_reason = "已到停靠（standoff reached）"
                 record("reached", reason=action.reason,
                        centre=observation.center_px.tolist(),
                        extent_px=observation.side_px, depth_m=action.depth_m,
                        tracker=tracker.describe(), **controller.snapshot())
-                print(f"\nStandoff reached: {action.reason}. HOLDING.", flush=True)
+                print(f"\n已到停靠（standoff reached）：{action.reason}。保持。", flush=True)
                 print_tracker_summary(tracker)
                 return 0
             if not action.movable:
                 runtime.hold_reason = action.reason or "no executable step"
                 record("hold", reason=runtime.hold_reason,
                        tracker=tracker.describe(), **controller.snapshot())
-                print(f"\n{runtime.hold_reason}; HOLDING.", flush=True)
+                print(f"\n{runtime.hold_reason}；已保持。", flush=True)
                 print_tracker_summary(tracker)
                 return 0
 
@@ -488,7 +503,7 @@ def run_object_rule(runtime, args, stop, preview) -> int:
                     "planned step not permitted: "
                     + (bounds.reject_reason(target, raw) or "workspace guard"))
                 record("hold", reason=runtime.hold_reason, plan=plan.describe())
-                print(f"\n{runtime.hold_reason}; HOLDING.", flush=True)
+                print(f"\n{runtime.hold_reason}；已保持。", flush=True)
                 return 0
 
             record("plan", phase=action.phase, region=action.region,
@@ -496,6 +511,18 @@ def run_object_rule(runtime, args, stop, preview) -> int:
                    tracker_state=tracker.status.state)
             try:
                 actual = bounds.move(target)
+            except MotionResponseTimeout as exc:
+                if action.phase != "align" or not controller.record_no_response(
+                        plan, exc.requested_counts, exc.peak_motion):
+                    raise
+                runtime._alignment_unresponsive = set(controller.unresponsive_directions)
+                record("alignment_no_response", requested_counts=exc.requested_counts,
+                       peak_motion=exc.peak_motion, **controller.snapshot())
+                print("\n该轴此方向无可测响应，已恢复旧保持目标；改选其他对齐轴，"
+                      "不增大请求（alignment fallback）。", flush=True)
+                observation, raw, frame, states = _observe(
+                    runtime, tracker, adapter, mapper, args, stop, preview)
+                continue
             except (TargetLostError, PreviewFrameUnavailable, TimeoutError) as exc:
                 # A tracker that loses the object mid-step is a normal event for
                 # a low-texture target; re-acquire a bounded number of times
@@ -518,21 +545,32 @@ def run_object_rule(runtime, args, stop, preview) -> int:
             transient = 0
             record("feedback", verdict=report.verdict, reason=report.reason,
                    actual_counts=report.actual_counts,
+                   raw_before=bounds.last_before or raw, raw_at_settle=actual,
+                   raw_after=after_raw,
+                   degrees_before=observation.joint_degrees.tolist(),
+                   degrees_after=after.joint_degrees.tolist(),
+                   predicted_image_change=plan.predicted_image_change.tolist(),
                    gain_updates=report.gain_updates,
+                   offset_updates=report.offset_updates,
                    centre_shift_px=np.round(report.center_shift_px, 2).tolist(),
                    extent_change_px=round(report.side_change_px, 3),
                    extent_after_px=after.side_px,
                    depth_after_mm=controller.depth_of(after) * 1000,
                    travel_mm=controller.travel_mm(after.joint_degrees),
-                   gains=controller.gains.describe(), steps=controller.steps,
+                   gains=controller.gains.describe(),
+                   offsets=controller.gains.describe_offsets(),
+                   steps=controller.steps,
                    tracker=tracker.describe())
             observation, raw = after, after_raw
+            if controller.halted:
+                raise RuntimeError(controller.halted)
     except RuntimeError as exc:
         runtime.hold_reason = str(exc)
         record("hold", reason=str(exc), **controller.snapshot())
-        print(f"\n{exc}; stopped sending motion, torque remains on pending support.",
+        print(f"\n{exc}；已停止发送运动，扭矩仍然保持，请托住机械臂（torque remains on）",
               flush=True)
     finally:
+        runtime._alignment_unresponsive = set(controller.unresponsive_directions)
         if controller.steps:
             record("summary", tracker=tracker.describe(), **controller.snapshot())
         tracker.close()

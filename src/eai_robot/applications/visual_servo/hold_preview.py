@@ -6,13 +6,30 @@ import time
 import numpy as np
 
 
+def overlay_label(reason, width=20):
+    """ASCII pause label for OpenCV's Hershey font; terminal keeps Unicode."""
+    import re
+    text = str(reason).strip()
+    if text.startswith('计划步不被允许') or text.startswith('实测位姿越界'):
+        text = text.split('：', 1)[-1]
+    glosses = re.findall(r'（([^）]*)）', text)
+    english = next((g for g in glosses if g.isascii()), None)
+    if english:
+        text = english
+    else:
+        text = ''.join(c for c in text if c.isascii()).strip()
+    return text[:width].rstrip() or 'CONTROL PAUSED'
+
+
 def wait_while_holding(runtime, detector, preview, stop, stream=None, poll=None):
     stream = sys.stdin if stream is None else stream
     poll = select.select if poll is None else poll
-    print('\nPAUSED - TORQUE HOLD. R in preview/terminal retries; support arm then terminal ENTER releases.', flush=True)
-    print('Pause reason: '+getattr(runtime, 'hold_reason', 'CONTROL PAUSED'),flush=True)
-    reason = getattr(runtime,'hold_reason','PAUSED')
-    label = ('RANGE/STEP LIMIT' if 'No safe' in reason else reason)[:20]
+    print('\n已暂停 · 扭矩保持（PAUSED - TORQUE HOLD）', flush=True)
+    print('  预览窗口或终端按 R 重试；托住机械臂后在终端按 ENTER 释放扭矩。', flush=True)
+    print('  R in preview/terminal retries; support arm then terminal ENTER releases.', flush=True)
+    print('暂停原因（Pause reason）: '
+          + getattr(runtime, 'hold_reason', '控制已暂停 CONTROL PAUSED'), flush=True)
+    label = overlay_label(getattr(runtime, 'hold_reason', 'PAUSED'))
     frames = 0
     while not stop.emergency_requested.is_set():
         if preview is not None:
@@ -36,12 +53,14 @@ def wait_while_holding(runtime, detector, preview, stop, stream=None, poll=None)
             if line == '':
                 # Losing terminal stdin is not authorization to release torque.
                 stream = None
+                print('终端输入已关闭，继续保持扭矩并保留预览。',flush=True)
                 print('Terminal input closed; holding with live preview.',flush=True)
             else:
                 command = line.strip().lower()
                 if command in ('','r'):
                     return command
-                print('Use R to retry, or support the arm then ENTER to release.',flush=True)
+                print('按 R 重试；或托住机械臂后按 ENTER 释放。'
+                      ' (Use R to retry, or support the arm then ENTER to release.)',flush=True)
         elif stream is None or preview is None:
             time.sleep(.02)
     return 'emergency'

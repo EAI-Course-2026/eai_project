@@ -47,18 +47,23 @@ from eai_robot.control.execution.feedback import (
     read_raw_motors,
 )
 from eai_robot.control.kinematics.joint_mapping import ARM_JOINT_NAMES
-from eai_robot.control.visual_servo.camera_step import counts_per_degree
+from eai_robot.control.visual_servo.camera_step import ResponseModel, counts_per_degree
 from eai_robot.control.visual_servo.fixed_rule import (
+    MEASURED_COUNT_OFFSETS,
     FixedRuleConfig,
     FixedRuleController,
     Observation,
+    phase_label,
+    region_label,
 )
 from eai_robot.control.visual_servo.joint_adapter import validate_transform
 from eai_robot.vision.detection.aruco import ArucoMarkerDetector
 from eai_robot.vision.detection.ball import BallDetection
 
+from eai_robot.applications.visual_servo.hold_preview import overlay_label
 from eai_robot.applications.visual_servo.joint_center import (
     BoundedJointMotion,
+    MotionResponseTimeout,
     TargetLostError,
     wait_for_target,
 )
@@ -202,7 +207,8 @@ def _observe(runtime, detector, mapper, args, stop, preview):
         return sample_observation(runtime, detector, mapper, samples,
                                   args.detection_timeout_s)
     except (PreviewFrameUnavailable, TimeoutError, TargetLostError):
-        wait_for_target(runtime, detector, preview, stop)
+        wait_for_target(runtime, detector, preview, stop,
+                        on_wait=getattr(runtime, '_fixed_rule_diagnostics', None))
         return sample_observation(runtime, detector, mapper, samples,
                                   args.detection_timeout_s)
 
@@ -210,12 +216,12 @@ def _observe(runtime, detector, mapper, args, stop, preview):
 def _print_summary(controller, observation):
     snapshot = controller.snapshot()
     print(
-        f"Steps {snapshot['steps']}, depth progress "
-        f"{snapshot['depth_progress_mm']:.1f} mm, side {observation.side_px:.1f} px, "
-        f"gains {snapshot['response_gains']}", flush=True)
+        f"步数（steps）{snapshot['steps']}，深度进度（depth progress）"
+        f"{snapshot['depth_progress_mm']:.1f} mm，边长（side）{observation.side_px:.1f} px，"
+        f"响应增益（gains）{snapshot['response_gains']}", flush=True)
     if snapshot["stalls"] or snapshot["disagreements"]:
-        print(f"Stalls {snapshot['stalls']}, depth disagreements "
-              f"{snapshot['disagreements']}", flush=True)
+        print(f"无位移次数（stalls）{snapshot['stalls']}，"
+              f"深度不一致次数（disagreements）{snapshot['disagreements']}", flush=True)
 
 
 def run_fixed_rule(runtime, args, stop, preview) -> int:
@@ -247,25 +253,38 @@ def run_fixed_rule(runtime, args, stop, preview) -> int:
 
     controller = FixedRuleController(
         fk, mount, config, rates, matrix,
-        reference_degrees=initial_q, origin_m=origin)
+        reference_degrees=initial_q, origin_m=origin,
+        # The priors are the only place the measured offsets enter a real run.
+        # Without them the first step of every axis is again a blind request the
+        # shaft absorbs, and the loop pays a timeout to discover what the log
+        # already knew.
+        gains=ResponseModel(offset_entries=MEASURED_COUNT_OFFSETS),
+        unresponsive_directions=getattr(runtime, "_alignment_unresponsive", ()))
+    one_approach = getattr(args, 'rule_one_approach', False)
     bounds = BoundedJointMotion(
         runtime, detector, mapper, args, initial_q, origin,
         record, preview, stop,
         position_of=lambda q: camera_origin(fk, mount, q),
         joints=ARM_JOINT_NAMES)
+    runtime._fixed_rule_diagnostics = lambda: bounds.record_motor_state('waiting_for_target')
 
     print(
-        f"\nFixed rule: {config.step_m * 1000:.0f} mm per step, "
-        f"band {config.band:.0%}, stop at {config.stop_side_px:.0f} px, "
-        f"approach gate {config.approach_gate_px:.0f} px. fx={matrix[0, 0]:.1f} px. "
-        f"Budget {config.max_travel_mm:.0f} mm / "
-        f"{config.max_joint_excursion_deg:.0f} deg. Log: {path}", flush=True)
+        f"\n固定规律伺服（fixed rule）：每步 {config.step_m * 1000:.0f} mm，"
+        f"中央带 {config.band:.0%}，边长 {config.stop_side_px:.0f} px 停靠，"
+        f"接近门限 {config.approach_gate_px:.0f} px。fx={matrix[0, 0]:.1f} px。"
+        f"预算：行程 {config.max_travel_mm:.0f} mm / 关节偏移 "
+        f"{config.max_joint_excursion_deg:.0f} 度 / 单步 {config.max_joint_step_deg:.1f} 度。"
+        f"步数上限 {args.rule_max_steps} 步（命令行覆盖配置文件）；日志：{path}", flush=True)
+    if one_approach:
+        print("单次前向验证：允许先对齐；首次前向尝试后结束，丢目标也不重试。", flush=True)
     record("settings", band=config.band, step_mm=config.step_m * 1000,
            stop_side_px=config.stop_side_px, gate_px=config.approach_gate_px,
            focal_px=matrix[0, 0], marker_length_m=config.marker_length_m,
            max_travel_mm=config.max_travel_mm,
            max_joint_excursion_deg=config.max_joint_excursion_deg,
            max_joint_step_deg=config.max_joint_step_deg,
+           max_steps=args.rule_max_steps, max_runtime_s=args.max_runtime_s,
+           one_approach=one_approach,
            intrinsics=str(args.intrinsics), hand_eye=str(args.hand_eye),
            initial=initial_raw, reference=initial_q.tolist())
 
@@ -275,11 +294,19 @@ def run_fixed_rule(runtime, args, stop, preview) -> int:
         observation, raw, frame, _ = _observe(runtime, detector, mapper, args, stop, preview)
         depth_mm = controller.depth_m(observation) * 1000.0
         print(
-            f"Marker centre ({observation.center_px[0]:.0f}, "
-            f"{observation.center_px[1]:.0f}) px, apparent side "
-            f"{observation.side_px:.1f} px, nominal depth {depth_mm:.0f} mm. "
-            "Confirm the marker really is about that far away before trusting "
-            "the depth figures.", flush=True)
+            f"标记中心（marker centre）({observation.center_px[0]:.0f}, "
+            f"{observation.center_px[1]:.0f}) px，视在边长（apparent side）"
+            f"{observation.side_px:.1f} px，名义深度（nominal depth）{depth_mm:.0f} mm。"
+            "动手前请用尺子确认标记确实大约在这个距离——深度数字只和标定一样准。", flush=True)
+        # This is a reference replay envelope, not a hardware reachability test.
+        if depth_mm > config.max_start_depth_m * 1000.0:
+            print(
+                f"⚠ 起点 {depth_mm:.0f} mm 超过参考仿真起点 "
+                f"{config.max_start_depth_m * 1000:.0f} mm。参考条件为固定起始姿态、"
+                "300 mm 行程 / 120 度偏移 / 60 步，不保证当前姿态可达。"
+                f"本次实际预算：{config.max_travel_mm:.0f} mm / "
+                f"{config.max_joint_excursion_deg:.0f} 度 / {args.rule_max_steps} 步；"
+                "小步数或短行程试验可能在停靠前正常结束。", flush=True)
         record("observation", centre=observation.center_px.tolist(),
                side_px=observation.side_px, depth_m=depth_mm / 1000.0,
                degrees=observation.joint_degrees.tolist(), raw=raw,
@@ -287,12 +314,14 @@ def run_fixed_rule(runtime, args, stop, preview) -> int:
 
         while not stop.stop_requested.is_set():
             if args.max_runtime_s > 0 and time.monotonic() - started >= args.max_runtime_s:
-                runtime.hold_reason = "TIME LIMIT"
-                print("\nRuntime reached; HOLDING.", flush=True)
+                runtime.hold_reason = "运行时长到达上限（time limit）"
+                record("hold", reason=runtime.hold_reason, **controller.snapshot())
+                print("\n运行时长到达上限，保持（runtime reached; HOLDING）", flush=True)
                 break
             if controller.steps >= args.rule_max_steps:
-                runtime.hold_reason = "step budget reached"
-                print(f"\n{args.rule_max_steps} steps executed; HOLDING.", flush=True)
+                runtime.hold_reason = "步数预算已用尽（step budget reached）"
+                record("hold", reason=runtime.hold_reason, **controller.snapshot())
+                print(f"\n已执行 {args.rule_max_steps}/{args.rule_max_steps} 步，步数预算已用尽（HOLDING）", flush=True)
                 break
 
             try:
@@ -309,27 +338,32 @@ def run_fixed_rule(runtime, args, stop, preview) -> int:
 
             action = controller.decide(observation)
             status = (
-                f"{action.phase.upper()} {action.region} "
-                f"side={action.side_px:.0f}px d={action.depth_m * 1000:.0f}mm "
-                f"e={action.center_error_px:.0f}px step={controller.steps}"
+                f"{phase_label(action.phase)} {region_label(action.region)} "
+                f"边长={action.side_px:.0f}px 深度={action.depth_m * 1000:.0f}mm "
+                f"误差={action.center_error_px:.0f}px 步数={controller.steps}/{args.rule_max_steps}"
             )
-            print(f"\r{status:64s}", end="", flush=True)
+            print(f"\r{status:74s}", end="", flush=True)
             if preview is not None:
-                label = status if not action.reason else f"{status} | {action.reason}"
+                label = (f"{action.phase.upper()} {action.region} side={action.side_px:.0f}px "
+                         f"d={action.depth_m * 1000:.0f}mm e={action.center_error_px:.0f}px "
+                         f"step={controller.steps}/{args.rule_max_steps}")
+                if action.reason:
+                    label += " | " + overlay_label(action.reason)
                 preview.show(frame, preview_detection(observation.corners_px), label)
 
             if action.kind == "reached":
+                runtime.hold_reason = "已到停靠（standoff reached）"
                 record("reached", reason=action.reason,
                        centre=observation.center_px.tolist(),
                        side_px=observation.side_px, depth_m=action.depth_m,
                        **controller.snapshot())
-                print(f"\nStandoff reached: {action.reason}. HOLDING.", flush=True)
+                print(f"\n已到停靠（standoff reached）：{action.reason}。保持。", flush=True)
                 _print_summary(controller, observation)
                 return 0
             if not action.movable:
                 runtime.hold_reason = action.reason or "no executable step"
                 record("hold", reason=runtime.hold_reason, **controller.snapshot())
-                print(f"\n{runtime.hold_reason}; HOLDING.", flush=True)
+                print(f"\n{runtime.hold_reason}；已保持。", flush=True)
                 _print_summary(controller, observation)
                 return 0
 
@@ -342,7 +376,7 @@ def run_fixed_rule(runtime, args, stop, preview) -> int:
                     "planned step not permitted: "
                     + (bounds.reject_reason(target, raw) or "workspace guard"))
                 record("hold", reason=runtime.hold_reason, plan=plan.describe())
-                print(f"\n{runtime.hold_reason}; HOLDING.", flush=True)
+                print(f"\n{runtime.hold_reason}；已保持。", flush=True)
                 _print_summary(controller, observation)
                 return 0
 
@@ -350,8 +384,26 @@ def run_fixed_rule(runtime, args, stop, preview) -> int:
                    plan=plan.describe(), degrees=observation.joint_degrees.tolist())
             try:
                 actual = bounds.move(target)
+            except MotionResponseTimeout as exc:
+                if action.phase != "align" or not controller.record_no_response(
+                        plan, exc.requested_counts, exc.peak_motion):
+                    raise
+                runtime._alignment_unresponsive = set(controller.unresponsive_directions)
+                record("alignment_no_response", requested_counts=exc.requested_counts,
+                       peak_motion=exc.peak_motion, **controller.snapshot())
+                print("\n该轴此方向无可测响应，已恢复旧保持目标；改选其他对齐轴，"
+                      "不增大请求（alignment fallback）。", flush=True)
+                observation, raw, frame, _ = _observe(
+                    runtime, detector, mapper, args, stop, preview)
+                continue
             except (TargetLostError, PreviewFrameUnavailable, TimeoutError) as exc:
                 record("transient", reason=str(exc))
+                if one_approach and action.phase == 'approach':
+                    runtime.hold_reason = '单次前向验证结束：目标或相机丢失（single approach interrupted）'
+                    record('hold', reason=runtime.hold_reason, detail=str(exc),
+                           **controller.snapshot())
+                    print(f"\n{runtime.hold_reason}；保持，不重试。", flush=True)
+                    return 0
                 transient += 1
                 if transient > 2:
                     raise
@@ -370,20 +422,36 @@ def run_fixed_rule(runtime, args, stop, preview) -> int:
                 bounds.last_before or raw, actual)
             record("feedback", verdict=report.verdict, reason=report.reason,
                    actual_counts=report.actual_counts,
+                   raw_before=bounds.last_before or raw, raw_at_settle=actual,
+                   raw_after=after_raw,
+                   degrees_before=observation.joint_degrees.tolist(),
+                   degrees_after=after.joint_degrees.tolist(),
+                   predicted_image_change=plan.predicted_image_change.tolist(),
                    gain_updates=report.gain_updates,
+                   offset_updates=report.offset_updates,
                    centre_shift_px=np.round(report.center_shift_px, 2).tolist(),
                    side_change_px=round(report.side_change_px, 3),
                    side_after_px=after.side_px,
                    depth_after_mm=controller.depth_m(after) * 1000,
                    travel_mm=controller.travel_mm(after.joint_degrees),
-                   gains=controller.gains.describe(), steps=controller.steps)
+                   gains=controller.gains.describe(),
+                   offsets=controller.gains.describe_offsets(),
+                   steps=controller.steps)
             observation, raw = after, after_raw
+            if controller.halted:
+                raise RuntimeError(controller.halted)
+            if one_approach and action.phase == 'approach':
+                runtime.hold_reason = '单次前向验证完成（single approach complete）'
+                record('hold', reason=runtime.hold_reason, **controller.snapshot())
+                print(f"\n{runtime.hold_reason}；保持。", flush=True)
+                return 0
     except RuntimeError as exc:
         runtime.hold_reason = str(exc)
         record("hold", reason=str(exc), **controller.snapshot())
-        print(f"\n{exc}; stopped sending motion, torque remains on pending support.",
+        print(f"\n{exc}；已停止发送运动，扭矩仍然保持，请托住机械臂（torque remains on）",
               flush=True)
     finally:
+        runtime._alignment_unresponsive = set(controller.unresponsive_directions)
         if controller.steps:
             record("summary", **controller.snapshot())
     return 0
