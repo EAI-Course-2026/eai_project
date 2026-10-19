@@ -10,11 +10,12 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 from http.server import ThreadingHTTPServer
 from threading import Thread
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT/'src'))
-from eai_robot.arm.desk_service import ArmDeskService
-from eai_robot.arm.desk_server import make_handler
+from eai_robot.applications.desktop.service import ArmDeskService
+from eai_robot.applications.desktop.server import make_handler
 from test_arm import FakeArm
 
 
@@ -72,8 +73,13 @@ class DeskTests(unittest.TestCase):
             service.submit('move',{'values':[1,.5,.5,.5,.5,.5]})
         # Full travel is no longer intersected with the saved home radius.
         values=[.90,.85,.15,.85,.20,.80]
-        service.submit('move',{'values':values})
-        state=self.settle(service)
+        # The fake bus reaches every target synchronously. Skip only the stage
+        # pacing sleep: dozens of real 80ms sleeps plus FK snapshots can exhaust the
+        # test wait on loaded CI hosts. Keep real motion guards and deadlines.
+        stage_clock = SimpleNamespace(monotonic=time.monotonic, sleep=lambda _: None)
+        with patch('eai_robot.control.execution.demo.time', stage_clock):
+            service.submit('move',{'values':values})
+            state=self.settle(service)
         self.assertIsNone(state['error'],state['error'])
         self.assertEqual(state['motion_state'],'reached')
         expected={cal.id:cal.position(v) for cal,v in zip(service.calibration.values(),values)}
@@ -294,7 +300,7 @@ class DeskTests(unittest.TestCase):
     def test_capture_and_save_calibration_without_eeprom_write(self):
         service,bus=self.make_desk()
         self.connect(service)
-        with tempfile.TemporaryDirectory() as d, patch('eai_robot.arm.desk_service.ROOT',Path(d)):
+        with tempfile.TemporaryDirectory() as d, patch('eai_robot.applications.desktop.service.ROOT',Path(d)):
             for sid,name in enumerate(('shoulder_pan','shoulder_lift','elbow_flex','wrist_flex','wrist_roll','gripper'),1):
                 for endpoint,raw in enumerate((300,500)):
                     bus.registers[sid]['Present_Position']=raw
@@ -332,7 +338,7 @@ class DeskTests(unittest.TestCase):
             # Reset the fake pose to a teachable demonstration pose.
             for sid,pos in enumerate((360,174,664,162,789,420),1):
                 bus.registers[sid]['Present_Position']=pos
-            with patch('eai_robot.arm.desk_service.ROOT',base):
+            with patch('eai_robot.applications.desktop.service.ROOT',base):
                 service.submit('teach_home')
                 state=self.settle(service)
             self.assertIsNone(state['error'],state['error'])
@@ -356,10 +362,10 @@ class DeskTests(unittest.TestCase):
         self.assertIn('data-demo="transfer"',html)
         with urlopen(base+'/api/state') as response:
             self.assertEqual(len(json.load(response)['calibration']),6)
-        with patch('eai_robot.arm.desk_server.discover_ports',return_value=[{'device':'FAKE','description':'USB serial','manufacturer':'test'}]):
+        with patch('eai_robot.applications.desktop.server.discover_ports',return_value=[{'device':'FAKE','description':'USB serial','manufacturer':'test'}]):
             with urlopen(base+'/api/ports') as response:
                 self.assertEqual(json.load(response)['ports'][0]['device'],'FAKE')
-        with patch('eai_robot.arm.desk_server.discover_ports',return_value=[]):
+        with patch('eai_robot.applications.desktop.server.discover_ports',return_value=[]):
             with urlopen(base+'/api/ports') as response:
                 self.assertEqual(json.load(response)['ports'],[])
         data=json.dumps({'action':'connect','payload':{'backend':'serial','port':'FAKE','baudrate':1_000_000}}).encode()

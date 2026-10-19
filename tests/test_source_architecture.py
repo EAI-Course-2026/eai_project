@@ -1,4 +1,4 @@
-"""Regression checks for module ownership, compatibility and calibration isolation."""
+"""Regression checks for module ownership, compact hierarchy and calibration isolation."""
 import ast
 import importlib
 import json
@@ -8,38 +8,45 @@ import sys
 import tempfile
 import unittest
 
-from eai_robot.calibration.results import JOINTS, load
-from eai_robot.calibration.servo import save_manual_candidate
+from eai_robot.calibration.servo.results import JOINTS, load
+from eai_robot.calibration.servo.workflow import save_manual_candidate
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class SourceArchitectureTests(unittest.TestCase):
-    def test_legacy_modules_share_canonical_state(self):
-        for old, new in (
-            ('arm.controller', 'control.arm_controller'),
-            ('arm.backends', 'hardware.backends'),
-            ('arm.desk_service', 'applications.desk_service'),
-            ('arm.desk_server', 'applications.desk_server'),
-            ('poses.control_presets', 'applications.pose_control'),
-            ('kinematics.keyboard_control', 'applications.keyboard_control'),
-            ('vision.aruco_ibvs', 'control.aruco_ibvs'),
-        ):
-            with self.subTest(old=old):
-                self.assertIs(importlib.import_module('eai_robot.' + old),
-                              importlib.import_module('eai_robot.' + new))
+    def test_only_six_capability_packages(self):
+        root = ROOT / 'src/eai_robot'
+        packages = {p.name for p in root.iterdir() if p.is_dir() and (p / '__init__.py').is_file()}
+        self.assertEqual(packages, {'applications', 'calibration', 'control', 'vision', 'policy', 'hardware'})
+
+    def test_implementations_are_grouped_below_capabilities(self):
+        allowed = {'applications': {'__init__.py'}, 'calibration': {'__init__.py'},
+                   'control': {'__init__.py'}, 'hardware': {'__init__.py'},
+                   'vision': {'__init__.py', 'features.py'},
+                   'policy': {'__init__.py', 'contracts.py', 'observations.py'}}
+        for package, names in allowed.items():
+            with self.subTest(package=package):
+                actual = {p.name for p in (ROOT / 'src/eai_robot' / package).glob('*.py')}
+                self.assertEqual(actual, names)
+
+    def test_command_names_are_preserved(self):
+        from eai_robot.cli import COMMANDS
+        self.assertEqual(set(COMMANDS), {'mapping', 'fk', 'plan', 'keyboard', 'vision', 'aruco-experiment',
+                         'aruco-preview', 'visual-servo', 'voice', 'poses', 'record-pose', 'reindex'})
 
     def test_runtime_results_and_pure_motion_do_not_load_workflows_or_devices(self):
         code = '''
 import sys
-from eai_robot.calibration.results import load
-from eai_robot.motion.poses import POSES_PATH, load_poses
-from eai_robot.motion.demo import build_plan
-from eai_robot.motion.cartesian import DeskCartesian
-from eai_robot.control.aruco_ibvs import corner_error_px
+from eai_robot.calibration.servo.results import load
+from eai_robot.control.planning.poses import POSES_PATH, load_poses
+from eai_robot.control.planning.demo import build_plan
+from eai_robot.control.planning.cartesian import DeskCartesian
+from eai_robot.control.visual_servo.aruco_ibvs import corner_error_px
+from eai_robot.control.visual_servo.empirical import choose_step
 for name in sys.modules:
     assert not name.startswith(('cv2', 'lerobot', 'serial', 'pynput',
-        'eai_robot.applications', 'eai_robot.calibration.servo')), name
+        'eai_robot.applications', 'eai_robot.calibration.servo.workflow')), name
 assert POSES_PATH.is_file()
 '''
         result = subprocess.run([sys.executable, '-c', code], cwd=ROOT,
@@ -57,11 +64,9 @@ assert not any(n == 'eai_robot' or n.startswith('eai_robot.') for n in sys.modul
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_capability_modules_do_not_import_application_or_legacy_packages(self):
-        for folder in ('calibration', 'control', 'hardware', 'kinematics', 'motion', 'robots', 'vision'):
+        for folder in ('calibration', 'control', 'hardware', 'vision'):
             for file in (ROOT / 'src/eai_robot' / folder).rglob('*.py'):
                 tree = ast.parse(file.read_text())
-                if (ast.get_docstring(tree) or '').startswith('Compatibility'):
-                    continue
                 for node in ast.walk(tree):
                     names = ([node.module or ''] if isinstance(node, ast.ImportFrom)
                              else [item.name for item in node.names] if isinstance(node, ast.Import) else [])

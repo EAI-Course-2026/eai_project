@@ -13,10 +13,11 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
-from eai_robot.arm.calibration import JOINTS, JointCalibration, load, save, parse_ratios
-from eai_robot.arm.controller import ArmController
-from eai_robot.arm.cli import calibrate, import_hardware_calibration, main
-from eai_robot.hardware.scs import Bus, ProtocolError
+from eai_robot.calibration.servo.results import JOINTS, JointCalibration, load, save
+from eai_robot.input import parse_ratios
+from eai_robot.control.execution.arm import ArmController
+from eai_robot.applications.tools.arm import calibrate, import_hardware_calibration, main
+from eai_robot.hardware.drivers.scs import Bus, ProtocolError
 
 
 def calibration():
@@ -207,7 +208,7 @@ class ArmTests(unittest.TestCase):
         arm = ArmController(bus, calibration(), max_step=5, motion="smooth")
         arm.enable()
         values = [0, .2, .4, .6, .8, 1]
-        with patch("eai_robot.arm.controller.time.sleep"):
+        with patch("eai_robot.control.execution.arm.time.sleep"):
             targets, reached = arm.move(values)
         self.assertEqual(targets, reached)
         self.assertEqual(targets, {sid: calibration()[n].position(v)
@@ -224,7 +225,7 @@ class ArmTests(unittest.TestCase):
             arm = ArmController(bus, calibration(), timeout=.1, motion="smooth")
             arm.enable()
             bus.follow = False
-            with patch("eai_robot.arm.controller.time.sleep"):
+            with patch("eai_robot.control.execution.arm.time.sleep"):
                 with self.assertRaises(error):
                     arm.move([value] * 6)
             self.assertTrue(all(bus.read(s, "Torque_Enable") == 0 for s in range(1, 7)))
@@ -256,7 +257,7 @@ class ArmTests(unittest.TestCase):
 
     def test_inspect_does_not_write_and_cli_closes(self):
         bus = FakeArm()
-        with patch("eai_robot.arm.backends.SerialBackend", return_value=bus), \
+        with patch("eai_robot.hardware.drivers.backends.SerialBackend", return_value=bus), \
                 contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(main("serial", ["--port", "FAKE", "inspect"]), 0)
         self.assertEqual(bus.writes, [])
@@ -267,15 +268,15 @@ class ArmTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / "measured.json"
             save(path, calibration())
-            with patch("eai_robot.arm.backends.SerialBackend", side_effect=AssertionError()), \
-                    patch("eai_robot.arm.backends.LeRobotBackend", side_effect=AssertionError()), \
+            with patch("eai_robot.hardware.drivers.backends.SerialBackend", side_effect=AssertionError()), \
+                    patch("eai_robot.hardware.drivers.backends.LeRobotBackend", side_effect=AssertionError()), \
                     contextlib.redirect_stdout(io.StringIO()):
                 for mode in ("serial", "lerobot"):
                     self.assertEqual(main(mode, ["--calibration", str(path), "control", "--dry-run",
                                                  "--values", "0", ".2", ".4", ".6", ".8", "1"]), 0)
 
     def test_plain_backend_never_imports_lerobot_or_sdk(self):
-        code = ("import sys; sys.path.insert(0, 'src'); from eai_robot.arm.backends import SerialBackend; "
+        code = ("import sys; sys.path.insert(0, 'src'); from eai_robot.hardware.drivers.backends import SerialBackend; "
                 "assert not any(n.startswith(('lerobot', 'scservo_sdk')) for n in sys.modules)")
         subprocess.run([sys.executable, "-c", code], cwd=ROOT, check=True)
 
@@ -290,7 +291,7 @@ class ArmTests(unittest.TestCase):
         self.assertEqual(ser.packets[0], expected)
 
     def test_lerobot_and_plain_backend_produce_identical_sync_packet(self):
-        from eai_robot.hardware.lerobot_scs215 import SCS215MotorsBus
+        from eai_robot.hardware.drivers.lerobot_scs215 import SCS215MotorsBus
         from lerobot.motors.feetech import FeetechMotorsBus
         from lerobot.motors.feetech.tables import MODEL_NUMBER_TABLE
         bus = SCS215MotorsBus("FAKE")
@@ -324,7 +325,7 @@ class ArmTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / "measured.json"
             save(path, calibration())
-            with patch("eai_robot.arm.backends.SerialBackend", return_value=bus), \
+            with patch("eai_robot.hardware.drivers.backends.SerialBackend", return_value=bus), \
                     contextlib.redirect_stdout(io.StringIO()):
                 self.assertEqual(main("serial", ["--port", "FAKE", "--calibration", str(path), "control"]), 0)
         self.assertTrue(bus.closed)
@@ -342,8 +343,8 @@ class ArmTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             path = Path(d) / "measured.json"
             save(path, calibration())
-            with patch("eai_robot.arm.backends.SerialBackend", return_value=bus), \
-                    patch("eai_robot.arm.controller.time.sleep"), \
+            with patch("eai_robot.hardware.drivers.backends.SerialBackend", return_value=bus), \
+                    patch("eai_robot.control.execution.arm.time.sleep"), \
                     contextlib.redirect_stdout(io.StringIO()), \
                     contextlib.redirect_stderr(io.StringIO()):
                 self.assertEqual(main("serial", ["--port", "FAKE", "--calibration", str(path), "control",
@@ -400,7 +401,7 @@ class ArmTests(unittest.TestCase):
             self.assertEqual((bus.sid, bus.lock), (1, 1))
 
     def test_lerobot_verified_write_discards_ack_before_read(self):
-        from eai_robot.hardware.lerobot_scs215 import SCS215MotorsBus
+        from eai_robot.hardware.drivers.lerobot_scs215 import SCS215MotorsBus
         bus = SCS215MotorsBus("FAKE")
         class AckSerial:
             def __init__(self):
@@ -435,7 +436,7 @@ class ArmTests(unittest.TestCase):
             bus.registers[sid]["Goal_Velocity"] = sid * 100
         arm = ArmController(bus, calibration())
         arm.enable()
-        with patch("eai_robot.arm.controller.time.sleep"):
+        with patch("eai_robot.control.execution.arm.time.sleep"):
             targets, reached = arm.move([.6] * 6)
         self.assertEqual(targets, reached)
         self.assertEqual(len(bus.packets), 2)  # preload, then six-joint final target

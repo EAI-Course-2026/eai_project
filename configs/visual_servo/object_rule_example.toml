@@ -1,0 +1,45 @@
+schema_version = 1
+description = "2026-10-19 object-rule skeleton: five image regions, one centimetre per step, arbitrary tracked target. Offline-validated only; NO real-arm acceptance yet. reference_depth_m is an example value and must be measured before a run."
+
+[servo]
+# Shared rule numbers. Identical to aruco_fixed_rule.toml on purpose: the
+# object path changes where the target comes from, not what the arm does.
+rule_band = 0.4
+rule_step_mm = 10.0
+rule_stop_side_px = 120.0
+rule_min_standoff_m = 0.1
+rule_gate_px = 24.0
+rule_max_steps = 40
+rule_max_request_counts = 18.0
+max_travel_mm = 100.0
+max_joint_excursion_deg = 40.0
+max_joint_step_deg = 5.0
+joint_margin_deg = 2.0
+max_runtime_s = 0.0
+feedback_hz = 2.0
+feature_samples = 5
+torque_settle_s = 2.0
+
+[perception]
+object_rule = true
+# fused = texture tracking for the pose plus a detector for arbitration.
+# support = region texture only, no model at all: the dependency-free path.
+# detector = a model only; every frame coasts on the newest detection.
+tracker = "fused"
+detector = "dark-blob"
+selection = "score"
+model_device = "auto"
+model_dtype = "float32"
+# Weights are machine-local and therefore never named here. Supply them with
+# --detector-weights, and only set --allow-weight-download if the bench is online.
+allow_weight_download = false
+detector_failure_limit = 3
+detector_timeout_s = 5.0
+tracker_max_coast_s = 0.2
+tracker_max_age_s = 0.25
+tracker_agreement = 0.35
+tracker_min_inliers = 8
+tracker_seed_margin = 1.25
+tracker_reacquire_attempts = 2
+# The one measurement arbitrary-object depth needs. Measure it, do not copy it.
+reference_depth_m = 0.30

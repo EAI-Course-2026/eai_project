@@ -10,15 +10,20 @@ from urllib.error import HTTPError
 
 import numpy as np
 
-from eai_robot.policy.artifacts import freeze_checkpoint
+from eai_robot.policy.inference.artifacts import freeze_checkpoint
 from eai_robot.policy.contracts import JOINTS, KEYS, Manifest, UNITS, sha256, vector
-from eai_robot.policy.datasets import export_dataset, training_recipe
-from eai_robot.policy.execution import PortLease, execute_chunk
+from eai_robot.policy.data.datasets import export_dataset, training_recipe
+from eai_robot.policy.execution.runner import PortLease, execute_chunk
 from eai_robot.policy.observations import fake_observation, Observation
-from eai_robot.policy.recording import Journal, validate_episode
-from eai_robot.policy.runtime import FakeRuntime, LeRobotRuntime
-from eai_robot.policy.safety import Budgets, Gate
-from eai_robot.policy.transport import decode_observation, encode_observation, policy_server, RemoteRuntime
+from eai_robot.policy.data.recording import Journal, validate_episode
+from eai_robot.policy.inference.runtime import FakeRuntime, LeRobotRuntime
+from eai_robot.policy.execution.safety import Budgets, Gate
+from eai_robot.policy.inference.transport import (
+    decode_observation,
+    encode_observation,
+    policy_server,
+    RemoteRuntime,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -256,7 +261,7 @@ class TransportTests(unittest.TestCase):
 
 class RecordingTests(unittest.TestCase):
     def test_outcome_evaluation_counts_failures_and_requires_all_labels(self):
-        from eai_robot.policy.evaluation import evaluate_episodes, label_episode
+        from eai_robot.policy.data.evaluation import evaluate_episodes, label_episode
         manifest = fixture()
         with tempfile.TemporaryDirectory() as directory:
             paths = []
@@ -308,7 +313,7 @@ class RecordingTests(unittest.TestCase):
                 export_dataset(episodes, manifest, root=directory / "bad", repo_id="local/policy_test", split_file=split)
 
     def test_operator_collection_records_actual_send_and_stop(self):
-        from eai_robot.policy.teleoperation import record_demonstration
+        from eai_robot.policy.execution.teleoperation import record_demonstration
         manifest = fixture()
         clock = FakeClock()
 
@@ -392,7 +397,7 @@ class RecordingTests(unittest.TestCase):
 
 class RealACTTests(unittest.TestCase):
     def test_pi05_load_errors_cannot_return_random_model(self):
-        from eai_robot.policy.runtime import load_pi05_strict
+        from eai_robot.policy.inference.runtime import load_pi05_strict
         policy_class = Mock()
         config = Mock(device="cpu")
         with patch("safetensors.torch.load_file", side_effect=ValueError("corrupt weight file")):

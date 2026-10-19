@@ -3,7 +3,10 @@
 2026-10-03。应用层实现位于 `src/eai_robot/policy/`，所有入口使用
 `python scripts/policy.py`。导入、诊断、下载、离线推理和服务器都不连接硬件。
 SO101 连接不等于模型、相机或任务已验收；验收及阻塞见
-[本次交接](next_session.md)。前置方案仍在未合并 PR #10 的 `codex/vla-handoff`。
+[本次交接](next_session.md)。历史状态修订（2026-10-19）：PR #10、#11 已合并至 develop；
+原始交接中的“未合并”描述保留为当时记录，不能用作当前分支状态。
+本仓库已有本地运行器和自有远端服务，通用聊天/语音 API 尚未接入；
+边界与后续接口见[推理边界决定](../inference_boundaries.md)。
 
 ## 当前可用范围
 

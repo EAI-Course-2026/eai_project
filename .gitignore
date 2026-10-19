@@ -30,6 +30,12 @@ dist/
 !/calibration/vision/rigs/
 !/calibration/vision/rigs/*/
 !/calibration/vision/rigs/*/hand_eye.json
+# The collaborator-supplied results, under the flat names the servo code and the
+# offline tests load. Tracked at these paths until the `cameras/<id>/` and
+# `rigs/<id>/` asset ids are agreed with the calibration collaborator; the
+# absolute machine path the hand-eye file arrived with has been removed.
+!/calibration/vision/camera_intrinsics.json
+!/calibration/vision/hand_eye_result.json
 
 # Coursework hand-in stays on this computer, including its report, video, and dependencies.
 /assignment2_handin/
@@ -42,3 +48,12 @@ configs/policy/*.local.json
 
 # Preserved host-specific diagnostics
 /local_artifacts/
+
+# Editor and agent local state (session memory, caches). Anchored to the root:
+# an older rule matched the name at any depth and was removed for being too
+# broad, which left this directory visible to `git add -A`.
+/.workbuddy/
+
+# Versioned Python data tools; raw datasets remain ignored.
+!/src/eai_robot/policy/data/
+!/src/eai_robot/policy/data/*.py

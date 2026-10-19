@@ -1,61 +1,89 @@
-# ArUco visual servoing scaffold
+# 视觉伺服：当前入口与实验基线
 
-This is the software foundation for the Week 6 image-based visual-servo task.
-It is intentionally split into camera observations, pure image-space math,
-and a future robot adapter. The preview command opens only the camera; no part
-of this scaffold connects to or moves the arm.
+2026-10-18已完成并录制ArUco中央区域真机MVP，最终日志验证10次纠偏、27个实际动作步骤。
+这是宽松的中心区域跟随；四角点精密IBVS、自动前进和任意物体真机跟随尚未验收。
 
-## Current modules
+- [本轮参数、统计和失败原因](../reports/2026-10-18-visual-servo-round1.md)
+- [下一轮精细伺服计划](../experiments/visual_servo_precision.md)
+- [源码职责](../../src/eai_robot/applications/visual_servo/README.md)
+- [早期演练、标定适配和现场迭代记录](aruco_visual_servo_history.md)
 
-- `src/eai_robot/vision/aruco.py` detects a configured marker and can
-  estimate its pose from supplied intrinsics and physical marker size.
-- Camera and hand-eye calibration belong to the independent
-  [calibration capability](../../src/eai_robot/calibration/README.md).
-  `vision/calibration/` is retained as the earlier placeholder; neither location
-  currently contains camera or hand-eye calibration algorithms.
-- `eai-course aruco-preview --camera-index N --marker-id ID` shows a
-  camera-only detection preview. It does not connect to the robot.
-- `src/eai_robot/control/aruco_ibvs.py` builds the four-corner image
-  error, point-feature interaction matrix, and a bounded damped least-squares
-  camera-frame velocity command.
-- Add offline math and detector regression coverage before connecting this
-  scaffold to a robot adapter.
+## 一、命令边界
 
-The camera velocity order is `[vx, vy, vz, wx, wy, wz]` in the camera frame.
-Marker corners follow OpenCV's top-left, top-right, bottom-right, bottom-left
-ordering. The solver returns a camera-frame velocity only; mapping that into
-the end-effector/base frame and then into joint targets remains a separate,
-reviewed adapter step.
+| 命令 | 功能 | 硬件动作 |
+|---|---|---|
+| `aruco-preview` | 相机采集；可后台发布帧 | 不打开机械臂串口 |
+| `vision --profile …` | 检测/预览；不加`--execute`时仅相机 | 无 |
+| `vision --profile … --execute` | 本轮实测关节响应的中央区域控制 | 预检及显式启动确认后执行 |
+| `visual-servo` | 图片/相机演练，简单控制建议、四角点IBVS、选定物体光流 | 不执行机器人动作 |
+| `aruco-experiment` | 内参/手眼/FK的受限实验入口 | 默认只读；精密真机未验收 |
 
-## Intended pipeline
+ArUco为DICT_4X4_50、ID0，外圈黑色正方形边长25mm。该标记尺寸与棋盘格格长无关。
+MVP只用二维图像和实测关节响应，不依赖内参/手眼完成度来宣称毫米精度。
 
-1. Capture an RGB image and identify the configured ArUco dictionary and ID.
-2. Use the collaborator-provided camera intrinsics and the printed marker size
-   to estimate the marker pose and corner depths.
-3. Compare the four detected corners with four configured desired image points.
-4. Form the interaction matrix and compute a damped, norm-limited camera twist.
-5. Preview the proposed twist and image error before adding any robot adapter.
-6. Add hand-eye conversion and bounded Cartesian/IK execution only after the
-   calibration files, frame convention, limits and on-hardware validation are
-   agreed and reviewed.
+## 二、日常启动：一个可见窗口
 
-Marker ID selection is explicit: if no ID is configured, a frame containing
-multiple markers is rejected as ambiguous. Missing markers return no
-observation; the eventual runtime must stop and hold rather than reuse stale
-error or motion commands.
+在`configs/hardware.local.toml`填写并核实本机串口、末端相机编号。
+配置文件不含机器端口/索引，不自动授予执行权限。
 
-## Pending integration decisions
+第一终端开启相机唯一所有者，不显示第二个窗口：
 
-- The camera calibration JSON schema and camera asset identifier are being
-  prepared separately. The math API accepts `camera_matrix` and `distortion`
-  directly so it does not assume that schema.
-- Marker dictionary, ID, printed side length and desired corner layout must be
-  recorded in a portable configuration, without committing local camera index.
-- Hand-eye output must state the transform direction and coordinate frames.
-  The robot adapter must convert the camera-frame command using the reviewed
-  transform and then use the existing Cartesian planner / IK safety path.
-- Raw images, local camera settings and experiment outputs stay in ignored
-  local-artifact areas. Only a reviewed, reproducible calibration result should
-  be promoted into shared `calibration/` data.
+```sh
+uv run --locked eai-course aruco-preview --marker-id 0 --headless \
+  --stream-file local_artifacts/tmp/visual-preview/latest.frame
+```
 
-No hardware execution is provided by this scaffold.
+第二终端先检测预览（不开串口）：
+
+```sh
+uv run --locked eai-course vision \
+  --profile configs/visual_servo/aruco_center_mvp.toml \
+  --shared-frame local_artifacts/tmp/visual-preview/latest.frame \
+  --preview --local-keys
+```
+
+开始新一轮真机实验时，先结束检测进程，再在已知安全、离开端点的姿态启动：
+
+```sh
+uv run --locked eai-course vision \
+  --profile configs/visual_servo/aruco_center_mvp.toml \
+  --shared-frame local_artifacts/tmp/visual-preview/latest.frame \
+  --preview --local-keys --execute
+```
+
+配置默认为本轮已授权实测的100mm预算、累计40°、单步5°，底座10/15计数、手腕12计数。
+这些是模型预算，不是已测量的无碰撞空间。CLI显式参数覆盖配置；默认不加profile的历史
+入口仍保留原有10°/40mm设置。新实验启用前重新核验现场与姿态，不把本轮临时接管文件
+或旧参考点当作新的物理许可。相机与板保持稳定完成初始响应探测后再移动标记。
+
+## 三、画面、停止和恢复
+
+- `ALIGNED`：目标在中央20%区域内（640×480时横向±64、纵向±48px）；暂不纠偏。
+- `CENTERING`：正在纠偏；计数只在实际动作后重新对中时增加，初始静止对中不计数。
+- `TARGET WAIT`：丢失标记，保持现有姿态；连续5帧重新识别后继续。
+- `CAMERA WAIT`：无新鲜图像，禁止纠偏并保持；连续恢复后继续，不使用旧帧冒充实时。
+- `PAUSED`：普通暂停/边界/反馈问题，画面继续更新，扭矩保持；检查原因后R重试。
+
+本轮配置不设运行超时，也不会在计数到10后自行关闭。
+在**控制窗口有焦点时**按Q/Esc正常暂停，R重试；回到控制终端、操作者已支撑后按回车
+才正常卸扭矩。空格/Ctrl+C为紧急释放。普通暂停不要直接关掉相机采集进程。
+
+`--adopt-hold --hold-reference … --resume-response …`是现场故障排查时的显式持扭矩交接，
+只允许已知旧控制器暂停并关闭串口、五轴稳定保持时使用，保留原始预算参考。
+它不写扭矩开关，不能作为已经卸扭矩后的新实验启动路径；通常启动不需要这些参数。
+
+## 四、日志与离线分析
+
+日志位于被忽略的`local_artifacts/experiments/`，包括请求/实际计数、到位或部分响应、
+图像误差、固定响应矩阵、重新对中计数、输入丢失和停止原因。不会提交个人视频或机器端口。
+
+```sh
+uv run --locked python scripts/summarize_visual_servo.py \
+  --log local_artifacts/experiments/20261018_125635_joint-center.jsonl \
+  --output-dir local_artifacts/experiments/round1-summary
+```
+
+该脚本只读文件，输出`summary.json`、`cycles.csv`和`joint_motion.csv`，不导入相机或串口。
+“首个确认动作至对中”的时间不含第一步执行延迟，不能当完整收敛时间。
+最终本机归档为`local_artifacts/experiments/2026-10-18_visual-servo-round1/`，
+含原始证据快照及SHA256清单，历史失败没有被覆盖。

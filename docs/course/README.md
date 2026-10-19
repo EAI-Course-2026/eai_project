@@ -9,7 +9,7 @@ this environment.
 
 The local `lerobot_robot_scs215` package now supplies the shared bus and Robot.
 Standard LeRobot CLI selects it with `--robot.type=scs215_so101_follower`;
-the `eai_robot.robots.so101` factory constructs that same registered Robot for
+the `eai_robot.hardware.robots.so101` factory constructs that same registered Robot for
 application workflows. This integration adds no fork edits. See the
 [plugin guide](../lerobot_plugin.md) and
 [architecture](../architecture.md) for commands, motion enable and calibration behavior.
@@ -71,7 +71,7 @@ permission; imports, tests, help and offline planning do not request it.
 
 Course code is organized in `eai_robot` by technical capability; `docs/course/`
 is the course-specific documentation layer. The voice command implementation
-lives in `src/eai_robot/voice/` alongside the pose tools it dispatches. Use
+lives in `src/eai_robot/applications/teleoperation/` alongside the pose tools it dispatches. Use
 `eai-course voice` or `python scripts/course.py voice`; it defaults to a
 hardware-free dry run. ASR remains an external text producer, while generic
 learned-policy inference stays in `src/eai_robot/policy/`.

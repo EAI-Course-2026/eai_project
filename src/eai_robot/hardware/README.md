@@ -1,8 +1,9 @@
-# 硬件通信与设备检查
+# 设备接入
 
-`scs.py` 是原生协议，`backends.py` 提供 Serial/LeRobot 后端；
-`inspection.py` 提供型号/硬件限位检查及显式尽力释放。
-`lerobot_scs215.py` 转导出独立插件总线，不维护第二套 SDK 实现。
-对象装配在 `robots/`，交互与设备所有权在 `applications/`；导入模块不打开设备。
+| 功能组 | 分工 |
+|---|---|
+| `drivers/` | scs.py 原生协议，backends.py 双后端，inspection.py 型号/限位检查与显式释放，lerobot_scs215.py 转导出独立插件总线。 |
+| `robots/` | so101.py 装配插件 Robot，joint_ranges.py 读取关节范围；不复制插件或运动学实现。 |
 
-完整分工与兼容规则见 [`src/README.md`](../../README.md)。
+应用层拥有会话；算法、数据与结果读取不隐式开启设备。不同执行路径继续保留原有门禁。
+完整目录与依赖规则见 [`src/README.md`](../../README.md)。

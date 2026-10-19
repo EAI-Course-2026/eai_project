@@ -1,0 +1,1268 @@
+"""ArUco/black-ball image-based closed-loop control for the SCS215 arm.
+
+The script uses this repository's SCS215-adapted ``SOFollower`` and reuses the
+Week 4 Task 2 calibration mapping, FK, IK and Cartesian line planner.  Without
+``--execute`` it opens only the wrist camera and never opens the motor bus.
+"""
+
+from __future__ import annotations
+from eai_robot.config import ROOT
+
+import argparse
+import sys
+import threading
+import time
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Sequence
+
+import cv2
+import numpy as np
+from eai_robot.input import keyboard
+
+from lerobot.cameras import ColorMode
+from lerobot.cameras.opencv import OpenCVCameraConfig
+from eai_robot.config import default_camera_fps, default_camera_index
+from eai_robot.hardware.robots.so101 import SO101Follower, make_robot, DEFAULT_CALIBRATION, default_port
+
+from eai_robot.control.kinematics.cartesian_planner import CartesianLinePlanner, CartesianPlan
+from eai_robot.control.kinematics.joint_mapping import ARM_JOINT_NAMES, SO101JointMapper
+from eai_robot.control.kinematics.kinematics_backend import create_fk_solver
+from eai_robot.control.kinematics.position_ik import create_position_ik_solver
+from eai_robot.control.execution.feedback import (
+    arm_degrees_from_raw,
+    ensure_execution_start_is_safe,
+    raw_outside_calibration,
+    read_raw_motors,
+)
+
+from eai_robot.vision.detection.ball import BallDetection, BlackBallDetector, annotate_frame
+from eai_robot.vision.detection.aruco import ArucoMarkerDetector
+from eai_robot.applications.visual_servo.shared_camera import SharedPreviewCamera
+from eai_robot.control.visual_servo.math import (
+    AXIS_INDEX,
+    axis_delta,
+    damped_image_step,
+    validate_image_jacobian,
+)
+
+
+DEFAULT_URDF = ROOT / "src/eai_robot/control/kinematics/so101_new_calib.urdf"
+DEFAULT_VISION = ROOT / "calibration/vision"
+WINDOW_NAME = "EAI visual servo - Q/Esc stop, Space emergency stop"
+
+
+class ArucoCenterDetector:
+    """Adapt marker center/area to the existing empirical center-servo loop."""
+    def __init__(self, marker_id=0, dictionary="DICT_4X4_50"):
+        self.detector = ArucoMarkerDetector(marker_id=marker_id, dictionary=dictionary)
+        self.dictionary, self.marker_id = dictionary, marker_id
+        self.last_marker_id = None
+
+    def detect(self, frame_rgb):
+        marker = self.detector.detect(frame_rgb)
+        self.last_marker_id = None if marker is None else marker.marker_id
+        mask = np.zeros(frame_rgb.shape[:2], dtype=np.uint8)
+        if marker is None:
+            return None, mask
+        polygon = marker.corners_px.astype(np.float32)
+        area = abs(float(cv2.contourArea(polygon)))
+        center = marker.center_px
+        cv2.fillConvexPoly(mask, np.rint(polygon).astype(np.int32), 255)
+        return BallDetection(float(center[0]), float(center[1]),
+                             float(np.sqrt(area / np.pi)), area, 1., 1.), mask
+
+
+class LocalPreview:
+    """OpenCV preview with local stop keys; no global keyboard permission."""
+    def __init__(self, stop_state):
+        self.stop_state = stop_state
+
+    def show(self, frame_rgb, detection, status):
+        frame = annotate_frame(frame_rgb, detection, status)
+        cv2.imshow(WINDOW_NAME, frame)
+        key = cv2.waitKey(1) & 0xFF
+        if key in (ord("r"), ord("R")):
+            self.stop_state.resume_requested.set()
+        if key in (27, ord("q"), ord("Q"), ord(" ")):
+            self.stop_state.stop_requested.set()
+            if key == ord(" "):
+                self.stop_state.emergency_requested.set()
+
+    def close(self):
+        cv2.destroyAllWindows()
+
+
+@dataclass(frozen=True)
+class DepthCalibration:
+    axis_name: str
+    radius_derivative_px_per_m: float
+
+    @property
+    def approach_sign(self) -> float:
+        return 1.0 if self.radius_derivative_px_per_m > 0 else -1.0
+
+
+class StopState:
+    def __init__(self) -> None:
+        self.armed = threading.Event()
+        self.stop_requested = threading.Event()
+        self.emergency_requested = threading.Event()
+        self.resume_requested = threading.Event()
+
+    def on_press(self, key: keyboard.Key | keyboard.KeyCode) -> bool | None:
+        # Ignore keys typed into the mandatory startup confirmation prompt.
+        if not self.armed.is_set():
+            return None
+        if key == keyboard.Key.space:
+            self.emergency_requested.set()
+            self.stop_requested.set()
+            return False
+        if key == keyboard.Key.esc:
+            self.stop_requested.set()
+            return False
+        char = getattr(key, "char", None)
+        if char is not None and char.lower() == "q":
+            self.stop_requested.set()
+            return False
+        return None
+
+
+class StopRequestedError(RuntimeError):
+    """Raised between motor waypoints so the outer safety cleanup runs."""
+
+
+class PreviewWindow:
+    """Small Tk/Pillow preview that also works with opencv-python-headless."""
+
+    def __init__(self, stop_state: StopState) -> None:
+        try:
+            import tkinter as tk
+            from PIL import Image, ImageTk
+        except ImportError as exc:
+            raise RuntimeError(
+                "Preview requires tkinter and Pillow. Re-run without --preview if unavailable."
+            ) from exc
+
+        self._tk = tk
+        self._image_module = Image
+        self._image_tk_module = ImageTk
+        try:
+            self._root = tk.Tk()
+        except tk.TclError as exc:
+            raise RuntimeError(
+                "Could not create a desktop preview. Re-run without --preview."
+            ) from exc
+        self._root.title(WINDOW_NAME)
+        self._root.protocol("WM_DELETE_WINDOW", self._request_close)
+        self._label = tk.Label(self._root)
+        self._label.pack()
+        self._photo = None
+        self._stop_state = stop_state
+
+    def _request_close(self) -> None:
+        self._stop_state.stop_requested.set()
+        self._root.withdraw()
+
+    def show(
+        self,
+        frame_rgb: np.ndarray,
+        detection: BallDetection | None,
+        status: str,
+    ) -> None:
+        annotated_bgr = annotate_frame(frame_rgb, detection, status)
+        annotated_rgb = cv2.cvtColor(annotated_bgr, cv2.COLOR_BGR2RGB)
+        image = self._image_module.fromarray(annotated_rgb)
+        self._photo = self._image_tk_module.PhotoImage(image=image)
+        self._label.configure(image=self._photo)
+        try:
+            self._root.update_idletasks()
+            self._root.update()
+        except self._tk.TclError:
+            self._stop_state.stop_requested.set()
+
+    def close(self) -> None:
+        try:
+            self._root.destroy()
+        except self._tk.TclError:
+            pass
+
+
+class VisionArmRuntime:
+    """Own the SCS215 bus and consume fresh local or published camera frames."""
+
+    def __init__(self, args: argparse.Namespace, stop_state: StopState) -> None:
+        if type(args.camera_index) is not int or args.camera_index < 0:
+            raise ValueError("Select this machine's camera using --camera-index or hardware.local.toml")
+        camera_config = OpenCVCameraConfig(
+            index_or_path=args.camera_index,
+            fps=args.camera_fps,
+            width=args.camera_width,
+            height=args.camera_height,
+            color_mode=ColorMode.RGB,
+            warmup_s=1,
+        )
+        self.robot = make_robot(
+            args.port, args.robot_id, calibration_path=args.calibration,
+            cameras={} if getattr(args, "shared_frame", None) else {args.camera_key: camera_config},
+        )
+        self.camera_key = args.camera_key
+        self.camera = (SharedPreviewCamera(args.shared_frame) if getattr(args, "shared_frame", None)
+                       else self.robot.cameras[self.camera_key])
+        self.args = args
+        self.stop_state = stop_state
+
+        self.mapper: SO101JointMapper | None = None
+        self.fk = None
+        self.planner: CartesianLinePlanner | None = None
+        self.fk_backend = "not initialized"
+        self.ik_backend = "not initialized"
+        self.command_q: np.ndarray | None = None
+        self.command_position: np.ndarray | None = None
+        self.initial_position: np.ndarray | None = None
+        self.torque_enabled = False
+
+    def connect(self, *, camera_only: bool) -> None:
+        if camera_only:
+            self.camera.connect()
+            return
+
+        if not self.robot.calibration:
+            raise FileNotFoundError(
+                f"No calibration found at {self.robot.calibration_fpath}. "
+                "Run lerobot-calibrate for this exact arm first."
+            )
+        self.mapper = SO101JointMapper(self.robot.calibration)
+        issues = self.mapper.validate()
+        if issues:
+            details = "; ".join(
+                f"{issue.level} {issue.joint}: {issue.message}" for issue in issues
+            )
+            raise RuntimeError(f"Calibration check failed: {details}")
+
+        self.fk, self.fk_backend = create_fk_solver(self.args.urdf)
+        ik, self.ik_backend = create_position_ik_solver(
+            self.fk,
+            self.fk_backend,
+            tolerance_m=min(0.0004, self.args.max_step_mm / 1000.0 * 0.20),
+            joint_margin_deg=self.args.joint_margin_deg,
+        )
+        self.planner = CartesianLinePlanner(
+            self.fk,
+            ik,
+            max_cartesian_step_m=self.args.max_step_mm / 1000.0,
+            max_joint_step_deg=self.args.max_joint_step_deg,
+        )
+
+        self.robot.bus.connect(handshake=False)
+        self.robot.bus.port_handler.clearPort()
+        time.sleep(0.10)
+        raw = read_raw_motors(self.robot, ARM_JOINT_NAMES)
+        outside = raw_outside_calibration(self.mapper, raw)
+        if outside:
+            details = ", ".join(
+                f"{name}={raw[name]} "
+                f"(range {self.mapper.calibration[name].range_min}.."
+                f"{self.mapper.calibration[name].range_max})"
+                for name in outside
+            )
+            raise RuntimeError(f"Raw positions outside calibration: {details}")
+
+        self.command_q = arm_degrees_from_raw(self.mapper, raw)
+        ensure_execution_start_is_safe(
+            self.command_q, margin_deg=self.args.joint_margin_deg
+        )
+        self.command_position = self.fk.forward_kinematics(self.command_q)[:3, 3]
+        self.initial_position = self.command_position.copy()
+
+        # Initialize and validate the comparatively timing-sensitive protocol-1
+        # motor bus before starting the continuous USB camera read thread.
+        self.camera.connect()
+
+    def enable_motion(self) -> None:
+        mapper = self._require_mapper()
+        if self.command_q is None:
+            raise RuntimeError("arm state has not been initialized")
+        raw = read_raw_motors(self.robot, ARM_JOINT_NAMES)
+        self.command_q = arm_degrees_from_raw(mapper, raw)
+        ensure_execution_start_is_safe(self.command_q, margin_deg=self.args.joint_margin_deg)
+        self.command_position = self.fk.forward_kinematics(self.command_q)[:3, 3]
+        self.initial_position = self.command_position.copy()
+        if getattr(self.args, "adopt_hold", False):
+            # Explicit handover only: never enable an unpowered axis here.
+            from eai_robot.applications.visual_servo.joint_center import verify_existing_hold
+            verify_existing_hold(self.robot)
+            self.torque_enabled = True
+            print("已确认原有上电保持状态；交接过程中没有写扭矩或目标。")
+            return
+        # The robot's verified enable path checks torque/status, seeds measured
+        # goals, then enables torque. Do not pre-write goals ahead of that gate.
+        self.torque_enabled = True
+        self.robot.enable_motion(list(ARM_JOINT_NAMES))
+
+    def read_frame(self) -> np.ndarray:
+        last_error: TimeoutError | None = None
+        for attempt in range(1, self.args.camera_read_retries + 1):
+            try:
+                return self.camera.async_read(timeout_ms=self.args.camera_timeout_ms)
+            except TimeoutError as exc:
+                last_error = exc
+                if attempt < self.args.camera_read_retries:
+                    print(
+                        f"\nCamera frame timeout ({attempt}/"
+                        f"{self.args.camera_read_retries}); retrying...",
+                        file=sys.stderr,
+                    )
+        raise TimeoutError(
+            f"机械臂摄像头 {self.args.camera_index} 连续 "
+            f"{self.args.camera_read_retries} 次取帧超时。请关闭占用摄像头的软件，"
+            "重新插拔摄像头后运行 lerobot-find-cameras opencv。"
+        ) from last_error
+
+    def move_to(self, target_position: Sequence[float]) -> CartesianPlan:
+        mapper = self._require_mapper()
+        if self.planner is None or self.command_q is None or self.command_position is None:
+            raise RuntimeError("Cartesian planner is not initialized")
+        if not self.torque_enabled:
+            raise RuntimeError("refusing motion while torque is disabled")
+
+        target = np.asarray(target_position, dtype=float).reshape(3)
+        plan = self.planner.plan(self.command_q, target)
+        next_send = time.perf_counter()
+        for waypoint in plan.waypoints:
+            if self.stop_state.stop_requested.is_set():
+                raise StopRequestedError("stop requested during Cartesian motion")
+            action = {
+                f"{name}.pos": mapper.urdf_degrees_to_normalized(name, value)
+                for name, value in zip(
+                    ARM_JOINT_NAMES, waypoint.joint_degrees, strict=True
+                )
+            }
+            self.robot.send_action(action)
+            self.command_q = waypoint.joint_degrees.copy()
+            self.command_position = waypoint.achieved_position.copy()
+            next_send += self.args.motion_period
+            sleep_s = next_send - time.perf_counter()
+            if sleep_s > 0:
+                time.sleep(sleep_s)
+        return plan
+
+    def move_delta(self, delta_xyz_m: Sequence[float]) -> CartesianPlan:
+        if self.command_position is None:
+            raise RuntimeError("arm state has not been initialized")
+        return self.move_to(self.command_position + np.asarray(delta_xyz_m, dtype=float))
+
+    def tracking_error_deg(self) -> float:
+        if self.command_q is None:
+            raise RuntimeError("arm state has not been initialized")
+        measured_q = self.measured_joint_degrees()
+        return float(np.max(np.abs(measured_q - self.command_q)))
+
+    def measured_joint_degrees(self) -> np.ndarray:
+        mapper = self._require_mapper()
+        measured_raw = read_raw_motors(self.robot, ARM_JOINT_NAMES)
+        return arm_degrees_from_raw(mapper, measured_raw)
+
+    def measured_position(self) -> np.ndarray:
+        if self.fk is None:
+            raise RuntimeError("FK solver is not initialized")
+        measured_q = self.measured_joint_degrees()
+        return self.fk.forward_kinematics(measured_q)[:3, 3]
+
+    def travel_from_start_m(self, position: np.ndarray | None = None) -> float:
+        if self.initial_position is None or self.command_position is None:
+            return 0.0
+        value = self.command_position if position is None else position
+        return float(np.linalg.norm(value - self.initial_position))
+
+    def shutdown(self) -> None:
+        if self.torque_enabled and self.robot.bus.is_connected:
+            try:
+                self.robot.bus.disable_torque(list(ARM_JOINT_NAMES), num_retry=5)
+                print("Torque disabled on SCS215 arm joints ID 1-5.")
+            except Exception as exc:
+                print(f"WARNING: could not disable torque: {exc}", file=sys.stderr)
+                print("Disconnect servo power immediately.", file=sys.stderr)
+            self.torque_enabled = False
+        if self.robot.bus.is_connected:
+            self.robot.bus.disconnect(disable_torque=False)
+        if self.camera.is_connected:
+            self.camera.disconnect()
+
+    def _require_mapper(self) -> SO101JointMapper:
+        if self.mapper is None:
+            raise RuntimeError("SCS215 calibration mapper is not initialized")
+        return self.mapper
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="ArUco/black-ball image-based closed-loop control for the SCS215 arm."
+    )
+    parser.add_argument("--profile", type=Path, help="Portable TOML servo defaults; CLI values override; never enables execution")
+    parser.add_argument("--port", default=default_port())
+    parser.add_argument("--robot-id", default="scs215_so101")
+    parser.add_argument("--calibration", type=Path, default=DEFAULT_CALIBRATION)
+    parser.add_argument("--camera-index", type=int, default=default_camera_index(),
+                        help="Local camera index; set in hardware.local.toml or pass explicitly")
+    parser.add_argument("--camera-key", default="wrist")
+    parser.add_argument("--shared-frame", type=Path, help="Read frames from the persistent preview")
+    parser.add_argument("--camera-width", type=int, default=640)
+    parser.add_argument("--camera-height", type=int, default=480)
+    parser.add_argument("--camera-fps", type=int, default=default_camera_fps(),
+                        help="Must match the rate the camera reports; LeRobot refuses a mismatch instead of degrading")
+    parser.add_argument("--camera-timeout-ms", type=int, default=5000)
+    parser.add_argument("--camera-read-retries", type=int, default=3)
+    parser.add_argument("--urdf", type=Path, default=DEFAULT_URDF)
+    parser.add_argument("--execute", action="store_true", help="Allow automatic arm motion")
+    parser.add_argument("--preview", action="store_true", help="Show a Tk/Pillow camera preview")
+    parser.add_argument("--local-keys", action="store_true", help="Use Q/Esc/Space in OpenCV preview")
+    parser.add_argument("--target", choices=("black-ball", "aruco"), default=None,
+                        help="Target type; defaults to aruco with --fixed-rule and black-ball otherwise")
+    parser.add_argument("--marker-id", type=int, default=0)
+    parser.add_argument("--joint-center", action="store_true", help="Empirical image-to-joint centering with verified encoder motion")
+    parser.add_argument("--fixed-rule", action="store_true", help="Five-region fixed rule: step 1 cm toward the marker region, 1 cm forward inside the middle band, stop at standoff")
+    parser.add_argument("--intrinsics", type=Path, default=DEFAULT_VISION / "camera_intrinsics.json", help="Measured pinhole intrinsics for the fixed rule")
+    parser.add_argument("--hand-eye", type=Path, default=DEFAULT_VISION / "hand_eye_result.json", help="Measured gripper_T_camera for the fixed rule")
+    parser.add_argument("--marker-length-m", type=float, default=0.025, help="Outer square side of the ArUco marker, in metres")
+    parser.add_argument("--rule-band", type=float, default=0.4, help="Central fraction of each image axis that requests a forward step")
+    parser.add_argument("--rule-step-mm", type=float, default=10.0, help="The rule's single camera step")
+    parser.add_argument("--rule-stop-side-px", type=float, default=120.0, help="Stop when the marker's apparent side reaches this many pixels")
+    parser.add_argument("--rule-min-standoff-m", type=float, default=0.10, help="Secondary depth standoff; only as good as the intrinsics")
+    parser.add_argument("--rule-gate-px", type=float, default=24.0, help="Centre error below which the rule is allowed to step forward")
+    parser.add_argument("--rule-max-steps", type=int, default=40, help="Hard cap on executed rule steps")
+    parser.add_argument("--rule-one-approach", action="store_true",
+                        help="ArUco diagnostic: allow alignment, then end after the first forward attempt, including target loss")
+    parser.add_argument("--rule-max-request-counts", type=float, default=18.0, help="Largest per-joint request the rule may send")
+    parser.add_argument("--object-rule", action="store_true", help="Run the same five-region rule against a tracked object instead of an ArUco marker")
+    parser.add_argument("--tracker", choices=("support", "fused", "detector"), default="fused", help="support: region texture only; fused: texture plus periodic detector arbitration; detector: detector only")
+    parser.add_argument("--roi", help="Selected target region x,y,w,h in pixels; required for --tracker support")
+    parser.add_argument("--prompt", help="Open-vocabulary text prompt, e.g. 'the red cup'")
+    parser.add_argument("--label", help="Detector class label to keep, e.g. 'hand' or 'cup'")
+    parser.add_argument("--target-id", help="Stable identity recorded with every step")
+    parser.add_argument("--detector", default="dark-blob", help="Detector catalogue name; see --list-detectors")
+    parser.add_argument("--detector-weights", help="Local weight file; nothing is downloaded unless --allow-weight-download is set")
+    parser.add_argument("--detector-option", action="append", metavar="KEY=VALUE", help="Detector-specific option; repeatable")
+    parser.add_argument("--selection", choices=("score", "area", "central"), default=None, help="Which candidate wins when several match; required when nothing else identifies the target")
+    parser.add_argument("--model-device", choices=("auto", "cpu", "mps", "cuda"), default="auto", help="Inference device; auto resolves once and is recorded")
+    parser.add_argument("--model-dtype", choices=("float32", "float16", "bfloat16"), default="float32")
+    parser.add_argument("--allow-weight-download", action="store_true", help="Permit an implicit download; off by default so a run is reproducible")
+    parser.add_argument("--list-detectors", action="store_true", help="Print the detector catalogue with its dependency and latency budget, then exit")
+    parser.add_argument("--detector-timeout-s", type=float, default=5.0, help="Bounded wait for the first detection during acquisition")
+    parser.add_argument("--detector-failure-limit", type=int, default=3, help="Consecutive detector failures before health reports degraded")
+    parser.add_argument("--tracker-max-coast-s", type=float, default=0.2, help="Longest interval a detection may stand in for a measurement")
+    parser.add_argument("--tracker-max-age-s", type=float, default=0.25, help="Oldest pose the servo and the guard will accept")
+    parser.add_argument("--tracker-agreement", type=float, default=0.35, help="Fractional centre/extent disagreement that counts as a tracker conflict")
+    parser.add_argument("--tracker-min-inliers", type=int, default=8, help="Optical-flow inliers needed to trust one frame")
+    parser.add_argument("--tracker-seed-margin", type=float, default=1.25, help="Region growth around a detection when seeding texture tracking")
+    parser.add_argument("--tracker-reacquire-attempts", type=int, default=2, help="Re-acquisitions allowed after a mid-step target loss")
+    parser.add_argument("--reference-depth-m", type=float, help="Measured distance at acquisition; the one number arbitrary-object depth needs")
+    parser.add_argument("--target-extent-m", type=float, help="Real extent of the target in metres, if the calibration is trusted")
+    parser.add_argument("--center-region-fraction", type=float, default=0.0, help="Joint-center rectangular central region, e.g. 0.2 for the course MVP; zero uses pixel deadband")
+    parser.add_argument("--adopt-hold", action="store_true", help="Explicit single-owner handover of a verified powered stationary arm")
+    parser.add_argument("--hold-reference", type=Path, help="Preserved original raw pose for handover workspace bounds")
+    parser.add_argument("--resume-response", type=Path, help="Previously measured pixel/count response for powered handover")
+    parser.add_argument("--start-paused", action="store_true", help="Restore live paused preview during a powered handover; no motion")
+    parser.add_argument("--dictionary", default="DICT_4X4_50")
+    parser.add_argument("--black-threshold", type=int, default=75)
+    parser.add_argument("--control-axes", nargs=2, choices=("x", "y", "z"), default=("x", "z"))
+    parser.add_argument("--approach", action="store_true", help="Also approach the ball using its radius")
+    parser.add_argument("--depth-axis", choices=("x", "y", "z"), default="y")
+    parser.add_argument("--probe-mm", type=float, default=3.0)
+    parser.add_argument(
+        "--depth-probe-mm",
+        type=float,
+        default=12.0,
+        help="Larger reversible probe used only to learn the approach direction",
+    )
+    parser.add_argument("--probe-settle-s", type=float, default=1.0)
+    parser.add_argument("--max-step-mm", type=float, default=1.5)
+    parser.add_argument("--max-travel-mm", type=float, default=40.0)
+    parser.add_argument("--gain", type=float, default=0.35)
+    parser.add_argument("--damping-px-per-m", type=float, default=250.0)
+    parser.add_argument("--deadband-px", type=float, default=24.0)
+    parser.add_argument("--stable-frames", type=int, default=8)
+    parser.add_argument("--control-hz", type=float, default=8.0)
+    parser.add_argument("--feedback-hz", type=float, default=2.0)
+    parser.add_argument("--max-tracking-error-deg", type=float, default=12.0)
+    parser.add_argument("--max-runtime-s", type=float, default=60.0)
+    parser.add_argument("--target-radius-px", type=float, default=75.0)
+    parser.add_argument("--approach-step-mm", type=float, default=0.4)
+    parser.add_argument("--max-approach-mm", type=float, default=15.0)
+    parser.add_argument("--approach-gate-px", type=float, default=180.0)
+    parser.add_argument("--min-radius-change-px", type=float, default=0.25)
+    parser.add_argument("--joint-margin-deg", type=float, default=2.0)
+    parser.add_argument("--max-joint-step-deg", type=float, default=5.0)
+    parser.add_argument("--max-joint-excursion-deg", type=float, default=10.0, help="Maximum joint change from original reference; increase only for an explicitly approved hardware trial")
+    parser.add_argument("--base-step-counts", type=int, default=10, help="Joint-center base request amplitude")
+    parser.add_argument("--wrist-step-counts", type=int, default=12, help="Joint-center wrist request amplitude, independently configured")
+    parser.add_argument("--motion-period", type=float, default=0.10)
+    parser.add_argument("--feature-samples", type=int, default=5)
+    parser.add_argument("--torque-settle-s", type=float, default=2.0)
+    parser.add_argument("--detection-timeout-s", type=float, default=8.0)
+    profile_parser = argparse.ArgumentParser(add_help=False)
+    profile_parser.add_argument("--profile", type=Path)
+    selection, _ = profile_parser.parse_known_args()
+    if selection.profile is not None:
+        from eai_robot.applications.visual_servo.profiles import load_profile
+        try:
+            parser.set_defaults(**load_profile(selection.profile))
+        except (ValueError, OSError) as exc:
+            parser.error(str(exc))
+    args = parser.parse_args()
+    # The fixed rule is defined on an ArUco marker, so an omitted target follows
+    # the selected mode instead of forcing the operator to repeat themselves.
+    if args.target is None:
+        args.target = "aruco" if args.fixed_rule else "black-ball"
+    if not 1.0 <= args.max_joint_excursion_deg <= 120.0:
+        parser.error("--max-joint-excursion-deg must be within 1..120")
+    if not 5 <= args.base_step_counts <= 15 or not 8 <= args.wrist_step_counts <= 12:
+        parser.error("base step must be 5..15 counts and wrist step 8..12 counts")
+    if args.adopt_hold and (not (args.joint_center or args.fixed_rule)
+                            or not args.execute or not args.hold_reference):
+        parser.error("--adopt-hold requires --joint-center or --fixed-rule, "
+                     "--execute and --hold-reference")
+    if args.resume_response and not (args.adopt_hold and args.joint_center):
+        parser.error("--resume-response requires --adopt-hold --joint-center")
+    if args.start_paused and not args.adopt_hold:
+        parser.error("--start-paused requires --adopt-hold")
+    if not 0.0 <= args.center_region_fraction <= 0.4:
+        parser.error("--center-region-fraction must be between 0 and 0.4")
+    if args.joint_center and args.approach:
+        parser.error("--joint-center supports centering only; omit --approach")
+    if args.fixed_rule and args.joint_center:
+        parser.error("--fixed-rule replaces --joint-center; use one servo loop at a time")
+    if args.fixed_rule and args.approach:
+        parser.error("--fixed-rule performs its own forward approach; omit --approach")
+    if args.fixed_rule and args.center_region_fraction:
+        parser.error("--fixed-rule uses --rule-band, not --center-region-fraction")
+    if args.fixed_rule and args.target != "aruco":
+        parser.error("--fixed-rule requires --target aruco")
+    if args.rule_one_approach and not args.fixed_rule:
+        parser.error("--rule-one-approach requires --fixed-rule")
+    if args.fixed_rule:
+        if not 0.1 <= args.rule_band <= 0.9:
+            parser.error("--rule-band must be within 0.1..0.9")
+        if not 0.2 <= args.rule_step_mm <= 20.0:
+            parser.error("--rule-step-mm must be within 0.2..20")
+        if not 20.0 <= args.rule_stop_side_px <= 400.0:
+            parser.error("--rule-stop-side-px must be within 20..400")
+        if not 0.0 <= args.rule_gate_px <= 200.0:
+            parser.error("--rule-gate-px must be within 0..200")
+        if not 0.02 <= args.rule_min_standoff_m < 1.0:
+            parser.error("--rule-min-standoff-m must be within 0.02..1")
+        if not 1 <= args.rule_max_steps <= 200:
+            parser.error("--rule-max-steps must be within 1..200")
+        if not 5.0 <= args.rule_max_request_counts <= 60.0:
+            parser.error("--rule-max-request-counts must be within 5..60")
+        if not 0.005 <= args.marker_length_m <= 0.2:
+            parser.error("--marker-length-m must be within 0.005..0.2")
+        if not args.intrinsics.is_file() or not args.hand_eye.is_file():
+            parser.error("--fixed-rule needs measured --intrinsics and --hand-eye files")
+    if args.object_rule:
+        if args.fixed_rule or args.joint_center:
+            parser.error("--object-rule replaces --fixed-rule and --joint-center; "
+                         "use one servo loop at a time")
+        if args.approach:
+            parser.error("--object-rule performs its own forward approach; omit --approach")
+        if args.center_region_fraction:
+            parser.error("--object-rule uses --rule-band, not --center-region-fraction")
+        if not args.intrinsics.is_file() or not args.hand_eye.is_file():
+            parser.error("--object-rule needs measured --intrinsics and --hand-eye files")
+        if args.tracker == "support" and not args.roi:
+            parser.error("--tracker support needs --roi x,y,w,h")
+        if args.tracker == "detector" and not (args.prompt or args.label):
+            # With no flow there is nothing holding the identity between two
+            # detections, so "the most confident thing" can become a different
+            # object every frame. Detector-only therefore needs semantics.
+            parser.error("--tracker detector needs --prompt or --label: with no "
+                         "flow tracking, identity has to come from the model")
+        if args.tracker == "detector" and args.roi:
+            parser.error("--tracker detector has no flow to seed from a region; "
+                         "use --tracker fused with --roi")
+        if args.tracker in ("fused", "detector") and not (args.prompt or args.label or args.roi):
+            # A class-agnostic detector finds several candidates and nothing in
+            # the prompt says which one. Picking "the highest score" silently is
+            # how the arm approaches the wrong object, so the operator has to
+            # state the policy instead.
+            if args.selection is None:
+                parser.error(
+                    "--tracker fused with no --prompt, --label or --roi leaves the "
+                    "detector class-agnostic; say which candidate wins with "
+                    "--selection score|area|central")
+        if args.tracker == "support" and args.prompt:
+            parser.error("--prompt needs --tracker fused or detector: the "
+                         "support-point tracker has no semantics to match it with")
+        if args.roi:
+            values = args.roi.split(",")
+            if len(values) != 4:
+                parser.error("--roi must be four comma-separated numbers x,y,w,h")
+            try:
+                numbers = [float(item) for item in values]
+            except ValueError:
+                parser.error("--roi must be four comma-separated numbers x,y,w,h")
+            if numbers[2] <= 0 or numbers[3] <= 0 or min(numbers) < 0:
+                parser.error("--roi needs a non-negative origin and a positive size")
+        if (args.reference_depth_m is None) == (args.target_extent_m is None):
+            parser.error("--object-rule needs exactly one of --reference-depth-m "
+                         "or --target-extent-m: apparent size cannot become a "
+                         "distance without one measurement")
+        if args.reference_depth_m is not None and not 0.02 <= args.reference_depth_m <= 2.0:
+            parser.error("--reference-depth-m must be within 0.02..2")
+        if args.target_extent_m is not None and not 0.002 <= args.target_extent_m <= 1.0:
+            parser.error("--target-extent-m must be within 0.002..1")
+        if not 0.05 <= args.tracker_max_coast_s <= 1.0:
+            parser.error("--tracker-max-coast-s must be within 0.05..1")
+        if not 0.05 <= args.tracker_max_age_s <= 1.0:
+            parser.error("--tracker-max-age-s must be within 0.05..1")
+        if not 0.05 <= args.tracker_agreement <= 1.0:
+            parser.error("--tracker-agreement must be within 0.05..1")
+        if not 4 <= args.tracker_min_inliers <= 100:
+            parser.error("--tracker-min-inliers must be within 4..100")
+        if not 1.0 <= args.tracker_seed_margin <= 3.0:
+            parser.error("--tracker-seed-margin must be within 1..3")
+        if not 0 <= args.tracker_reacquire_attempts <= 5:
+            parser.error("--tracker-reacquire-attempts must be within 0..5")
+        if not 0.5 <= args.detector_timeout_s <= 20.0:
+            parser.error("--detector-timeout-s must be within 0.5..20")
+        if not 1 <= args.detector_failure_limit <= 50:
+            parser.error("--detector-failure-limit must be within 1..50")
+        from eai_robot.vision.perception.registry import available, is_registered
+        if args.detector not in available():
+            parser.error(f"unknown detector {args.detector!r}; "
+                         f"known: {sorted(available())}")
+        if args.tracker in ("fused", "detector") and not is_registered(args.detector):
+            entry = available()[args.detector]
+            parser.error(
+                f"detector {args.detector!r} is catalogued but not implemented yet "
+                f"(install: {entry['install']}). "
+                f"Use --tracker support with --roi, or --detector dark-blob.")
+    if args.local_keys and not args.preview:
+        parser.error("--local-keys requires --preview")
+    if args.camera_index is None or args.camera_index < 0:
+        parser.error("Set --camera-index or [camera].index_or_path in hardware.local.toml")
+
+    if args.control_axes[0] == args.control_axes[1]:
+        parser.error("--control-axes must contain two different axes")
+    if args.approach and args.depth_axis in args.control_axes:
+        parser.error("--depth-axis must be different from both --control-axes")
+    if not 1.0 <= args.probe_mm <= 8.0:
+        parser.error("--probe-mm must be within 1..8")
+    if not 4.0 <= args.depth_probe_mm <= 20.0:
+        parser.error("--depth-probe-mm must be within 4..20")
+    if not 0.2 <= args.probe_settle_s <= 3.0:
+        parser.error("--probe-settle-s must be within 0.2..3")
+    if not 0.5 <= args.max_step_mm <= 3.0:
+        parser.error("--max-step-mm must be within 0.5..3")
+    if not 10.0 <= args.max_travel_mm <= 320.0:
+        parser.error("--max-travel-mm must be within 10..320")
+    if not 2.0 <= args.control_hz <= 15.0:
+        parser.error("--control-hz must be within 2..15")
+    if not 1 <= args.feature_samples <= 15:
+        parser.error("--feature-samples must be within 1..15")
+    if not 0.5 <= args.torque_settle_s <= 5.0:
+        parser.error("--torque-settle-s must be within 0.5..5")
+    if not 3.0 <= args.detection_timeout_s <= 20.0:
+        parser.error("--detection-timeout-s must be within 3..20")
+    if not 500 <= args.camera_timeout_ms <= 10000:
+        parser.error("--camera-timeout-ms must be within 500..10000")
+    if not 1 <= args.camera_read_retries <= 5:
+        parser.error("--camera-read-retries must be within 1..5")
+    if args.max_runtime_s < 0:
+        parser.error("--max-runtime-s must be non-negative")
+    if args.target_radius_px <= 0:
+        parser.error("--target-radius-px must be positive")
+    if not 0.1 <= args.approach_step_mm <= args.max_step_mm:
+        parser.error("--approach-step-mm must be within 0.1..max-step-mm")
+    if not 1.0 <= args.max_approach_mm <= min(200.0, args.max_travel_mm):
+        parser.error(
+            "--max-approach-mm must be within 1..200 and no greater than "
+            "--max-travel-mm"
+        )
+    if args.approach_gate_px <= args.deadband_px:
+        parser.error("--approach-gate-px must be greater than --deadband-px")
+    if args.min_radius_change_px <= 0:
+        parser.error("--min-radius-change-px must be positive")
+    return args
+
+
+def save_png(path: Path, image: np.ndarray) -> None:
+    """Save a PNG through a Unicode-safe path on Windows."""
+    ok, encoded = cv2.imencode(".png", image)
+    if not ok:
+        raise RuntimeError(f"OpenCV 无法编码诊断图：{path}")
+    try:
+        path.write_bytes(encoded.tobytes())
+    except OSError as exc:
+        raise RuntimeError(f"无法保存诊断图：{path}: {exc}") from exc
+
+
+def median_detection(
+    runtime: VisionArmRuntime,
+    detector: BlackBallDetector,
+    sample_count: int,
+    timeout_s: float | None = None,
+) -> BallDetection:
+    detections: list[BallDetection] = []
+    last_frame: np.ndarray | None = None
+    last_mask: np.ndarray | None = None
+    if timeout_s is None:
+        timeout_s = runtime.args.detection_timeout_s
+    deadline = time.monotonic() + timeout_s
+    while len(detections) < sample_count and time.monotonic() < deadline:
+        last_frame = runtime.read_frame()
+        detection, last_mask = detector.detect(last_frame)
+        if detection is not None:
+            detections.append(detection)
+    if len(detections) < sample_count:
+        debug_dir = ROOT / "local_artifacts" / "experiments" / "vision_debug"
+        debug_dir.mkdir(parents=True, exist_ok=True)
+        frame_path = debug_dir / "last_detection_failure.png"
+        mask_path = debug_dir / "last_detection_mask.png"
+        saved_paths: list[Path] = []
+        if last_frame is not None:
+            save_png(frame_path, cv2.cvtColor(last_frame, cv2.COLOR_RGB2BGR))
+            saved_paths.append(frame_path)
+        if last_mask is not None:
+            save_png(mask_path, last_mask)
+            saved_paths.append(mask_path)
+        saved_text = " 和 ".join(str(path) for path in saved_paths)
+        raise RuntimeError(
+            f"无法稳定检测目标（{len(detections)}/{sample_count} 帧）；"
+            f"诊断图已保存到 {saved_text}"
+        )
+    values = np.median(
+        np.asarray([[item.center_x, item.center_y, item.radius] for item in detections]),
+        axis=0,
+    )
+    return BallDetection(
+        center_x=float(values[0]),
+        center_y=float(values[1]),
+        radius=float(values[2]),
+        area=float(np.median([item.area for item in detections])),
+        circularity=float(np.median([item.circularity for item in detections])),
+        confidence=float(np.median([item.confidence for item in detections])),
+    )
+
+
+def execute_probe(
+    runtime: VisionArmRuntime,
+    detector: BlackBallDetector,
+    axis_name: str,
+    probe_m: float,
+    sample_count: int,
+    baseline: BallDetection,
+) -> np.ndarray:
+    if runtime.command_position is None:
+        raise RuntimeError("arm position is unavailable")
+    origin = runtime.command_position.copy()
+    measured_origin = runtime.measured_position()
+    axis_index = AXIS_INDEX[axis_name]
+    errors: list[str] = []
+
+    for sign in (1.0, -1.0):
+        requested = np.zeros(3, dtype=float)
+        requested[axis_index] = sign * probe_m
+        plan = runtime.move_delta(requested)
+        try:
+            if not plan.waypoints:
+                errors.append(f"{sign:+.0f}{axis_name}: {plan.message}")
+                continue
+            time.sleep(runtime.args.probe_settle_s)
+            measured_moved = runtime.measured_position()
+            actual_delta = float(measured_moved[axis_index] - measured_origin[axis_index])
+            minimum_actual_m = max(0.001, probe_m * 0.20)
+            if abs(actual_delta) < minimum_actual_m:
+                errors.append(
+                    f"{sign:+.0f}{axis_name}: actual motion was only "
+                    f"{actual_delta * 1000.0:.2f} mm"
+                )
+                continue
+            moved = median_detection(runtime, detector, sample_count)
+            return (moved.center - baseline.center) / actual_delta
+        finally:
+            if not runtime.stop_state.stop_requested.is_set():
+                restore = runtime.move_to(origin)
+                if not restore.reached_target:
+                    raise RuntimeError(
+                        f"探测 {axis_name} 后无法回到起点：{restore.message}；请立即停止实验"
+                    )
+                time.sleep(runtime.args.probe_settle_s)
+
+    raise RuntimeError(
+        f"无法沿 {axis_name.upper()} 轴完成 {probe_m * 1000:.1f} mm 探测："
+        + "; ".join(errors)
+    )
+
+
+def learn_image_jacobian(
+    runtime: VisionArmRuntime,
+    detector: BlackBallDetector,
+    axis_names: tuple[str, str],
+    probe_m: float,
+    sample_count: int,
+    baseline: BallDetection | None = None,
+) -> np.ndarray:
+    if baseline is None:
+        baseline = median_detection(runtime, detector, sample_count)
+    columns = []
+    print("\nLearning local image Jacobian with small Cartesian probes...")
+    for axis_name in axis_names:
+        print(f"  probing {axis_name.upper()} axis")
+        column = execute_probe(
+            runtime, detector, axis_name, probe_m, sample_count, baseline
+        )
+        columns.append(column)
+        baseline = median_detection(runtime, detector, sample_count)
+
+    jacobian = np.column_stack(columns)
+    print("Measured image Jacobian (pixel / meter):")
+    print(np.array2string(jacobian, precision=1, suppress_small=True))
+    norms = np.linalg.norm(jacobian, axis=0)
+    print(
+        "Column motion: "
+        + ", ".join(
+            f"{axis.upper()}={norm:.1f} px/m"
+            for axis, norm in zip(axis_names, norms, strict=True)
+        )
+    )
+    validate_image_jacobian(jacobian)
+    return jacobian
+
+
+def learn_depth_response(
+    runtime: VisionArmRuntime,
+    detector: BlackBallDetector,
+    axis_name: str,
+    probe_m: float,
+    sample_count: int,
+    min_radius_change_px: float,
+) -> DepthCalibration:
+    """Determine which sign of one Cartesian axis makes the ball appear larger."""
+    if runtime.command_position is None:
+        raise RuntimeError("arm position is unavailable")
+    origin = runtime.command_position.copy()
+    axis_index = AXIS_INDEX[axis_name]
+    errors: list[str] = []
+
+    print(
+        f"  probing {axis_name.upper()} axis for forward/backward response "
+        f"({probe_m * 1000.0:.1f} mm)"
+    )
+    for sign in (1.0, -1.0):
+        baseline = median_detection(runtime, detector, sample_count)
+        measured_origin = runtime.measured_position()
+        requested = np.zeros(3, dtype=float)
+        requested[axis_index] = sign * probe_m
+        plan = runtime.move_delta(requested)
+        try:
+            if not plan.waypoints:
+                errors.append(f"{sign:+.0f}{axis_name}: {plan.message}")
+                continue
+            time.sleep(runtime.args.probe_settle_s)
+            measured_moved = runtime.measured_position()
+            actual_delta = float(measured_moved[axis_index] - measured_origin[axis_index])
+            minimum_actual_m = max(0.001, probe_m * 0.20)
+            if abs(actual_delta) < minimum_actual_m:
+                errors.append(
+                    f"{sign:+.0f}{axis_name}: actual motion was only "
+                    f"{actual_delta * 1000.0:.2f} mm"
+                )
+                continue
+            moved = median_detection(runtime, detector, sample_count)
+            radius_change = moved.radius - baseline.radius
+            if abs(radius_change) < min_radius_change_px:
+                errors.append(
+                    f"{sign:+.0f}{axis_name}: actual motion "
+                    f"{actual_delta * 1000.0:+.2f} mm, radius "
+                    f"{baseline.radius:.2f}->{moved.radius:.2f} px "
+                    f"(change {radius_change:+.2f} px)"
+                )
+                continue
+            derivative = float(radius_change / actual_delta)
+            calibration = DepthCalibration(axis_name, derivative)
+            direction = "+" if calibration.approach_sign > 0 else "-"
+            print(
+                f"Depth response: dr/d{axis_name}={derivative:+.1f} px/m; "
+                f"approach direction is {direction}{axis_name.upper()}"
+            )
+            return calibration
+        finally:
+            if not runtime.stop_state.stop_requested.is_set():
+                restore = runtime.move_to(origin)
+                if not restore.reached_target:
+                    raise RuntimeError(
+                        f"深度探测 {axis_name} 后无法回到起点：{restore.message}；请立即停止实验"
+                    )
+                time.sleep(runtime.args.probe_settle_s)
+
+    raise RuntimeError(
+        f"无法通过黑球半径判断 {axis_name.upper()} 轴的前进方向：" + "; ".join(errors)
+    )
+
+
+def run_detection_only(
+    runtime: VisionArmRuntime,
+    detector: BlackBallDetector,
+    preview: PreviewWindow | None,
+) -> int:
+    print("VISION-ONLY mode: motor serial port is not opened and no movement is possible.")
+    print("Press Q, Esc, or Ctrl+C to stop.")
+    while not runtime.stop_state.stop_requested.is_set():
+        frame = runtime.read_frame()
+        detection, _ = detector.detect(frame)
+        if detection is None:
+            status = "TARGET LOST"
+        else:
+            height, width = frame.shape[:2]
+            status = (
+                f"ex={detection.center_x - width / 2:+.0f}px "
+                f"ey={detection.center_y - height / 2:+.0f}px "
+                f"r={detection.radius:.1f}px conf={detection.confidence:.2f}"
+            )
+        print(f"\r{status:72s}", end="", flush=True)
+        if preview is not None:
+            preview.show(frame, detection, "VISION ONLY")
+    print()
+    return 0
+
+
+def run_closed_loop(
+    runtime: VisionArmRuntime,
+    detector: BlackBallDetector,
+    args: argparse.Namespace,
+    stop_state: StopState,
+    preview: PreviewWindow | None,
+) -> int:
+    assert runtime.command_position is not None
+    print(f"FK backend: {runtime.fk_backend}")
+    print(f"IK backend: {runtime.ik_backend}")
+    print(f"Start TCP xyz (mm): {np.round(runtime.command_position * 1000.0, 2)}")
+    if args.joint_center:
+        print("Control joints: shoulder_pan, wrist_flex (measured pixel/count response)")
+    elif args.fixed_rule:
+        print(
+            f"固定规律（fixed rule）：标记在哪个区域就朝那个方向走 "
+            f"{args.rule_step_mm:.0f} mm；落在中央 {args.rule_band:.0%} 带内则前进 "
+            f"{args.rule_step_mm:.0f} mm；边长到 {args.rule_stop_side_px:.0f} px 停靠。"
+            "前进步由 shoulder_lift 与反向的 wrist_flex 配对，避免相机俯仰。")
+        print(
+            "警告（WARNING）：前向规律没有任何测距传感器。确认相机前方至少有 "
+            f"{args.max_travel_mm:.0f} mm 无障碍，手放在 Esc 上。")
+    else:
+        print(f"Control axes: {args.control_axes[0].upper()}, {args.control_axes[1].upper()}")
+    print("Q/Esc: normal stop; Space: emergency torque-off")
+
+    if args.start_paused:
+        runtime.enable_motion()  # adopt-hold is read-only; no torque/goal writes.
+        stop_state.armed.set()
+        runtime.hold_reason = 'PREVIEW RESTORED'
+        return 0
+
+    if args.object_rule:
+        # The object path owns its own acquisition: the target may be a hand, a
+        # cup or a blob, so there is no single detector to build a median from
+        # here. It still requires the same typed confirmation before torque,
+        # because the confirmation is about the operator's intent, not about
+        # which tracker is running.
+        print(
+            f"任意物体规律（object rule）：每步 {args.rule_step_mm:.0f} mm，"
+            f"中央 {args.rule_band:.0%} 带内前进 {args.rule_step_mm:.0f} mm，"
+            f"边长到 {args.rule_stop_side_px:.0f} px 停靠。")
+        print(
+            "警告（WARNING）：前向规律没有测距传感器，且目标是任意物体。"
+            f"确认相机前方至少有 {args.max_travel_mm:.0f} mm 无障碍，手放在 Esc 上。")
+        if input('输入 "START VISUAL SERVO" 以接通扭矩（Type exactly to enable '
+                 'torque）: ').strip() != "START VISUAL SERVO":
+            print("确认文字不匹配，未发送任何运动指令。")
+            return 0
+        runtime.enable_motion()
+        stop_state.armed.set()
+        from eai_robot.applications.visual_servo.object_servo import run_object_rule
+        return run_object_rule(runtime, args, stop_state, preview)
+
+    initial = median_detection(runtime, detector, args.feature_samples)
+    if args.target == "aruco":
+        if not isinstance(detector, ArucoCenterDetector) or detector.last_marker_id != args.marker_id:
+            raise RuntimeError("actual observed ArUco identity does not match configured target")
+        print(f"Verified detector: ArucoCenterDetector; dictionary={detector.dictionary}; "
+              f"observed marker ID={detector.last_marker_id}")
+    print(
+        f"Initial {args.target} target: ({initial.center_x:.1f}, {initial.center_y:.1f}), "
+        f"radius={initial.radius:.1f}, confidence={initial.confidence:.2f}"
+    )
+    long_approach = args.approach and args.max_approach_mm > 80.0
+    if long_approach:
+        print(
+            "WARNING: LONG APPROACH ENABLED. The program has no collision or "
+            "distance sensor. Verify measured free space exceeds "
+            f"{args.max_approach_mm + 50.0:.0f} mm and keep a hand on Space."
+        )
+        phrase = f"START VISUAL SERVO {args.max_approach_mm:.0f}MM"
+    else:
+        phrase = "START VISUAL SERVO"
+    if input(f'Type exactly "{phrase}" to enable torque: ').strip() != phrase:
+        print("Confirmation did not match. No movement command was sent.")
+        return 0
+
+    runtime.enable_motion()
+    stop_state.armed.set()
+    if args.fixed_rule:
+        from eai_robot.applications.visual_servo.fixed_rule_servo import run_fixed_rule
+        return run_fixed_rule(runtime, args, stop_state, preview)
+    if args.joint_center:
+        from eai_robot.applications.visual_servo.joint_center import run_joint_center
+        return run_joint_center(runtime, detector, args, stop_state, preview)
+    print(f"扭矩已接通，等待 {args.torque_settle_s:.1f}s 让机械臂与相机稳定…")
+    time.sleep(args.torque_settle_s)
+    post_torque_detection = median_detection(runtime, detector, args.feature_samples)
+    print(
+        f"{args.target} target reacquired after torque-on: ({post_torque_detection.center_x:.1f}, "
+        f"{post_torque_detection.center_y:.1f}), radius={post_torque_detection.radius:.1f}"
+    )
+    jacobian = learn_image_jacobian(
+        runtime,
+        detector,
+        tuple(args.control_axes),
+        args.probe_mm / 1000.0,
+        args.feature_samples,
+        baseline=post_torque_detection,
+    )
+    depth_calibration: DepthCalibration | None = None
+    depth_origin_m = 0.0
+    if args.approach:
+        print("\nLearning forward direction from apparent ball size...")
+        depth_calibration = learn_depth_response(
+            runtime,
+            detector,
+            args.depth_axis,
+            args.depth_probe_mm / 1000.0,
+            args.feature_samples,
+            args.min_radius_change_px,
+        )
+        assert runtime.command_position is not None
+        depth_origin_m = float(runtime.command_position[AXIS_INDEX[args.depth_axis]])
+        print(
+            f"Approach enabled: target radius={args.target_radius_px:.1f}px, "
+            f"maximum forward travel={args.max_approach_mm:.1f}mm"
+        )
+
+    stable_count = 0
+    tracking_paused = False
+    last_seen = time.monotonic()
+    next_control = time.perf_counter()
+    next_feedback = next_control
+    started = next_control
+    control_period = 1.0 / args.control_hz
+    feedback_period = 1.0 / args.feedback_hz
+
+    while not stop_state.stop_requested.is_set():
+        now = time.perf_counter()
+        if args.max_runtime_s > 0 and now - started >= args.max_runtime_s:
+            print("\nMaximum runtime reached; stopping normally.")
+            break
+
+        frame = runtime.read_frame()
+        detection, _ = detector.detect(frame)
+        status = "TRACKING"
+
+        if now >= next_feedback:
+            tracking_error = runtime.tracking_error_deg()
+            tracking_paused = tracking_error > args.max_tracking_error_deg
+            if tracking_paused:
+                status = f"TRACKING PAUSED ({tracking_error:.1f} deg joint error)"
+            next_feedback = now + feedback_period
+
+        if detection is None:
+            stable_count = 0
+            if now - last_seen > 0.8:
+                status = "TARGET LOST - HOLDING"
+        else:
+            last_seen = now
+            height, width = frame.shape[:2]
+            desired_center = np.asarray([width / 2.0, height / 2.0])
+            pixel_error = desired_center - detection.center
+            pixel_error_norm = float(np.linalg.norm(pixel_error))
+            aligned = bool(np.all(np.abs(pixel_error) <= args.deadband_px))
+            approach_progress_m = 0.0
+            approach_requested = False
+            approach_done = True
+            if depth_calibration is not None:
+                depth_value = float(
+                    runtime.command_position[AXIS_INDEX[depth_calibration.axis_name]]
+                )
+                approach_progress_m = max(
+                    0.0,
+                    depth_calibration.approach_sign * (depth_value - depth_origin_m),
+                )
+                approach_done = (
+                    detection.radius >= args.target_radius_px
+                    or approach_progress_m >= args.max_approach_mm / 1000.0
+                )
+                approach_requested = (
+                    not approach_done and pixel_error_norm <= args.approach_gate_px
+                )
+
+            stable_count = stable_count + 1 if aligned and approach_done else 0
+            if stable_count >= args.stable_frames:
+                status = "LOCKED"
+            elif tracking_paused:
+                pass
+            elif approach_requested:
+                status = (
+                    f"APPROACH ex={pixel_error[0]:+.0f} ey={pixel_error[1]:+.0f} "
+                    f"r={detection.radius:.1f}px d={approach_progress_m * 1000.0:.1f}mm"
+                )
+            else:
+                status = (
+                    f"TRACKING ex={pixel_error[0]:+.0f} ey={pixel_error[1]:+.0f} "
+                    f"r={detection.radius:.1f}px"
+                )
+
+            if (
+                (not aligned or approach_requested)
+                and not tracking_paused
+                and now >= next_control
+            ):
+                delta_xyz = np.zeros(3, dtype=float)
+                if not aligned:
+                    axis_step = damped_image_step(
+                        jacobian,
+                        pixel_error,
+                        gain=args.gain,
+                        damping_px_per_m=args.damping_px_per_m,
+                        max_step_m=args.max_step_mm / 1000.0,
+                    )
+                    delta_xyz += axis_delta(tuple(args.control_axes), axis_step)
+                if approach_requested and depth_calibration is not None:
+                    remaining_m = max(
+                        0.0,
+                        args.max_approach_mm / 1000.0 - approach_progress_m,
+                    )
+                    depth_step_m = min(args.approach_step_mm / 1000.0, remaining_m)
+                    delta_xyz[AXIS_INDEX[depth_calibration.axis_name]] += (
+                        depth_calibration.approach_sign * depth_step_m
+                    )
+
+                delta_norm = float(np.linalg.norm(delta_xyz))
+                max_step_m = args.max_step_mm / 1000.0
+                if delta_norm > max_step_m:
+                    delta_xyz *= max_step_m / delta_norm
+                proposed = runtime.command_position + delta_xyz
+                if runtime.travel_from_start_m(proposed) > args.max_travel_mm / 1000.0:
+                    status = "TRAVEL LIMIT - HOLDING"
+                else:
+                    plan = runtime.move_to(proposed)
+                    if not plan.waypoints:
+                        status = "IK NO SOLUTION - HOLDING"
+                    elif plan.ik_failed:
+                        status = "IK PARTIAL RECOVERY"
+                next_control = time.perf_counter() + control_period
+
+        print(f"\r{status:45s}", end="", flush=True)
+        if preview is not None:
+            preview.show(frame, detection, status)
+
+    print()
+    return 0
+
+
+def print_detector_catalogue() -> int:
+    """Show what can be used here and what each one would cost.
+
+    A catalogue is the difference between an extensible pipeline and a dead
+    end: the operator can see that a detector exists, what it needs installed,
+    what evidence it returns and roughly how long it takes, without reading the
+    source or hitting a ``ModuleNotFoundError``.
+    """
+    from eai_robot.vision.perception.registry import available
+    from eai_robot.vision.perception.spec import available_devices
+
+    print(f"Devices on this machine: {', '.join(available_devices())}")
+    # The install command goes on its own line: a git URL and a quoted pin do
+    # not fit a column, and a truncated command is not a command.
+    print(f"{'name':16s} {'ready':6s} {'latency':9s} {'evidence':10s} weights")
+    for name, entry in available().items():
+        print(f"{name:16s} {str(entry['implemented']):6s} "
+              f"{entry['latency_budget_s'] * 1000:6.0f} ms "
+              f"{entry['evidence']:10s} {str(entry['needs_weights']):8s}")
+        print(f"{'':16s} {entry['summary']}")
+        print(f"{'':16s} install: {entry['install']}")
+    return 0
+
+
+def main() -> int:
+    args = parse_args()
+    if args.list_detectors:
+        return print_detector_catalogue()
+    if not args.urdf.is_file():
+        raise FileNotFoundError(f"URDF not found: {args.urdf}")
+
+    detector = (ArucoCenterDetector(args.marker_id, args.dictionary) if args.target == "aruco"
+                else BlackBallDetector(black_threshold=args.black_threshold))
+    stop_state = StopState()
+    runtime = VisionArmRuntime(args, stop_state)
+    listener: keyboard.Listener | None = None
+    preview: PreviewWindow | None = None
+    failed = False
+    try:
+        runtime.connect(camera_only=not args.execute)
+        if not args.local_keys:
+            listener = keyboard.Listener(on_press=stop_state.on_press)
+            listener.start()
+        if args.preview:
+            preview = LocalPreview(stop_state) if args.local_keys else PreviewWindow(stop_state)
+        if not args.execute:
+            stop_state.armed.set()
+            return run_detection_only(runtime, detector, preview)
+
+        return run_closed_loop(runtime, detector, args, stop_state, preview)
+    except StopRequestedError as exc:
+        print(f"\n{exc}；正在停止。")
+        return 130 if stop_state.emergency_requested.is_set() else 0
+    except KeyboardInterrupt:
+        failed = True
+        stop_state.emergency_requested.set()
+        print("\nCtrl+C received; disabling torque immediately.")
+        return 130
+    except Exception:
+        failed = True
+        stop_state.emergency_requested.set()
+        raise
+    finally:
+        if listener is not None:
+            listener.stop()
+            listener.join(timeout=1.0)
+        try:
+            if runtime.torque_enabled and not stop_state.emergency_requested.is_set() and not failed:
+                if args.joint_center or args.fixed_rule:
+                    while True:
+                        from eai_robot.applications.visual_servo.hold_preview import wait_while_holding
+                        response = wait_while_holding(runtime, detector, preview, stop_state)
+                        if response != "r":
+                            break
+                        stop_state.stop_requested.clear()
+                        stop_state.resume_requested.clear()
+                        if args.fixed_rule:
+                            from eai_robot.applications.visual_servo.fixed_rule_servo import run_fixed_rule
+                            run_fixed_rule(runtime, args, stop_state, preview)
+                        else:
+                            from eai_robot.applications.visual_servo.joint_center import run_joint_center
+                            run_joint_center(runtime, detector, args, stop_state, preview)
+                        if stop_state.emergency_requested.is_set():
+                            break
+                else:
+                    input("Support the arm, then press ENTER to disable torque.")
+        finally:
+            runtime.shutdown()
+            if preview is not None:
+                preview.close()
+
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except Exception as exc:
+        print(f"\nERROR: {exc}", file=sys.stderr)
+        raise SystemExit(1) from None

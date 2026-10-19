@@ -1,5 +1,9 @@
 # 推理基建交接与待用户输入
 
+状态修订（2026-10-19）：下文是 2026-10-03 的历史交接。PR #10、#11 已合并，
+当前 develop 已包含推理基建；GPU 与实物能力仍按实际证据验收。
+后续研发见[两条主线](../development_workstreams.md)和[推理边界](../inference_boundaries.md)。
+
 2026-10-03。先读[完整操作指南](README.md)，再检查当前分支、PR head 与 CI。
 实现分支 `codex/policy-infrastructure` 从 develop `be9ac819fed847ad2a00245c7e569d8a7c417146`
 创建；没有合并 PR #10，没有推 main/develop，也没有代替另一位维护者审查。

@@ -11,8 +11,8 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'src'))
 import test_desk as _desk
-from eai_robot.arm.desk_cartesian import DeskCartesian, vector, speed, LEASE_SECONDS
-from eai_robot.arm.calibration import JOINTS, JointCalibration
+from eai_robot.control.planning.cartesian import DeskCartesian, vector, speed, LEASE_SECONDS
+from eai_robot.calibration.servo.results import JOINTS, JointCalibration
 
 
 class CartesianDeskTests(unittest.TestCase):
@@ -109,7 +109,7 @@ class CartesianDeskTests(unittest.TestCase):
         service_time = SimpleNamespace(monotonic=clock, time=time.time, sleep=time.sleep)
         # Only the service clock is controlled. Runner speed cannot consume
         # the modeled lease; real solver and hardware paths still execute.
-        with patch('eai_robot.arm.desk_service.time', service_time):
+        with patch('eai_robot.applications.desktop.service.time', service_time):
             service.submit('cartesian_start', {'owner': 'one', 'sequence': 1, 'direction': [1, 0, 0], 'speed': 15})
             deadline = time.monotonic() + 30
             while dict(bus.packets[-1]) == before:
@@ -145,7 +145,7 @@ class CartesianDeskTests(unittest.TestCase):
                 raise RuntimeError('test did not release the worker')
             return continuous()
 
-        with (patch('eai_robot.arm.desk_service.time', service_time),
+        with (patch('eai_robot.applications.desktop.service.time', service_time),
               patch.object(service, '_continuous_cartesian', side_effect=delayed_start)):
             service.submit('cartesian_start', {'owner': 'expired', 'sequence': 1, 'direction': [1, 0, 0], 'speed': 15})
             self.assertTrue(entered.wait(30))

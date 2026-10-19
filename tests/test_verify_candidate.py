@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'src'))
-from eai_robot.arm.calibration import JOINTS,load
+from eai_robot.calibration.servo.results import JOINTS, load
 from test_arm import FakeArm
 
 spec=importlib.util.spec_from_file_location('arm_verify_candidate',ROOT/'scripts/arm_verify_candidate.py')

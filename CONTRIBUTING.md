@@ -19,6 +19,14 @@
 
 不维护无用途的空发布分支，也不把“当前 main”解释为所有实物能力已验收。软件版本 0.1.0 是包元数据，当前尚无完成整机验收的版本标签。
 
+## 两条研发主线
+
+模型与规则控制、学习感知与决策是研发方向，共享 main/develop，不建立长期路线分叉。
+新任务建议命名为 `codex/control-*`、`codex/learning-*`，共用会话与执行契约的任务使用
+`codex/integration-*`。既有分支不强制改名；每个任务仍独立 PR 到 develop。
+范围、顺序及本轮分支核对见[开发主线](docs/development_workstreams.md)，
+外部依赖和推理接口见[推理边界](docs/inference_boundaries.md)。
+
 ## 责任与合并要求
 
 仓库管理员 `abraxas914`、`youzhaozhao`、`LiHuaZhenRen` 共同作为全仓库 CODEOWNERS，不额外授予权限。尚未确定固定 Windows/GPU 或实物验收人；每个涉及该能力的 PR 写出实际操作者、设备、日期、证据与未完成项。
@@ -41,7 +49,7 @@ uv sync --locked
 uv run --locked python scripts/check_env.py
 uv run --locked python -m unittest discover -s tests -q
 uv run --locked python scripts/check_repository.py
-node --check src/eai_robot/applications/desk_assets/app.js
+node --check src/eai_robot/applications/desktop/assets/app.js
 uv build --wheel --all-packages
 ```
 
