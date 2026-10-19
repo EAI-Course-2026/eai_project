@@ -71,12 +71,14 @@ permission; imports, tests, help and offline planning do not request it.
 
 Course code is organized in `eai_robot` by technical capability; `docs/course/`
 is the course-specific documentation layer. The voice command implementation
-lives in `src/eai_robot/applications/teleoperation/` alongside the pose tools it dispatches. Use
-`eai-course voice` or `python scripts/course.py voice`; it defaults to a
-hardware-free dry run. ASR remains an external text producer, while generic
-learned-policy inference stays in `src/eai_robot/policy/`.
-See the [voice guide](voice/README.md) for the whitelist, stdin interface and
-explicit motion enable requirements.
+lives in `src/eai_robot/applications/teleoperation/` alongside the pose tools
+it dispatches. Use `eai-course voice` or `python scripts/course.py voice`; it
+defaults to a hardware-free dry run. ASR is an external, user-selected text
+producer; the current CLI accepts one completed transcript per stdin line.
+Generic learned-policy inference stays in `src/eai_robot/policy/`. See the
+[voice guide](voice/README.md) for the whitelist and motion gate, and the
+[voice architecture](voice/ARCHITECTURE.md) for provider portability and the
+planned event boundary.
 
 The ArUco preview is camera-only and does not connect to the arm. The IBVS math
 and calibration/robot integration boundary are described in the
@@ -185,3 +187,9 @@ During motion it displays `TCP command`, `encoder FK` and joint error separately
 and stops on lost torque or unaccepted goals. On 2026-10-02 the operator confirmed
 real keyboard movement after this fix. `--speed-mm-s 15` requests 15 mm/s;
 physical distance, direction and FK alignment still require measured acceptance.
+
+The provider-neutral final-text stream can also feed `eai-course agent --stdin
+--provider-config FILE` for LLM tool selection with dry-run skills. Chat service
+configuration is independent of ASR and robot settings; see the
+[Agent runtime](../agent_runtime.md). Audio capture and structured recognition
+events remain separate follow-up work.

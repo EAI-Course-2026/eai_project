@@ -1,0 +1,10 @@
+# Full Chat Completions endpoint, selected by the operator. No default vendor.
+# Copy to provider.local.toml, fill endpoint/model and inject the credential env.
+[provider]
+adapter = "chat_completions"
+execution = "managed_api"
+endpoint = "https://example.invalid/v1/chat/completions"
+model = "YOUR_MODEL_ID"
+credential_env = "ROBOT_LLM_API_KEY"
+timeout_s = 30.0
+max_tokens = 512

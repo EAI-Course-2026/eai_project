@@ -1,6 +1,7 @@
 # 推理归属、外部依赖与接口决定
 
-2026-10-19。此文确定后续模块边界；明确标为“拟新增”的协议还没有运行实现。
+2026-10-19。此文确定模块边界；文本 ChatProvider、工具循环和演练 CLI 已实现，见[运行指南](agent_runtime.md)。
+下文 ASR/TTS/Omni、媒体与实物技能协议仍为演进目标；不能据目标表格推断全部已实现。
 研发方向见[两条开发主线](development_workstreams.md)，业务切片见[Agent 规划](agent_development_plan.md)。
 
 ## 已有推理基础在本仓库
@@ -12,8 +13,9 @@
 | VLA 网络客户端/服务器 | `policy/inference/transport.py` 的 `RemoteRuntime`、`policy_server` | 已有认证、有界 JSON/RGB、会话/序号/manifest 关联；loopback HTTP + SSH 隧道 |
 | 本地设备与动作门禁 | `policy/execution/runner.py`、`safety.py` | 保持在机械臂所在主机；推理服务不持有 Robot 或运动权限 |
 | 图像检测器 | `vision/perception/detector.py`、`registry.py`、`spec.py` | 已有 detector 协议、模型设备规格、工厂与异步检测；具体模型按注册能力提供 |
-| 语音识别 | 外部 `edge_inference_lab` 实验 | 本仓库目前仅通过 stdin 接收逐行转写；不导入外部项目的本机路径 |
-| LLM / VLM Tools / Omni / TTS | 尚未实现完整接入 | 拟新增 provider 与媒体适配器；不能把 VLA HTTP 当作聊天 API |
+| 语音识别 | 可替换外部文本提供方（本机实验仅为案例） | 本仓库目前仅通过 stdin 接收逐行转写；不导入外部项目的本机路径 |
+| 文本 LLM Tools | `policy/agents/`、`applications/agent/` | 已实现可配置 HTTP、工具循环、逐行文本与演练技能；尚无实际供应商验收 |
+| VLM / Omni / TTS | 尚未实现完整接入 | 后续媒体适配器；不能把 VLA HTTP 当作聊天 API |
 
 结论：保留仓库内的应用推理适配、数据契约与部署入口。计算可以外置；
 模型框架、权重仓库、外部进程、远端算力与第三方 API 分开管理。
@@ -40,8 +42,8 @@
 ## 模块归属与依赖方向
 
 ```text
-applications/agent         会话装配、媒体采集/播放、技能 handler 注入（拟新增）
-        ├→ policy/agents   消息/工具契约、决策循环、聊天 provider（拟新增）
+applications/agent         已有文本/dry-run 装配；媒体采集/播放与硬件会话待接入
+        ├→ policy/agents   已有文本消息/工具契约、决策循环、聊天 provider
         ├→ vision          检测器、跟踪器、图像观测（已有）
         ├→ control         姿态/IK/视觉控制律、既有执行能力（已有）
         └→ policy          VLA runtime、执行门禁与数据（已有）
@@ -83,7 +85,8 @@ detector.close()                              # 释放模型资源，不操作�
 
 ## 拟新增接口：按输出类型定义
 
-下列签名是实现约定，类型在对应功能 PR 中落地。此 PR 不创建可导入但不可运行的空 provider。
+ChatProvider 已有文本子集实现；下列其余签名与媒体类型是后续实现约定。
+实际类和字段以源码及[运行指南](agent_runtime.md)为准；不创建只有签名的空 ASR/TTS provider。
 
 ```python
 class ChatProvider(Protocol):
@@ -130,7 +133,8 @@ class SkillService(Protocol):
 
 ## 配置决定：分别表达协议、位置与来源
 
-拟采用以下字段，不引入当前尚不能读取的可运行配置示例：
+当前文本配置示例位于 `configs/agent/`；下列跨模态字段是完整演进目标，
+当前只支持其中运行指南列出的子集，不接受未知配置字段：
 
 ```text
 stage                  asr | chat | tts | detector | action_policy
@@ -148,7 +152,7 @@ media_policy           允许传输的模态、目标服务与尺寸/时长上�
 
 describe/日志记录解析后的实际部署、设备（可未知）、模型和能力，避免把 `auto` 当作设备证据。
 供应商兼容某一 JSON 格式不代表支持全部工具、音频与流式协议；启动探针检查 required capabilities，
-缺失直接拒绝该会话配置，不静默切换为另一服务或改变媒体传输范围。
+未来能力探针缺失时应拒绝该会话配置；当前仅解析文本工具协议，不作模型能力保证，不静默切换为另一服务或改变媒体传输范围。
 现有 VLA CLI/manifest 与 detector ModelSpec 暂不改名；未来会话配置仅装配它们，不能复制并覆盖两份限额。
 
 ## 错误、生命周期与可替换性验收

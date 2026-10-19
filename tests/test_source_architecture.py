@@ -33,7 +33,7 @@ class SourceArchitectureTests(unittest.TestCase):
     def test_command_names_are_preserved(self):
         from eai_robot.cli import COMMANDS
         self.assertEqual(set(COMMANDS), {'mapping', 'fk', 'plan', 'keyboard', 'vision', 'aruco-experiment',
-                         'aruco-preview', 'visual-servo', 'voice', 'poses', 'record-pose', 'reindex'})
+                         'aruco-preview', 'visual-servo', 'voice', 'agent', 'poses', 'record-pose', 'reindex'})
 
     def test_runtime_results_and_pure_motion_do_not_load_workflows_or_devices(self):
         code = '''
@@ -64,7 +64,7 @@ assert not any(n == 'eai_robot' or n.startswith('eai_robot.') for n in sys.modul
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_capability_modules_do_not_import_application_or_legacy_packages(self):
-        for folder in ('calibration', 'control', 'hardware', 'vision'):
+        for folder in ('calibration', 'control', 'hardware', 'vision', 'policy'):
             for file in (ROOT / 'src/eai_robot' / folder).rglob('*.py'):
                 tree = ast.parse(file.read_text())
                 for node in ast.walk(tree):
