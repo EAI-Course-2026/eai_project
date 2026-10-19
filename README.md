@@ -7,6 +7,18 @@
 
 **长期保留 `main` 和 `develop`。** main 是可复现的集成基线，也是默认分支；develop 承接日常集成。两者均通过 PR、代码审查和三项托管检查更新。临时功能分支从 develop 创建。macOS、Windows 和 CUDA 共用源码，以独立配置和锁文件区分环境，不需要长期平台分支。完整规则见 [CONTRIBUTING](CONTRIBUTING.md)。
 
+## 接下来的开发方向
+
+研发收敛为两条主线：**模型与规则控制**（先完善视觉伺服、反馈与 FK/IK）和
+**学习感知与决策**（学习检测、VLM 模仿、LLM Tools、视觉语音与 VLA）。
+两者共用 develop，以短期任务分支交付；Agent 组合已有技能，voice 是交互方式。
+见[主线与分支安排](docs/development_workstreams.md)。
+
+仓库已经包含 VLA 本地运行器、模型工件管理和自有服务的跨机推理接口；权重与数据不入 Git。
+外部 ASR 目前以逐行文本对接，LLM/VLM 托管 API 与 Omni 会话尚待实现。
+框架依赖、模型资产、外部进程、自有服务、第三方 API 分别管理，接口与模块归属见
+[推理边界决定](docs/inference_boundaries.md)。
+
 ## 当前能做什么
 
 | 能力 | 已有验证记录 | 尚待验收 |
@@ -142,7 +154,7 @@ SmolVLA 已完成 Mac MPS 的真实离线加载与动作块输出；GPU、本机
 - [协作与分支生命周期](CONTRIBUTING.md) · [代理工作约定](AGENTS.md)
 - [架构](docs/architecture.md) · [硬件](docs/hardware.md) · [Windows/CUDA/Conda](docs/environments.md)
 - [VLA 部署阶段方案](docs/vla_deployment.md) · [后续工作交接](docs/handoffs/vla_next_session.md)
-- [策略推理基建](docs/policy/README.md) · [语音命令调度](docs/course/voice/README.md)
+- [多模态 Agent 开发规划](docs/agent_development_plan.md) · [策略推理基建](docs/policy/README.md) · [语音命令调度](docs/course/voice/README.md)
 - [课程基线](docs/course/README.md) · [35 文件迁移清单](docs/course/COVERAGE.md)
 - [2026-10-02 功能报告](docs/reports/2026-10-02.md) · [2026-10-03 仓库与 CI 修复报告](docs/reports/2026-10-03.md)
 

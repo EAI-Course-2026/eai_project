@@ -10,6 +10,7 @@ from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 from http.server import ThreadingHTTPServer
 from threading import Thread
+from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT/'src'))
@@ -72,8 +73,13 @@ class DeskTests(unittest.TestCase):
             service.submit('move',{'values':[1,.5,.5,.5,.5,.5]})
         # Full travel is no longer intersected with the saved home radius.
         values=[.90,.85,.15,.85,.20,.80]
-        service.submit('move',{'values':values})
-        state=self.settle(service)
+        # The fake bus reaches every target synchronously. Skip only the stage
+        # pacing sleep: dozens of real 80ms sleeps plus FK snapshots can exhaust the
+        # test wait on loaded CI hosts. Keep real motion guards and deadlines.
+        stage_clock = SimpleNamespace(monotonic=time.monotonic, sleep=lambda _: None)
+        with patch('eai_robot.control.execution.demo.time', stage_clock):
+            service.submit('move',{'values':values})
+            state=self.settle(service)
         self.assertIsNone(state['error'],state['error'])
         self.assertEqual(state['motion_state'],'reached')
         expected={cal.id:cal.position(v) for cal,v in zip(service.calibration.values(),values)}
