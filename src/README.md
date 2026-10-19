@@ -75,6 +75,19 @@ eai_robot/
 - 顶层 `features.py`、`contracts.py`、`observations.py` 是被同能力多个功能组共同使用的小型契约，
   不是新的平铺业务区；其余实现归入第二级分组。
 
+## 下一阶段的模块约定
+
+[两条开发主线](../docs/development_workstreams.md)共用现有目录与执行门禁。
+`policy/` 后续扩展为决策与学习策略生命周期：拟新增 `policy/agents/` 的工具/消息契约、
+provider 和循环；现有 `policy/inference/` 保持 VLA 运行与传输职责。
+拟新增 `applications/agent/` 装配媒体、设备会话和注入的技能 handler。
+这些目录随功能实现再建立，目前没有新增可运行 Agent。
+
+推理协议按输出分开：检测器返回 Detection，VLA 返回动作块，聊天返回文本/工具调用，
+ASR 返回转写，TTS 返回音频。算法不依赖应用，供应商 SDK 不穿透业务层。
+外部框架/工件、本机进程、自有服务器、托管 API 的配置和接口见
+[推理边界决定](../docs/inference_boundaries.md)。
+
 ## 迁移与验证范围
 
 旧 `arm/`、`poses/`、`motion/`、`kinematics/`、`voice/`、`robots/` 包及转发文件已退出源码。
