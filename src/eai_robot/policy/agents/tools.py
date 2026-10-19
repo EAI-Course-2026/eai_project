@@ -1,9 +1,10 @@
-"""Allowlisted, injected tools. The first schema subset is objects of strings."""
+"""Injected tool definitions and hooks; no provider or robot-specific conventions."""
 from dataclasses import asdict, dataclass
 import json
 from typing import Callable
 
-from .contracts import ToolCall, ToolResult
+from eai_robot.policy.model_io.contracts import ToolCall, ToolDefinition
+from .contracts import ToolContext, ToolResult
 
 
 @dataclass(frozen=True)
@@ -11,15 +12,11 @@ class Tool:
     name: str
     description: str
     parameters: dict
-    handler: Callable[[dict], ToolResult]
+    handler: Callable[[dict, ToolContext], ToolResult]
+    # Valid interrupt calls delegate to the session cancellation callback.
+    interrupt: bool = False
 
-    def schema(self) -> dict:
-        return {"type": "function", "function": {
-            "name": self.name, "description": self.description,
-            "parameters": self.parameters,
-        }}
-
-    def validate(self, arguments: dict) -> bool:
+    def validate(self, arguments):
         props = self.parameters["properties"]
         if (not isinstance(arguments, dict) or set(arguments) - set(props)
                 or not set(self.parameters.get("required", ())) <= set(arguments)):
@@ -32,8 +29,8 @@ class Tool:
 class ToolRegistry:
     def __init__(self, tools: list[Tool]):
         self._tools = {tool.name: tool for tool in tools}
-        if len(self._tools) != len(tools) or "stop_motion" not in self._tools:
-            raise ValueError("Unique tools and stop_motion are required")
+        if len(self._tools) != len(tools):
+            raise ValueError("Unique tools are required")
         for tool in tools:
             schema = tool.parameters
             if (schema.get("type") != "object" or schema.get("additionalProperties") is not False
@@ -43,19 +40,31 @@ class ToolRegistry:
                 raise ValueError("Only closed object schemas with string properties are supported")
 
     @property
-    def schemas(self) -> tuple[dict, ...]:
-        # Return detached data: neither provider nor caller can mutate the allowlist.
-        return tuple(json.loads(json.dumps(tool.schema())) for tool in self._tools.values())
+    def definitions(self) -> tuple[ToolDefinition, ...]:
+        return tuple(ToolDefinition(t.name, t.description, json.loads(json.dumps(t.parameters)))
+                     for t in self._tools.values())
 
-    def invoke(self, call: ToolCall) -> ToolResult:
+    def prepare(self, call: ToolCall) -> Tool | ToolResult:
         tool = self._tools.get(call.name)
         if tool is None:
             return ToolResult(False, "rejected", error_code="unknown_tool")
         if not tool.validate(call.arguments):
             return ToolResult(False, "rejected", error_code="invalid_arguments")
-        result = tool.handler(dict(call.arguments))
+        return tool
+
+    def invoke(self, call: ToolCall, context: ToolContext, *, before=None, after=None) -> ToolResult:
+        context.check_active()
+        tool = self.prepare(call)
+        if isinstance(tool, ToolResult):
+            return tool
+        result = before(tool, dict(call.arguments), context) if before else None
+        context.check_active()
+        if result is None:
+            result = tool.handler(dict(call.arguments), context)
+        context.check_active()
         if not isinstance(result, ToolResult):
-            raise TypeError("Tool handlers must return ToolResult")
-        # Refuse objects, NaN and other non-JSON output before sending to a provider.
+            raise TypeError("Tool handlers/hooks must return ToolResult")
         json.dumps(asdict(result), allow_nan=False)
+        if after:
+            after(tool, result, context)
         return result

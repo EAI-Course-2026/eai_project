@@ -4,16 +4,16 @@ from dataclasses import asdict
 import json
 from pathlib import Path
 import sys
+from threading import Lock
 import tomllib
 
 from eai_robot.calibration.servo.results import JOINTS, JointCalibration, load, validate
 from eai_robot.control.planning.poses import POSES_PATH, load_poses
-from eai_robot.policy.agents.contracts import ProviderError
-from eai_robot.policy.agents.loop import AgentSession
-from eai_robot.policy.agents.providers import ChatCompletionsProvider, ProviderConfig
+from eai_robot.policy.model_io.contracts import ProviderError
+from eai_robot.policy.model_io.providers import ChatCompletionsProvider, ProviderConfig
 
 from .demo import DemoProvider
-from .session import is_stop, run_stdin
+from .session import create_robot_session, is_stop, run_stdin
 from .skills import DryRunSkills
 
 
@@ -61,14 +61,16 @@ def main(argv=None):
         parser.error("--demo does not use a provider config")
     if not args.demo and not args.provider_config:
         parser.error("--provider-config is required for a real API call")
+    output_lock = Lock()
     def output(value):
-        print(json.dumps(value, ensure_ascii=False, allow_nan=False), flush=True)
+        with output_lock:
+            print(json.dumps(value, ensure_ascii=False, allow_nan=False), flush=True)
     provider = session = None
     try:
         # Validate before instantiating a provider; imports/assembly never open devices.
         skills = DryRunSkills(reference_poses(args.poses, args.calibration))
         provider = DemoProvider() if args.demo else load_provider(args.provider_config)
-        session = AgentSession(provider, skills.registry(), max_rounds=args.max_rounds,
+        session = create_robot_session(provider, skills, max_rounds=args.max_rounds,
                                max_calls=args.max_calls, timeout_s=args.turn_timeout,
                                emit=lambda event: output({"event": event}))
         output({"mode": "dry_run", "provider": provider.describe(), "hardware_connected": False})
@@ -76,7 +78,7 @@ def main(argv=None):
             return run_stdin(sys.stdin, session, output)
         text = "离线固定 stand 演练" if args.demo else args.text
         if is_stop(text):
-            output({"status": "cancelled", "stop": asdict(session.stop())})
+            output({"status": "cancelled", "stop": asdict(session.cancel())})
             return 0
         result = session.run_turn(text)
         output(asdict(result))

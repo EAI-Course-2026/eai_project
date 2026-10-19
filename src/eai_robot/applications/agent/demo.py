@@ -1,7 +1,7 @@
 """Explicit offline fixture: a fixed stand-pose walkthrough, not model inference."""
 import json
 
-from eai_robot.policy.agents.contracts import ChatReply, ToolCall
+from eai_robot.policy.model_io.contracts import ChatReply, ModelEvent, ToolCall
 
 
 class DemoProvider:
@@ -19,7 +19,7 @@ class DemoProvider:
             result = ChatReply(request.request_id, request.session_id, request.generation,
                                tool_calls=(calls[self.index],), finish_reason="tool_calls")
         elif self.index == 3:
-            data = json.loads(request.messages[-1]["content"])["data"]
+            data = json.loads(request.messages[-1].text)["data"]
             result = ChatReply(request.request_id, request.session_id, request.generation,
                                tool_calls=(ToolCall("demo-task", "get_task_status",
                                                     {"task_id": data["task_id"]}),), finish_reason="tool_calls")
@@ -28,6 +28,9 @@ class DemoProvider:
                                "离线固定演示完成：已生成 stand 姿态计划，没有调用模型或移动机械臂。")
         self.index += 1
         return result
+
+    def stream(self, request, *, cancel):
+        yield ModelEvent("done", reply=self.complete(request, cancel=cancel))
 
     def close(self):
         pass

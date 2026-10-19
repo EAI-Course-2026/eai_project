@@ -16,9 +16,10 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 
-from eai_robot.policy.agents.contracts import ChatReply, ChatRequest, ProviderError, ToolCall
+from eai_robot.policy.model_io.contracts import ChatReply, ChatRequest, Message, ProviderError, ToolCall
+from eai_robot.policy.agents.contracts import ToolContext
 from eai_robot.policy.agents.loop import AgentSession
-from eai_robot.policy.agents.providers import ChatCompletionsProvider, ProviderConfig
+from eai_robot.policy.model_io.providers import ChatCompletionsProvider, ProviderConfig
 from eai_robot.applications.agent.cli import load_provider
 from eai_robot.applications.agent.demo import DemoProvider
 from eai_robot.applications.agent.session import run_stdin
@@ -66,8 +67,12 @@ def service(responder):
         thread.join(2)
 
 
+def tool_context():
+    return ToolContext("test", 0, time.monotonic() + 5, Event(), lambda: True, lambda _: None)
+
+
 def request(timeout=2):
-    return ChatRequest("r", "s", 0, ({"role": "user", "content": "test"},), (), timeout)
+    return ChatRequest("r", "s", 0, (Message("user", "test"),), (), timeout)
 
 
 class AgentTests(unittest.TestCase):
@@ -166,16 +171,16 @@ class AgentTests(unittest.TestCase):
                                  ("move_to_pose", {"pose_name": "unknown"}, "invalid_arguments"),
                                  ("move_to_pose", {"pose_name": "stand", "enable": "true"}, "invalid_arguments"),
                                  ("move_to_pose", {"pose_name": 12}, "invalid_arguments")):
-            result = registry.invoke(ToolCall("x", name, args))
+            result = registry.invoke(ToolCall("x", name, args), tool_context())
             self.assertEqual(result.error_code, code)
         self.assertEqual(skills.tasks, {})
         self.assertIsNone(skills.state({}).data["joint_positions"])
 
     def test_schema_copy_cannot_expand_allowlist(self):
         registry = self.skills().registry()
-        schemas = registry.schemas
-        schemas[2]["function"]["parameters"]["properties"]["pose_name"]["enum"].append("evil")
-        result = registry.invoke(ToolCall("x", "move_to_pose", {"pose_name": "evil"}))
+        definitions = registry.definitions
+        definitions[2].parameters["properties"]["pose_name"]["enum"].append("evil")
+        result = registry.invoke(ToolCall("x", "move_to_pose", {"pose_name": "evil"}), tool_context())
         self.assertEqual(result.error_code, "invalid_arguments")
 
     def test_duplicate_ids_and_budgets_do_not_repeat_actions(self):
@@ -227,7 +232,7 @@ class AgentTests(unittest.TestCase):
             thread.start()
             self.assertTrue(entered.wait(2))
             if mode == "late":
-                session.stop()
+                session.cancel()
             release.set()
             thread.join(2)
             self.assertFalse(thread.is_alive())

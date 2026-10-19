@@ -7,7 +7,7 @@
 ```text
 eai_robot/
 ├── applications/              用户入口与设备会话
-│   ├── agent/                 文本 Agent CLI、可替换输入与 dry-run 技能装配
+│   ├── agent/                 机器人能力、prompt、文本输入与 dry-run 技能装配
 │   ├── desktop/               网页服务、硬件工作线程、assets/
 │   ├── teleoperation/         键盘、姿态示教/回放、语音意图与调度
 │   ├── visual_servo/          相机共享预览、中央区域MVP、只读演练与实验
@@ -28,7 +28,8 @@ eai_robot/
 │   ├── targets/               可打印/展示的视觉目标
 │   └── features.py            检测与跟踪共用的观测契约
 ├── policy/                    决策与学习策略生命周期
-│   ├── agents/                文本 API、工具协议、循环与包内 prompt
+│   ├── model_io/              决策模型消息、JSON/SSE 协议、鉴权
+│   ├── agents/                会话上下文、工具生命周期、事件与取消核心
 │   ├── inference/             模型工件、推理运行器、远程传输
 │   ├── execution/             策略设备所有权、门禁、示范采集
 │   ├── data/                  片段记录、数据集导出与评估
@@ -80,8 +81,10 @@ eai_robot/
 ## 下一阶段的模块约定
 
 [两条开发主线](../docs/development_workstreams.md)共用现有目录与执行门禁。
-`policy/agents/` 已提供文本工具/消息契约、provider 和循环；`policy/inference/` 保持 VLA 运行与传输职责。
-`applications/agent/` 已装配逐行文本输入和注入的 dry-run handler；媒体采集、语音提供方管理和实物技能仍待接入。
+`policy/model_io/` 提供规范化模型消息、HTTP JSON/SSE 与鉴权；`policy/agents/` 组织上下文、工具和生命周期。
+`applications/agent/` 装配机器人能力、prompt、逐行文本与 dry-run handler；媒体/实物技能仍待接入。
+依赖为应用 → 核心 → 模型 I/O，模型适配不得反向导入核心；[三层说明](../docs/agent_layers.md)。
+`policy/inference/` 保持 VLA 动作块推理与传输职责。
 实际配置与运行入口见[Agent 指南](../docs/agent_runtime.md)。
 
 推理协议按输出分开：检测器返回 Detection，VLA 返回动作块，聊天返回文本/工具调用，

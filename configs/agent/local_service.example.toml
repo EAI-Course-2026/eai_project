@@ -8,3 +8,6 @@ model = "YOUR_LOCAL_MODEL_ID"
 timeout_s = 30.0
 max_tokens = 512
 # If authentication is enabled, set credential_env to the environment variable name.
+
+# Enable only if the selected service supports SSE text/tool streaming.
+streaming = false

@@ -1,43 +1,34 @@
-# Agent 运行入口（文本与 dry-run 工具）
+# 三层 Agent 运行指南
 
-2026-10-19。现已建立可运行的 `policy/agents/` 与 `applications/agent/`。
-本版支持真实 HTTP Chat Completions 调用、工具结果回传和离线固定演示；
-工具只生成演练计划，不提供连接串口、启用扭矩或实物执行选项。
-视觉/音频输入、ASR/TTS、Omni、物体检测/跟踪和 IK 工具仍待后续接入。
+2026-10-19。产品目标、硬件边界、评测见[项目定位](project_scope.md)，分层与 pi 参考见
+[三层架构](agent_layers.md)。当前提供文本模型调用（完整 JSON 或 SSE）、工具循环、
+跨轮对话与 dry-run 技能。视觉/音频、ASR/TTS、Omni、IK/跟踪工具和实物执行仍待接入。
 
-## 目录与职责
+## 三层代码
 
-| 位置 | 已实现 |
-|---|---|
-| `policy/agents/contracts.py` | ChatRequest/Reply、ToolCall/Result、ChatProvider 协议与脱敏错误 |
-| `policy/agents/providers.py` | 非流式、文本/工具 Chat Completions HTTP；不加载模型或厂商 SDK |
-| `policy/agents/tools.py` | 工具注册与参数校验；首版仅支持封闭对象中的字符串参数，不声称实现完整 JSON Schema |
-| `policy/agents/loop.py` | 调用循环、结果回传、预算、重复 ID 拒绝、停止代次与迟到响应作废 |
-| `policy/agents/prompts/system.txt` | 随 wheel 安装的核心 prompt |
-| `applications/agent/skills.py` | 注入的姿态 dry-run 技能，不拥有设备 |
-| `applications/agent/session.py` | stdin 读线程与推理分开，识别到停止词直接本地抢占 |
-| `applications/agent/cli.py`、`demo.py` | 配置装配、命令入口与明确标记的离线 fixture |
+| 层 | 实现 | 边界 |
+|---|---|---|
+| 模型 I/O | `policy/model_io/contracts.py`、`providers.py`、`auth.py` | 规范化 Message/ToolDefinition/ChatRequest/Reply/ModelEvent、HTTP JSON/SSE、逐请求环境凭据 |
+| Agent 核心 | `policy/agents/context.py`、`contracts.py`、`tools.py`、`loop.py` | 有界对话、短时应用上下文、工具策略/进度、预算、取消/代次、结构化事件 |
+| 机械臂应用 | `applications/agent/cli.py`、`session.py`、`skills.py`、`capabilities.py` | 输入/配置装配、应用 prompt、能力限制与演练技能 |
 
-这些模块不导入 `edge_inference_lab` 或特定机器路径。后续识别端通过最终转写文本接入，
-不能把外部识别器自带的命令映射作为机器人的权威动作策略。
+prompt 位于 `applications/agent/prompts/system.txt`，随 wheel 安装。
+模型层不导入 Agent；核心不导入 HTTP、凭据、机器人或应用；应用注入具体实现。
+`policy/inference/` 继续承担既有 VLA 动作块推理，保持独立输出契约。
+本项目没有 pi 的运行依赖或本机 checkout 依赖。
 
-## 无模型、无设备演示
-
-在仓库根目录：
+## 离线演示与模型配置
 
 ```sh
 uv run --locked eai-course agent --demo
 ```
 
-固定演示依次调用 `get_robot_state`、`list_poses`、`move_to_pose(stand)`、`get_task_status`。
-它不是 LLM 推理，也不能作为课程要求的外部 API 验收。状态输出明确是 dry-run，真实反馈为 null。
-默认姿态是随包提供的参考姿态，使用姿态文件自身的标定绑定校验；不读取个人硬件配置。
-`--poses FILE` 可替换姿态文件；`--calibration FILE` 可选择目标标定进行离线换算检查。
-
-## 配置自选模型 API
+固定 fixture 调用 get_robot_state、list_poses、move_to_pose(stand)、get_task_status，明确不调用模型。
+当前所有姿态动作均是 dry-run，真实反馈为 null；默认参考姿态使用自身标定绑定校验。
+`--poses FILE` 替换姿态，`--calibration FILE` 选择目标标定作离线换算，不读取个人串口配置。
 
 复制 `configs/agent/provider.example.toml` 为 `configs/agent/provider.local.toml`，
-填写完整 endpoint 和 model。配置示例使用保留的 `example.invalid`，不会默认调用任何服务。
+或在任意用户目录建立配置，填写完整 endpoint/model：
 
 ```toml
 [provider]
@@ -48,12 +39,13 @@ model = "YOUR_MODEL_ID"
 credential_env = "ROBOT_LLM_API_KEY"
 timeout_s = 30.0
 max_tokens = 512
+streaming = false
 ```
 
-**API Key 的值放在 `ROBOT_LLM_API_KEY` 环境变量中，不放 TOML。**
-通过终端的隐藏输入或现有 secret manager 注入当前进程环境；程序不会自动读取 `.env`，
-也不会扫描其他项目的凭据或配置。`credential_env` 可以改为任意合法的环境变量名。
-以 zsh 的隐藏输入为例（不要把真实 Key 写入命令或聊天）：
+**Key 的值放在 `ROBOT_LLM_API_KEY` 环境变量中，不放 TOML。**
+`credential_env` 可换为其他合法环境变量名；resolver 每次请求读取它，便于轮换。
+程序不自动读取 `.env`，不扫描其他项目/用户目录凭据。配置示例的 `example.invalid` 不是默认服务。
+以 zsh 为例，通过隐藏输入注入（不要把真实 Key 写入命令或聊天）：
 
 ```sh
 read -s 'ROBOT_LLM_API_KEY?API Key: '
@@ -63,59 +55,76 @@ uv run --locked eai-course agent \
 unset ROBOT_LLM_API_KEY
 ```
 
-PowerShell 或其他 shell 使用各自的安全环境注入方式；TOML 和 CLI 参数相同。
-配置文件可以放在用户自己选择的位置，通过 `--provider-config FILE` 指定；没有固定的个人目录。
-`configs/agent/*.local.toml`、`*.local.json` 已被忽略。
+其他 shell 使用自己的环境注入方式；CLI/TOML 不变。`configs/agent/*.local.toml/json` 已忽略。
+本机服务参考 `local_service.example.toml`，无认证可省略 credential_env。
+自有服务用 execution=self_hosted；网络只允许 HTTPS 或 SSH 转发/本机的 loopback HTTP。
+不跟随重定向，不自动重试动作或切换服务。供应商必须实际支持文本工具协议。
 
-本机模型服务参考 `configs/agent/local_service.example.toml`。无认证时省略 credential_env；
-自有远端服务用 `execution="self_hosted"`，选择 HTTPS 或经 SSH 转发的 loopback HTTP。
-适配器仅接受 HTTPS 或 loopback HTTP，不跟随重定向，不自动重试或切换供应商。
-`execution` 描述运行归属，`adapter` 描述协议；两者独立于模型来源。
+需要 SSE 时显式设 `streaming=true`。文本增量作为 model_delta 事件输出；工具调用的参数分片
+仅在模型层组装，收到完整结束原因与 `[DONE]` 后才交给核心。断流、非法 JSON、超长或截断拒绝执行。
+非流式模式通过同一 ModelEvent 协议返回最终回复。当前不提供音视频流或模型能力探针，
+不保证任意兼容服务都支持所选能力，真实服务/模型需独立验收。
+协议参考[工具调用文档](https://docs.modelstudio.console.alibabacloud.com/en/model-studio/qwen-function-calling)，
+实际适配由本项目标准库 HTTP 实现，无供应商 SDK、模型或账户的默认绑定。
 
-兼容协议参考[供应商工具调用文档](https://docs.modelstudio.console.alibabacloud.com/en/model-studio/qwen-function-calling)：
-messages/tools、assistant.tool_calls、tool_call_id、工具结果追加后继续请求。
-这里使用 Python 标准库 HTTP，不依赖该供应商的 SDK、端点、模型或 Key 名称。
-模型必须实际支持文本工具调用；当前没有自动能力探针、流式输入或厂商专属参数，
-不能据“兼容”二字保证任意服务可用。实际服务需单独验证。
+## 可替换语音输入与应用边界
 
-## 与语音提供方解耦
-
-任意识别客户端只需把每条**最终转写**写成 UTF-8 的一行文本，再接到：
+任意识别客户端输出 UTF-8 的一行**最终转写**，接入：
 
 ```sh
 uv run --locked eai-course agent --provider-config configs/agent/provider.local.toml --stdin
 ```
 
-上游可以是本机模型、云服务客户端或其他设备桥接程序。`edge_inference_lab` 仅是历史已验证案例，
-没有默认目录、导入、子进程启动或模型依赖。音频采集及识别服务凭据仍由上游管理；
-Agent 配置只描述聊天推理服务，机器人硬件配置继续独立。
+上游可为本机模型、云服务客户端或其他设备桥接；`edge_inference_lab` 只作历史案例。
+本仓库不导入/启动它，也不依赖特定路径。聊天配置只选择聊天服务，ASR 凭据与机器人硬件配置独立。
+`voice --stdin` 保留确定性白名单命令；`agent --stdin` 让模型选择应用注册的工具。
+停止词复用原解析器，直接触发本地 cancel；忙时的新普通输入返回 busy，不排队重放。
+EOF 等待本轮结束，Ctrl-C 先取消再等待退出。提供方失败后不接受新的行来恢复旧计划。
 
-`voice --stdin` 仍是原有确定性白名单命令入口；`agent --stdin` 将非停止文本交给 LLM 选择
-本次白名单工具。两者不把转写文本作为代码执行。停止词复用已有解析器，直接绕过网络请求。
-stdin 首版一次仅接受一个普通回合，忙时的新文本返回 busy，不排队重放。
-提供方失败后结束当前 Agent 输入会话；新识别行不会恢复旧计划。EOF 等待当前有界回合结束，Ctrl-C 取消。
+纯文本通道没有置信度、时间戳或 partial/final 标记，上游必须只发送最终文本。
+结构化识别事件、用户本地 ASR 选择、麦克风/TTS 管理仍是[语音架构](course/voice/ARCHITECTURE.md)的后续目标。
 
-纯文本通道不携带提供方、时间戳、置信度或 partial/final 标记：上游必须只发送最终文本。
-结构化识别事件和用户本地 ASR 提供方配置仍是[语音架构](course/voice/ARCHITECTURE.md)中的后续目标。
-本次没有把这些目标偷换为已实现的 ASR 管理功能。
+## 对话、工具与能力
 
-## 工具、停止与证据边界
+默认保留最近 8 个已完成对话回合，最多 32768 字符，按完整 user/final-assistant 对裁剪。
+失败/取消回合不提交；工具结果与工具调用不进入下一用户回合。不会持久化或恢复动作队列。
+`clear_history()` 只允许在空闲时清理对话。历史回答用于指代，不能代替当前观测。
+应用能力快照每次模型请求刷新并检查本机时间/有效期；实际设备反馈仍需重新获取。
 
-首版工具：`get_robot_state`、`list_poses`、`move_to_pose`、`get_task_status`、`stop_motion`。
-姿态名来自已校验文件的枚举，不提供任意关节数值/系统命令工具。
-任务结果为 `simulated`，targets 使用 0..1 归一化数值，不是真实关节角；hardware_sent 始终为 false。
-最近 128 个演练任务可以查询，过期/未知任务返回 unknown_task。
+五个应用工具保持 dry-run：get_robot_state、list_poses、move_to_pose、get_task_status、stop_motion。
+RobotCapabilities 选择可用工具，并在正常执行前再次检查；不支持的工具不向模型声明。
+能力声明与实测反馈分开：负载、真实工作空间、精度未知，不从 LLM 文本推导，也不能开启 physical_execution。
+姿态计划 targets 是 0..1 归一化值，不是角度，hardware_sent 始终 false；保留最近 128 个模拟任务供查询。
 
-每轮独立历史，默认最多 8 次请求、16 次工具调用、60 秒。供应商超时默认 30 秒，
-与机械臂执行租期没有关系。参数或未知工具返回 rejected；重复调用 ID、协议错误或预算耗尽中止本轮。
-同一批工具中出现合法 stop_motion 时优先停止，不先运行排在它前面的运动请求。
+核心只接受注入的工具。handler 形如 `handler(arguments, ToolContext) -> ToolResult`，
+context 提供 session、generation、deadline、cancel、check_active() 与 progress(data)。
+参数校验后执行 before_tool（可拒绝），执行后 after_tool 只作观测。
+首版参数 schema 仍只支持封闭对象中的字符串参数，不宣称完整 JSON Schema。
+长时控制技能应由应用服务拥有任务，启动后返回 accepted/task_id，由状态查询确认完成。
+有效 interrupt 工具直接调用应用注入的取消回调，优先于同一批普通动作；核心不硬编码 stop_motion。
 
-每轮新输入使用新的 generation；本地 stop/Ctrl-C 使当前 cancel 和 generation 失效，迟到响应不能执行工具。
-取消只保证本地不再等待或执行，无法撤销远端计算/计费。
-HTTP 无重试，最多保留一个 I/O worker；旧请求清理前，新请求返回 request_still_in_flight。
-关闭会话取消本地等待；网络 worker 受 socket 超时、读循环 deadline 和体积上限约束后退出，
-不要求推理服务支持远端取消。输出元数据事件不包含输入转写、完整消息、endpoint 或凭据。
-终端最终回复是模型文本，不能作为实物完成证据。
+## 生命周期与取消
 
-离线集成测试通过真实 loopback HTTP 检查请求、工具回传、非法响应、超时/停止、重定向拒绝和凭据脱敏；
-它使用测试响应，不是外部 LLM 验收。实物、真实语音、实际供应商和课程 4.3 仍需独立验收。
+事件顺序为 run_start → model_start/delta/end → tool_start/progress/end → 更多模型轮次 → run_end → run_settled。
+每个事件含单调 sequence、session_id、generation、run_id、本机 monotonic 秒 at、data；CLI stdout 使用完整 JSONL，诊断在 stderr。
+默认不输出原始用户转写、endpoint、Key 或供应商错误体；model_delta 是明确的模型文本输出。
+事件监听器用于观测，应快速返回；抛出的普通异常计入 observer_errors，不得改变工具策略。
+策略检查在 before_tool，不放到输出监听器中。
+
+每轮默认最多 8 次模型请求、16 次工具调用、60 秒；模型请求默认 30 秒。这些不替代控制线程租期。
+新回合/取消更新 generation，旧响应不能执行工具或提交对话。
+模型请求和工具分别最多一个工作线程；工具移出状态锁，取消回调可直接请求应用停止。
+核心不会强杀 Python handler：取消/超时先返回并使上下文失效，未退出的旧工具进入 draining，
+新回合返回 tool_still_running，直到旧工具退出。进度回调只在本次工具执行期间有效。
+
+run_end 表示本轮编排结束；run_settled 表示本地编排与核心工具 worker 已排空，不会自动续跑。
+`wait_for_idle(timeout_s)` 可等待本地核心排空，监听器处理与远端计算不在该条件内。
+它不代表远端模型停止计费，也不代表应用后台任务/机械臂物理停止或原任务成功。
+实际执行器仍须在写前检查当次授权、期限、反馈与取消；所有物理能力仍待实物验收。
+用户手动恢复对话不能重放先前动作。
+
+## 验证范围与迁移
+
+离线测试使用真实 loopback HTTP 的 JSON/SSE 预设响应，验证分片、取消、上下文、能力和依赖边界。
+它与 demo 都不能代替真实供应商 LLM、视觉语音或实物验收。
+Python 内部迁移对照见[源码迁移](source_layout_migration.md)，CLI 入口保持兼容。

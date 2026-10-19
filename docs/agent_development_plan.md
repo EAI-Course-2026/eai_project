@@ -69,19 +69,18 @@ VLA → 已有 policy 执行器（动作块契约继续独立）
 
 ## 3. 确定的仓库增量
 
-保持六个一级能力目录。文本 contracts/tools/providers/loop/prompts 与应用 cli/session/skills/demo 已落地；
+保持六个一级能力目录。模型 I/O、核心 context/contracts/tools/loop 与应用 prompt/cli/session/skills/demo/capabilities 已落地；
 其余文件仍按阶段增加，不预建空包。实际范围见[运行指南](agent_runtime.md)。
 
 ```text
 src/eai_robot/
   policy/
+    model_io/                 模型消息、JSON/SSE 适配与环境鉴权（已实现）
     agents/                   新增：任务决策，依赖注入，不拥有设备
       contracts.py            消息、工具请求/结果、任务句柄、会话版本
       tools.py                白名单 schema、参数校验、注入的 handler 协议
-      providers.py            外部模型 API 适配与能力声明；先实现一家
       loop.py                 tool call → 执行 → tool result → 继续推理
       imitation.py            动作描述与六关节候选的解析/验证
-      prompts/                system、模仿基线/改进版、few-shot 包资源
     inference/                保留：VLA 模型、处理器、工件及传输
     execution/                保留：策略执行门禁；不直接复用为对话循环
     data/                     保留：训练与评估数据
@@ -98,7 +97,7 @@ configs/agent/                可提交的非机密配置示例
 tests/test_agent_*.py         只在对应功能实现时新增离线行为与故障回归
 ```
 
-prompt 随 `policy/agents/prompts/` 作为包资源加载，实现时验证 wheel 内资源齐全。
+prompt 已归入 `applications/agent/prompts/`；三层职责与实际路径以[三层架构](agent_layers.md)为准。
 
 依赖方向：`applications/agent` → `policy/agents`、`control`、`vision`、设备接口。
 `policy/agents` 不导入 `applications`，工具执行通过 handler 注入；

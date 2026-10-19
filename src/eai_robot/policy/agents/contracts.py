@@ -1,54 +1,15 @@
-"""Small, text-only first-version chat and tool contracts."""
+"""Agent execution contracts, independent of model transport and robot hardware."""
 from dataclasses import dataclass, field
+import json
 from threading import Event
-from typing import Protocol
+import time
+from typing import Callable
 
 
-class ProviderError(RuntimeError):
-    """Sanitized error: never include a provider response body or credentials."""
-
-    def __init__(self, code: str):
+class ToolInterrupted(RuntimeError):
+    def __init__(self, code):
         self.code = code
         super().__init__(code)
-
-
-@dataclass(frozen=True)
-class ToolCall:
-    id: str
-    name: str
-    arguments: dict
-
-
-@dataclass(frozen=True)
-class ChatRequest:
-    request_id: str
-    session_id: str
-    generation: int
-    messages: tuple[dict, ...]
-    tools: tuple[dict, ...]
-    timeout_s: float
-
-
-@dataclass(frozen=True)
-class ChatReply:
-    request_id: str
-    session_id: str
-    generation: int
-    text: str = ""
-    tool_calls: tuple[ToolCall, ...] = ()
-    finish_reason: str = "stop"
-
-    def message(self) -> dict:
-        import json
-        result = {"role": "assistant", "content": self.text or None}
-        if self.tool_calls:
-            result["tool_calls"] = [
-                {"id": call.id, "type": "function", "function": {
-                    "name": call.name,
-                    "arguments": json.dumps(call.arguments, ensure_ascii=False, allow_nan=False),
-                }} for call in self.tool_calls
-            ]
-        return result
 
 
 @dataclass(frozen=True)
@@ -59,7 +20,42 @@ class ToolResult:
     error_code: str | None = None
 
 
-class ChatProvider(Protocol):
-    def describe(self) -> dict: ...
-    def complete(self, request: ChatRequest, *, cancel: Event) -> ChatReply: ...
-    def close(self) -> None: ...
+@dataclass(frozen=True)
+class ToolContext:
+    session_id: str
+    generation: int
+    deadline: float
+    cancel: Event
+    is_current: Callable[[], bool]
+    on_progress: Callable[[dict], None]
+
+    def check_active(self):
+        if self.cancel.is_set() or not self.is_current():
+            raise ToolInterrupted("cancelled")
+        if time.monotonic() >= self.deadline:
+            raise ToolInterrupted("tool_timeout")
+
+    def progress(self, data: dict):
+        self.check_active()
+        raw = json.dumps(data, allow_nan=False)
+        if not isinstance(data, dict) or len(raw) > 16384:
+            raise ValueError("Progress must be a bounded JSON object")
+        self.on_progress(json.loads(raw))
+
+
+@dataclass(frozen=True)
+class AgentEvent:
+    type: str
+    sequence: int
+    session_id: str
+    generation: int
+    run_id: str | None
+    at: float
+    data: dict = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class TurnResult:
+    status: str
+    text: str = ""
+    error_code: str | None = None

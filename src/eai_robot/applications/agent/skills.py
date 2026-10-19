@@ -22,15 +22,17 @@ class DryRunSkills:
         self.poses = {name: list(values) for name, values in poses.items()}
         self.tasks = {}
 
-    def state(self, _):
+    def state(self, _, context=None):
         return ToolResult(True, "simulated", {"mode": "dry_run", "connected": False,
                           "feedback_available": False, "joint_positions": None,
                           "tracking": "unavailable", "hardware_error": "not_observed"})
 
-    def list_poses(self, _):
+    def list_poses(self, _, context=None):
         return ToolResult(True, "simulated", {"poses": sorted(self.poses)})
 
-    def move(self, args):
+    def move(self, args, context=None):
+        if context is not None:
+            context.check_active()
         task_id = uuid.uuid4().hex
         plan = {"task_id": task_id, "pose_name": args["pose_name"],
                 "status": "simulated", "targets": self.poses[args["pose_name"]].copy(),
@@ -41,23 +43,24 @@ class DryRunSkills:
             del self.tasks[next(iter(self.tasks))]
         return ToolResult(True, "simulated", plan.copy())
 
-    def task(self, args):
+    def task(self, args, context=None):
         plan = self.tasks.get(args["task_id"])
         if plan is None:
             return ToolResult(False, "rejected", error_code="unknown_task")
         return ToolResult(True, "simulated", plan.copy())
 
-    def stop(self, _):
+    def stop(self, _, context=None):
         return ToolResult(True, "simulated", {"mode": "dry_run", "hardware_sent": False,
                                                "active_motion": False})
 
-    def registry(self):
-        return ToolRegistry([
+    def registry(self, allowed_tools=None):
+        tools = [
             Tool("get_robot_state", "读取状态；当前只提供演练状态，无真实反馈。", parameters(), self.state),
             Tool("list_poses", "列出可用于演练的已保存姿态。", parameters(), self.list_poses),
             Tool("move_to_pose", "生成命名姿态的演练计划；不驱动硬件。",
                  parameters(pose_name={"type": "string", "enum": sorted(self.poses)}), self.move),
             Tool("get_task_status", "查询本次进程内的演练任务。",
                  parameters(task_id={"type": "string"}), self.task),
-            Tool("stop_motion", "立即停止本轮演练并废弃旧模型响应；不卸扭矩。", parameters(), self.stop),
-        ])
+            Tool("stop_motion", "立即停止本轮演练并废弃旧模型响应；不卸扭矩。", parameters(), self.stop, interrupt=True),
+        ]
+        return ToolRegistry([tool for tool in tools if allowed_tools is None or tool.name in allowed_tools])

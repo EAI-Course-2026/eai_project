@@ -1,8 +1,20 @@
 """Application-side input lifecycle. Speech providers only supply final text."""
 from dataclasses import asdict
+from importlib.resources import files
 from threading import Event, Lock, Thread
 
 from eai_robot.applications.teleoperation.intent import STOP, parse
+from eai_robot.policy.agents.loop import AgentSession
+
+from .capabilities import RobotCapabilities
+
+
+def create_robot_session(provider, skills, *, capabilities=None, **options):
+    profile = capabilities or RobotCapabilities()
+    prompt = files(__package__).joinpath("prompts/system.txt").read_text(encoding="utf-8")
+    return AgentSession(provider, skills.registry(profile.allowed_tools), system_prompt=prompt,
+                        context_provider=profile.context, before_tool=profile.before_tool,
+                        on_cancel=lambda: skills.stop({}), **options)
 
 
 def is_stop(text: str) -> bool:
@@ -35,8 +47,10 @@ def run_stdin(stream, session, emit):
             if failed:
                 break
             if is_stop(text):
-                result = session.stop()
-                output({"status": "cancelled", "stop": asdict(result)})
+                result = session.cancel()
+                if not result.ok:
+                    failed.append(True)
+                output({"status": "cancelled" if result.ok else "failed", "stop": asdict(result)})
             elif worker is not None and worker.is_alive():
                 output({"status": "rejected", "error_code": "busy"})
             else:
@@ -47,7 +61,7 @@ def run_stdin(stream, session, emit):
                 ready.wait()
     except BaseException:
         # Ctrl-C/input failures cancel before joining, rather than waiting for HTTP.
-        session.stop()
+        session.cancel()
         raise
     finally:
         if worker is not None:

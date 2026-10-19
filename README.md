@@ -7,6 +7,13 @@
 
 **长期保留 `main` 和 `develop`。** main 是可复现的集成基线，也是默认分支；develop 承接日常集成。两者均通过 PR、代码审查和三项托管检查更新。临时功能分支从 develop 创建。macOS、Windows 和 CUDA 共用源码，以独立配置和锁文件区分环境，不需要长期平台分支。完整规则见 [CONTRIBUTING](CONTRIBUTING.md)。
 
+## 项目目标
+
+长期目标是通过自然语言（含语音）向机械臂提出控制任务，由系统理解、观测、选择技能、
+执行并验证结果。硬件的行程、负载、保持误差和视野决定能力边界；任务质量通过固定任务集持续测量。
+项目是感知、模型路由、harness 和控制的共同优化过程，训练按失败证据选择投入。
+见[定位与评测](docs/project_scope.md)、[三层架构与 pi 参考](docs/agent_layers.md)。
+
 ## 接下来的开发方向
 
 研发收敛为两条主线：**模型与规则控制**（先完善视觉伺服、反馈与 FK/IK）和
@@ -112,7 +119,8 @@ uv run --locked eai-course voice --list-commands
 
 ## 文本 Agent 与 API 配置
 
-Agent 的实际运行代码位于 `policy/agents/` 和 `applications/agent/`，首版工具仅做 dry-run：
+Agent 分为 `policy/model_io/`（模型消息/鉴权/JSON/SSE）、`policy/agents/`（会话/工具核心）和
+`applications/agent/`（机器人能力、prompt 与输入装配），当前工具仅做 dry-run：
 
 ```sh
 uv run --locked eai-course agent --demo

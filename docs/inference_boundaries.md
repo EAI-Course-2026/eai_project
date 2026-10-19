@@ -14,7 +14,7 @@
 | 本地设备与动作门禁 | `policy/execution/runner.py`、`safety.py` | 保持在机械臂所在主机；推理服务不持有 Robot 或运动权限 |
 | 图像检测器 | `vision/perception/detector.py`、`registry.py`、`spec.py` | 已有 detector 协议、模型设备规格、工厂与异步检测；具体模型按注册能力提供 |
 | 语音识别 | 可替换外部文本提供方（本机实验仅为案例） | 本仓库目前仅通过 stdin 接收逐行转写；不导入外部项目的本机路径 |
-| 文本 LLM Tools | `policy/agents/`、`applications/agent/` | 已实现可配置 HTTP、工具循环、逐行文本与演练技能；尚无实际供应商验收 |
+| 文本 LLM Tools | `policy/model_io/`、`policy/agents/`、`applications/agent/` | 已实现可配置 HTTP、工具循环、逐行文本与演练技能；尚无实际供应商验收 |
 | VLM / Omni / TTS | 尚未实现完整接入 | 后续媒体适配器；不能把 VLA HTTP 当作聊天 API |
 
 结论：保留仓库内的应用推理适配、数据契约与部署入口。计算可以外置；
@@ -41,20 +41,22 @@
 
 ## 模块归属与依赖方向
 
+本轮实现进一步区分模型 I/O、通用 Agent 核心、机械臂应用，见[三层架构](agent_layers.md)。
+
 ```text
 applications/agent         已有文本/dry-run 装配；媒体采集/播放与硬件会话待接入
-        ├→ policy/agents   已有文本消息/工具契约、决策循环、聊天 provider
+        ├→ policy/agents   已有工具契约、上下文与决策循环；模型消息/provider 在 model_io
         ├→ vision          检测器、跟踪器、图像观测（已有）
         ├→ control         姿态/IK/视觉控制律、既有执行能力（已有）
         └→ policy          VLA runtime、执行门禁与数据（已有）
 
-policy/agents/providers.py → 供应商 SDK / 本机模型 API / 自有聊天服务
+policy/model_io/providers.py → 供应商协议 / 本机模型 API / 自有聊天服务
 policy/inference/runtime.py → 锁定 LeRobot 模型与处理器
 policy/inference/transport.py → 同一 VLA runtime 的远程代理
 applications/agent/speech.py → 独立 ASR/TTS 协议适配（拟新增）
 ```
 
-供应商适配不能反向调用硬件。`policy/agents` 通过注入的技能协议获取工具结果，
+供应商适配不能反向调用硬件。`policy/agents` 通过注入的技能协议获取工具结果，模型接口位于 `policy/model_io`，
 不导入 `applications`；`vision`、`control` 也不能反向导入应用。
 设备生命周期与相机单一所有权在应用层，纯推理只接收数据。
 ASR/TTS 首版在应用层适配，出现多应用复用需求后再评审抽取，不提前新建一级 speech 包。
@@ -85,12 +87,13 @@ detector.close()                              # 释放模型资源，不操作�
 
 ## 拟新增接口：按输出类型定义
 
-ChatProvider 已有文本子集实现；下列其余签名与媒体类型是后续实现约定。
+ChatProvider 已有文本与 SSE 子集实现；下列其余签名与媒体类型是后续实现约定。
 实际类和字段以源码及[运行指南](agent_runtime.md)为准；不创建只有签名的空 ASR/TTS provider。
 
 ```python
 class ChatProvider(Protocol):
     def describe(self) -> ProviderInfo: ...
+    def stream(self, request: ChatRequest, *, cancel: Event) -> Iterator[ModelEvent]: ...
     def complete(self, request: ChatRequest, *, cancel: Event) -> ChatReply: ...
     def close(self) -> None: ...
 
@@ -110,7 +113,7 @@ class SkillService(Protocol):
     def stop_motion(self, session_id: str) -> ToolResult: ...
 ```
 
-首版 ChatProvider 为有超时的同步方法，应用放独立推理线程。`cancel` 用于取消等待并丢弃迟到响应；
+ChatProvider 支持完整回复与 SSE 流，传输位于模型层；核心消费统一流事件。`cancel` 用于取消等待并丢弃迟到响应；
 供应商支持时终止请求，不能保证撤销服务端计算/计费。它不代替本地 `stop_motion`。
 流式 Omni 后续采用单独 `OmniSession.send/receive/cancel_turn/close` 事件协议；
 不把流式音频和工具片段直接套进一次性 `complete` 返回值。
@@ -152,7 +155,7 @@ media_policy           允许传输的模态、目标服务与尺寸/时长上�
 
 describe/日志记录解析后的实际部署、设备（可未知）、模型和能力，避免把 `auto` 当作设备证据。
 供应商兼容某一 JSON 格式不代表支持全部工具、音频与流式协议；启动探针检查 required capabilities，
-未来能力探针缺失时应拒绝该会话配置；当前仅解析文本工具协议，不作模型能力保证，不静默切换为另一服务或改变媒体传输范围。
+未来能力探针缺失时应拒绝该会话配置；当前支持文本工具协议与显式 SSE，不作模型能力保证，不静默切换为另一服务或改变媒体传输范围。
 现有 VLA CLI/manifest 与 detector ModelSpec 暂不改名；未来会话配置仅装配它们，不能复制并覆盖两份限额。
 
 ## 错误、生命周期与可替换性验收
