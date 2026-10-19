@@ -11,6 +11,11 @@ import numpy as np
 JOINTS = ("shoulder_pan", "wrist_flex")
 STEP = 10  # Historical numerical-helper default; live axes have separate steps.
 ARRIVAL_TOLERANCE = 3
+# The smallest encoder change the guard accepts as evidence that a commanded
+# axis reacted at all. A request that cannot clear this, on top of the axis's own
+# absorbed offset, is not a step worth sending; the planner imports this so the
+# two cannot drift apart.
+OBSERVED_MOTION_COUNTS = 2
 
 
 def commanded_joints(before, target):
@@ -55,7 +60,7 @@ def motion_confirmed(before, target, actual):
     return bool(changed) and all(
         abs(target[name] - before[name]) > ARRIVAL_TOLERANCE
         and (actual[name] - before[name]) * (target[name] - before[name]) > 0
-        and abs(actual[name] - before[name]) >= 2
+        and abs(actual[name] - before[name]) >= OBSERVED_MOTION_COUNTS
         and abs(target[name] - actual[name]) <= ARRIVAL_TOLERANCE
         for name in changed
     )
@@ -65,7 +70,7 @@ def motion_observed(before, target, actual):
     """A partial settled response is useful feedback, but is not goal arrival."""
     changed = [name for name in target if target[name] != before[name]]
     return bool(changed) and all(
-        abs(actual[name] - before[name]) >= 2
+        abs(actual[name] - before[name]) >= OBSERVED_MOTION_COUNTS
         and (actual[name] - before[name]) * (target[name] - before[name]) > 0
         for name in changed
     )

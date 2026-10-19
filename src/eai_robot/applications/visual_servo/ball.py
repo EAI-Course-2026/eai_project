@@ -22,7 +22,7 @@ from eai_robot.input import keyboard
 
 from lerobot.cameras import ColorMode
 from lerobot.cameras.opencv import OpenCVCameraConfig
-from eai_robot.config import default_camera_index
+from eai_robot.config import default_camera_fps, default_camera_index
 from eai_robot.hardware.robots.so101 import SO101Follower, make_robot, DEFAULT_CALIBRATION, default_port
 
 from eai_robot.control.kinematics.cartesian_planner import CartesianLinePlanner, CartesianPlan
@@ -293,7 +293,7 @@ class VisionArmRuntime:
             from eai_robot.applications.visual_servo.joint_center import verify_existing_hold
             verify_existing_hold(self.robot)
             self.torque_enabled = True
-            print("Verified existing powered hold; no torque or goal write during handover.")
+            print("已确认原有上电保持状态；交接过程中没有写扭矩或目标。")
             return
         # The robot's verified enable path checks torque/status, seeds measured
         # goals, then enables torque. Do not pre-write goals ahead of that gate.
@@ -409,7 +409,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--shared-frame", type=Path, help="Read frames from the persistent preview")
     parser.add_argument("--camera-width", type=int, default=640)
     parser.add_argument("--camera-height", type=int, default=480)
-    parser.add_argument("--camera-fps", type=int, default=15)
+    parser.add_argument("--camera-fps", type=int, default=default_camera_fps(),
+                        help="Must match the rate the camera reports; LeRobot refuses a mismatch instead of degrading")
     parser.add_argument("--camera-timeout-ms", type=int, default=5000)
     parser.add_argument("--camera-read-retries", type=int, default=3)
     parser.add_argument("--urdf", type=Path, default=DEFAULT_URDF)
@@ -430,6 +431,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rule-min-standoff-m", type=float, default=0.10, help="Secondary depth standoff; only as good as the intrinsics")
     parser.add_argument("--rule-gate-px", type=float, default=24.0, help="Centre error below which the rule is allowed to step forward")
     parser.add_argument("--rule-max-steps", type=int, default=40, help="Hard cap on executed rule steps")
+    parser.add_argument("--rule-one-approach", action="store_true",
+                        help="ArUco diagnostic: allow alignment, then end after the first forward attempt, including target loss")
     parser.add_argument("--rule-max-request-counts", type=float, default=18.0, help="Largest per-joint request the rule may send")
     parser.add_argument("--object-rule", action="store_true", help="Run the same five-region rule against a tracked object instead of an ArUco marker")
     parser.add_argument("--tracker", choices=("support", "fused", "detector"), default="fused", help="support: region texture only; fused: texture plus periodic detector arbitration; detector: detector only")
@@ -511,8 +514,8 @@ def parse_args() -> argparse.Namespace:
     # the selected mode instead of forcing the operator to repeat themselves.
     if args.target is None:
         args.target = "aruco" if args.fixed_rule else "black-ball"
-    if not 1.0 <= args.max_joint_excursion_deg <= 40.0:
-        parser.error("--max-joint-excursion-deg must be within 1..40")
+    if not 1.0 <= args.max_joint_excursion_deg <= 120.0:
+        parser.error("--max-joint-excursion-deg must be within 1..120")
     if not 5 <= args.base_step_counts <= 15 or not 8 <= args.wrist_step_counts <= 12:
         parser.error("base step must be 5..15 counts and wrist step 8..12 counts")
     if args.adopt_hold and (not (args.joint_center or args.fixed_rule)
@@ -535,6 +538,8 @@ def parse_args() -> argparse.Namespace:
         parser.error("--fixed-rule uses --rule-band, not --center-region-fraction")
     if args.fixed_rule and args.target != "aruco":
         parser.error("--fixed-rule requires --target aruco")
+    if args.rule_one_approach and not args.fixed_rule:
+        parser.error("--rule-one-approach requires --fixed-rule")
     if args.fixed_rule:
         if not 0.1 <= args.rule_band <= 0.9:
             parser.error("--rule-band must be within 0.1..0.9")
@@ -548,8 +553,8 @@ def parse_args() -> argparse.Namespace:
             parser.error("--rule-min-standoff-m must be within 0.02..1")
         if not 1 <= args.rule_max_steps <= 200:
             parser.error("--rule-max-steps must be within 1..200")
-        if not 5.0 <= args.rule_max_request_counts <= 30.0:
-            parser.error("--rule-max-request-counts must be within 5..30")
+        if not 5.0 <= args.rule_max_request_counts <= 60.0:
+            parser.error("--rule-max-request-counts must be within 5..60")
         if not 0.005 <= args.marker_length_m <= 0.2:
             parser.error("--marker-length-m must be within 0.005..0.2")
         if not args.intrinsics.is_file() or not args.hand_eye.is_file():
@@ -649,8 +654,8 @@ def parse_args() -> argparse.Namespace:
         parser.error("--probe-settle-s must be within 0.2..3")
     if not 0.5 <= args.max_step_mm <= 3.0:
         parser.error("--max-step-mm must be within 0.5..3")
-    if not 10.0 <= args.max_travel_mm <= 220.0:
-        parser.error("--max-travel-mm must be within 10..220")
+    if not 10.0 <= args.max_travel_mm <= 320.0:
+        parser.error("--max-travel-mm must be within 10..320")
     if not 2.0 <= args.control_hz <= 15.0:
         parser.error("--control-hz must be within 2..15")
     if not 1 <= args.feature_samples <= 15:
@@ -937,13 +942,13 @@ def run_closed_loop(
         print("Control joints: shoulder_pan, wrist_flex (measured pixel/count response)")
     elif args.fixed_rule:
         print(
-            f"Fixed rule: {args.rule_step_mm:.0f} mm toward the marker region, "
-            f"{args.rule_step_mm:.0f} mm forward inside the central "
-            f"{args.rule_band:.0%} band, stop at {args.rule_stop_side_px:.0f} px. "
-            "Forward steps pair shoulder_lift with an opposing wrist_flex.")
+            f"固定规律（fixed rule）：标记在哪个区域就朝那个方向走 "
+            f"{args.rule_step_mm:.0f} mm；落在中央 {args.rule_band:.0%} 带内则前进 "
+            f"{args.rule_step_mm:.0f} mm；边长到 {args.rule_stop_side_px:.0f} px 停靠。"
+            "前进步由 shoulder_lift 与反向的 wrist_flex 配对，避免相机俯仰。")
         print(
-            "WARNING: the forward rule has no distance sensor. Verify at least "
-            f"{args.max_travel_mm:.0f} mm of clear space ahead and keep a hand on Esc.")
+            "警告（WARNING）：前向规律没有任何测距传感器。确认相机前方至少有 "
+            f"{args.max_travel_mm:.0f} mm 无障碍，手放在 Esc 上。")
     else:
         print(f"Control axes: {args.control_axes[0].upper()}, {args.control_axes[1].upper()}")
     print("Q/Esc: normal stop; Space: emergency torque-off")
@@ -961,16 +966,15 @@ def run_closed_loop(
         # because the confirmation is about the operator's intent, not about
         # which tracker is running.
         print(
-            f"Object rule: {args.rule_step_mm:.0f} mm per step, "
-            f"{args.rule_step_mm:.0f} mm forward inside the central "
-            f"{args.rule_band:.0%} band, stop at {args.rule_stop_side_px:.0f} px.")
+            f"任意物体规律（object rule）：每步 {args.rule_step_mm:.0f} mm，"
+            f"中央 {args.rule_band:.0%} 带内前进 {args.rule_step_mm:.0f} mm，"
+            f"边长到 {args.rule_stop_side_px:.0f} px 停靠。")
         print(
-            "WARNING: the forward rule has no distance sensor and the target is "
-            f"arbitrary. Verify at least {args.max_travel_mm:.0f} mm of clear "
-            "space ahead and keep a hand on Esc.")
-        if input('Type exactly "START VISUAL SERVO" to enable torque: ').strip() \
-                != "START VISUAL SERVO":
-            print("Confirmation did not match. No movement command was sent.")
+            "警告（WARNING）：前向规律没有测距传感器，且目标是任意物体。"
+            f"确认相机前方至少有 {args.max_travel_mm:.0f} mm 无障碍，手放在 Esc 上。")
+        if input('输入 "START VISUAL SERVO" 以接通扭矩（Type exactly to enable '
+                 'torque）: ').strip() != "START VISUAL SERVO":
+            print("确认文字不匹配，未发送任何运动指令。")
             return 0
         runtime.enable_motion()
         stop_state.armed.set()
@@ -1009,7 +1013,7 @@ def run_closed_loop(
     if args.joint_center:
         from eai_robot.applications.visual_servo.joint_center import run_joint_center
         return run_joint_center(runtime, detector, args, stop_state, preview)
-    print(f"Torque enabled; waiting {args.torque_settle_s:.1f}s for the arm and camera to settle...")
+    print(f"扭矩已接通，等待 {args.torque_settle_s:.1f}s 让机械臂与相机稳定…")
     time.sleep(args.torque_settle_s)
     post_torque_detection = median_detection(runtime, detector, args.feature_samples)
     print(
@@ -1214,7 +1218,7 @@ def main() -> int:
 
         return run_closed_loop(runtime, detector, args, stop_state, preview)
     except StopRequestedError as exc:
-        print(f"\n{exc}; stopping.")
+        print(f"\n{exc}；正在停止。")
         return 130 if stop_state.emergency_requested.is_set() else 0
     except KeyboardInterrupt:
         failed = True

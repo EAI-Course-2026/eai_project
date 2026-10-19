@@ -1,5 +1,51 @@
 schema_version = 1
-description = "2026-10-19 fixed-rule 1cm servo: 5 image regions, guarded forward approach. Offline-validated only; no real-arm acceptance yet."
+description = "2026-10-19 fixed-rule 1cm servo: 5 image regions, guarded forward approach. Budgets raised on 2026-10-18 at the operator's explicit request because the bench work area has 300+ mm of clear space ahead of the camera; they are an operator-confirmed allowance, NOT a measured workspace. Re-check the clear space before every run."
+# Budget basis (2026-10-18, operator-confirmed at the bench, then checked by
+# replaying the fixed-rule loop offline against the measured defect model):
+#   max_travel_mm 300      = 3x the 100 mm first-flight value. The measured
+#                            approach at a 400 mm start spends 226 mm, so 100 mm
+#                            could not express it; the CLI ceiling was 220.
+#   max_joint_excursion 120 = 3x the 40 deg that stopped the first flight 2 mm
+#                            short of the standoff. It is also what a 400 mm
+#                            start costs (119.4 deg in offline replay); a 340 mm start
+#                            costs 86.5 deg. So this ceiling is what stops a
+#                            start beyond ~400 mm, while a start far beyond that
+#                            is stopped by shoulder_lift's own travel (below).
+#   max_joint_step_deg 12   = 2.4x 5 deg. Measured at the recorded pose with the
+#                            offset model: a full 1 cm forward step asks for
+#                            +21/-22 counts, i.e. +5.15/-4.80 deg. The old 5 deg
+#                            cap clipped that to +3.68/-2.94 deg and delivered 0.76
+#                            of a centimetre per step (it reported 0.87-0.91 before
+#                            the offset model existed, because the 7-count wrist
+#                            offset was not being subtracted). 12 deg delivers 0.99.
+#   rule_max_request_counts 40 = 2.2x 18, and it is not optional: the 22-count
+#                            request itself exceeded the old 18-count cap, so raising
+#                            only the degree cap would still have clipped every
+#                            forward step. Both numbers have to move together.
+# The 5 deg cap was also the reason a plan parked 0.05 deg below the limit and then
+# failed the guard's own +-3 count arrival check; both sides now share one headroom.
+#
+# Do NOT read the 120 deg ceiling as redundant with the URDF limits. shoulder_lift,
+# not wrist_flex, is the axis the forward primitive exhausts: from the recorded pose
+# it starts at -44.7 deg and the primitive drives it to +97 deg against a +100 deg
+# limit. That +100 is the joint's MECHANICAL end, not a "forward reach" limit -- on
+# its own the axis brings the camera only to 330.6 mm (at +13 deg) and then swings
+# past the marker (at +100 deg the camera is behind the marker plane, depth -529 mm).
+# So a 440 mm start stops because this one axis ran out of travel, not because the
+# camera cannot get closer: at the stopping pose another degree of lift still closed
+# 2.64 mm. Sharing the load with elbow_flex was implemented and measured and is worse
+# (docs section 4.2), which is why the primitive is unchanged. Practical envelope:
+# starts up to 400 mm reach the standoff (offline replay: 300->167.5, 340->175.9,
+# 380->174.6, 400->173.4 mm), 420 mm stops on the excursion budget at 184.6 mm,
+# and 440 mm cannot reach it under any budget (208.9 mm at 120 deg, worse at
+# 135-160 deg) -- so keep the marker within 380 mm.
+#
+# Three guard defaults live in FixedRuleConfig rather than in this file, and are
+# pinned by tests (docs section 6):
+#   max_start_depth_m 0.40     the announcement threshold above, same measurement
+#   dry_step_limit 3           consecutive forward steps under 2 mm of progress
+#   min_approach_progress_mm 2 below the measured per-step forward motion
+# They stop the loop with a named reason instead of silently spending 60 steps.
 
 [servo]
 target = "aruco"
@@ -12,11 +58,11 @@ rule_step_mm = 10.0
 rule_stop_side_px = 120.0
 rule_min_standoff_m = 0.1
 rule_gate_px = 24.0
-rule_max_steps = 40
-rule_max_request_counts = 18.0
-max_travel_mm = 100.0
-max_joint_excursion_deg = 40.0
-max_joint_step_deg = 5.0
+rule_max_steps = 60
+rule_max_request_counts = 40.0
+max_travel_mm = 300.0
+max_joint_excursion_deg = 120.0
+max_joint_step_deg = 12.0
 joint_margin_deg = 2.0
 max_runtime_s = 0.0
 feedback_hz = 2.0

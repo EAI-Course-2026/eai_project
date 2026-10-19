@@ -46,3 +46,4 @@ calibrated = false
 [camera]
 backend = "opencv"
 index_or_path = "" # Set an integer locally; never assume the same index on another machine.
+fps = 30 # Must match what the camera reports; many 640x480 modules offer 30 only.

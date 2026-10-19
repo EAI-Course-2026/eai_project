@@ -49,7 +49,7 @@ class JointCenterTest(unittest.TestCase):
         self.assertFalse(motion_confirmed({'a':640,'b':100}, {'a':645,'b':105}, {'a':645,'b':100}))
 
 class JointCenterRuntimeTest(unittest.TestCase):
-    def exercise_runtime(self, stale=False, residual=3, target_motion=False):
+    def exercise_runtime(self, stale=False, residual=3, target_motion=False, hold_offset=0):
         import tempfile
         import threading
         from pathlib import Path
@@ -59,6 +59,8 @@ class JointCenterRuntimeTest(unittest.TestCase):
         from eai_robot.vision.detection.ball import BallDetection
         names = module.ARM_JOINT_NAMES
         state = dict(zip(names, [500, 300, 500, 400, 300]))
+        initial_goals = {name: value + hold_offset for name, value in state.items()}
+        goal_register = dict(initial_goals)
         writes = []
         moves = [0]
         clock = [0.]
@@ -69,6 +71,9 @@ class JointCenterRuntimeTest(unittest.TestCase):
         def send(register, goals, **kwargs):
             self.assertEqual(register, 'Goal_Position')
             writes.append(dict(goals))
+            goal_register.update(goals)
+            if len(writes) > 1 and all(goals[n] == initial_goals[n] for n in goals):
+                return  # timeout restores the old load-bearing goal
             if any(goal != state[name] for name, goal in goals.items()): moves[0] += 1
             for name, goal in goals.items():
                 if goal == state[name]: continue  # measured hold after a partial response
@@ -81,7 +86,7 @@ class JointCenterRuntimeTest(unittest.TestCase):
         def read(register, name, **kwargs):
             if register == 'Torque_Enable': return 1
             if register == 'Status': return 0
-            return writes[-1][name]
+            return goal_register[name]
         bus = SimpleNamespace(sync_write=send, read=read)
         runtime = SimpleNamespace(
             robot=SimpleNamespace(bus=bus), _require_mapper=lambda: object(),
@@ -139,9 +144,140 @@ class JointCenterRuntimeTest(unittest.TestCase):
 
     def test_no_response_stops_before_learning_or_continuous_control(self):
         writes, records = self.exercise_runtime(residual=10)
-        self.assertEqual(len(writes),1)
+        self.assertEqual(len(writes),2)
+        self.assertNotEqual(writes[0], writes[1])
+        self.assertIn('hold_goals', records)
+        self.assertIn('actual_counts', records)
         self.assertIn('arrival_timeout',records)
         self.assertNotIn('calibration',records)
+
+    def test_timeout_restores_previous_load_bearing_goal_instead_of_sagged_pose(self):
+        import json
+        writes, records = self.exercise_runtime(residual=9, hold_offset=8)
+        timeout = next(json.loads(line) for line in records.splitlines()
+                       if json.loads(line)['event'] == 'arrival_timeout')
+        self.assertEqual(writes[-1], timeout['hold_goals'])
+        self.assertEqual(timeout['hold_goals'], timeout['previous_goals'])
+        self.assertNotEqual(timeout['hold_goals'],
+                            {name: timeout['actual'][name] for name in timeout['goal']})
+        self.assertTrue(all(v == 1 for v in timeout['torque_enabled'].values()))
+        self.assertTrue(all(abs(n) == 1 for n in timeout['actual_counts'].values()))
+        self.assertNotIn('calibration', records)
+
+class ForwardMotionEvidenceTest(unittest.TestCase):
+    def test_loss_records_partial_pair_response_without_changing_hold_behavior(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        import threading
+        import eai_robot.applications.visual_servo.joint_center as module
+        names = module.ARM_JOINT_NAMES
+        before = dict(zip(names, [481, 341, 588, 358, 252]))
+        state = dict(before)
+        goals = dict(before)
+        writes, events = [], []
+
+        def write(register, values, **kwargs):
+            writes.append(dict(values))
+            goals.update(values)
+            if len(writes) == 1:
+                state['shoulder_lift'] += 19
+                state['wrist_flex'] -= 8
+
+        def read(register, name, **kwargs):
+            return {'Goal_Position': goals[name], 'Torque_Enable': 1,
+                    'Status': 0}[register]
+
+        runtime = SimpleNamespace(
+            robot=SimpleNamespace(bus=SimpleNamespace(sync_write=write, read=read)),
+            read_frame=lambda: np.zeros((2, 2, 3)))
+        detections = iter([object(), None])
+        detector = SimpleNamespace(detect=lambda frame: (next(detections), None))
+        guard = module.BoundedJointMotion(
+            runtime, detector, object(), SimpleNamespace(), np.zeros(5),
+            np.zeros(3), lambda event, **data: events.append(dict(event=event, **data)),
+            None, SimpleNamespace(stop_requested=threading.Event()),
+            joints=names, position_of=lambda q: np.zeros(3))
+        target = dict(before, shoulder_lift=360, elbow_flex=583, wrist_flex=340)
+        with patch.object(guard, 'reject_reason', return_value=None), \
+             patch.object(module, 'read_raw_motors', side_effect=lambda *a: dict(state)):
+            with self.assertRaises(module.TargetLostError):
+                guard.move(target)
+        self.assertEqual(len(writes), 2)
+        self.assertEqual(writes[0], {n: target[n] for n in
+                                    ('shoulder_lift', 'elbow_flex', 'wrist_flex')})
+        self.assertEqual(writes[1], {n: state[n] for n in writes[0]})
+        sample = next(e for e in events if e['event'] == 'motion_sample')
+        self.assertFalse(sample['target_visible'])
+        self.assertEqual(sample['actual']['elbow_flex'], before['elbow_flex'])
+        snapshots = [e for e in events if e['event'] == 'motor_state']
+        self.assertEqual([e['stage'] for e in snapshots],
+                         ['before_command', 'after_target_lost_hold'])
+        for snapshot in snapshots:
+            self.assertEqual(set(snapshot['goals']), set(names))
+            self.assertTrue(all(v == 1 for v in snapshot['torque_enabled'].values()))
+
+
+class GuardStepToleranceTest(unittest.TestCase):
+    """The guard must not reject a step it just allowed the planner to make.
+
+    Both checks in ``BoundedJointMotion.move`` use ``reject_reason``. The
+    pre-write one compares intent with intent and keeps the strict cap; the
+    arrival poll compares a *measurement* with intent, and that measurement
+    carries ARRIVAL_TOLERANCE counts of legitimate residual. Checking it
+    against the strict cap is how the bench saw "Joint/workspace bound
+    reached" while 0.16 counts below a 5 degree ceiling.
+    """
+
+    def guard(self, mapper=None, **overrides):
+        from types import SimpleNamespace
+        import eai_robot.applications.visual_servo.joint_center as module
+        args = SimpleNamespace(joint_margin_deg=2.0, max_joint_step_deg=5.0,
+                               max_travel_mm=400.0, max_joint_excursion_deg=120.0)
+        for key, value in overrides.items():
+            setattr(args, key, value)
+        return module.BoundedJointMotion(
+            None, None, mapper or SimpleNamespace(calibration=None), args,
+            np.zeros(5), np.zeros(3), None, None, None,
+            position_of=lambda q: np.zeros(3))
+
+    def reject(self, guard, raw, reference, **kwargs):
+        from unittest.mock import patch
+        import eai_robot.applications.visual_servo.joint_center as module
+        with patch.object(module, 'raw_outside_calibration', return_value=[]), \
+             patch.object(module, 'ensure_execution_start_is_safe'), \
+             patch.object(module, 'arm_degrees_from_raw',
+                          side_effect=lambda m, r: np.array(r, dtype=float)):
+            return guard.reject_reason(raw, reference, **kwargs)
+
+    def test_a_mapper_without_calibration_does_not_crash_the_guard(self):
+        # The test doubles in this file publish no calibration table; the
+        # count-to-degree conversion must have a conservative fallback rather
+        # than an AttributeError.
+        guard = self.guard()
+        self.assertIsNone(self.reject(guard, np.full(5, 5.5), np.zeros(5),
+                                      step_tolerance=3.0))
+
+    def test_the_arrival_residual_does_not_trip_the_strict_cap(self):
+        guard = self.guard()
+        over = np.full(5, 5.5)          # 0.5 deg past a 5.0 deg cap
+        self.assertIsNotNone(self.reject(guard, over, np.zeros(5)))
+        self.assertIsNone(self.reject(guard, over, np.zeros(5), step_tolerance=3.0))
+
+    def test_a_step_far_past_the_cap_is_still_rejected_with_tolerance(self):
+        # Widening by the arrival residual must not turn the cap into no cap.
+        guard = self.guard()
+        message = self.reject(guard, np.full(5, 40.0), np.zeros(5),
+                              step_tolerance=3.0)
+        self.assertIsNotNone(message)
+        self.assertIn('shoulder_pan', message)
+        self.assertIn('到位容差', message)
+
+    def test_the_pre_write_message_does_not_pretend_to_allowance(self):
+        guard = self.guard()
+        message = self.reject(guard, np.full(5, 6.0), np.zeros(5))
+        self.assertIn('单步', message)
+        self.assertNotIn('到位容差', message)
+
 
 class HoldHandoverTest(unittest.TestCase):
     def test_stationary_hold_is_read_only_and_faults_are_rejected(self):
