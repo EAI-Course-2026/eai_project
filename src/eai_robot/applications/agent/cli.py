@@ -7,6 +7,8 @@ import sys
 from threading import Lock
 import tomllib
 
+from dotenv import dotenv_values
+
 from eai_robot.calibration.servo.results import JOINTS, JointCalibration, load, validate
 from eai_robot.control.planning.poses import POSES_PATH, load_poses
 from eai_robot.policy.model_io.contracts import ProviderError
@@ -19,7 +21,7 @@ from .session import create_robot_session, is_stop, run_stdin
 from .skills import DryRunSkills
 
 
-def load_provider(path):
+def load_provider(path, env_file=None):
     with Path(path).open("rb") as stream:
         config = tomllib.load(stream)
     if set(config) != {"provider"} or not isinstance(config["provider"], dict):
@@ -32,7 +34,14 @@ def load_provider(path):
         spec = ProviderConfig(**settings)
     except TypeError:
         raise ValueError("Invalid provider fields; store credentials in the named environment variable") from None
-    return provider_class(spec)
+    values = None
+    if env_file is not None:
+        env_path = Path(env_file)
+        if not env_path.is_file():
+            raise ValueError("Explicit environment file does not exist")
+        # No global env mutation, discovery or variable interpolation.
+        values = dotenv_values(env_path, interpolate=False, encoding="utf-8")
+    return provider_class(spec, credential_values=values)
 
 
 def reference_poses(path, calibration_path=None):
@@ -55,14 +64,19 @@ def main(argv=None):
     source.add_argument("--list-tools", action="store_true", help="Print standard OpenAI tool definitions without inference")
     source.add_argument("--demo", action="store_true", help="Fixed offline fixture; does not call a model")
     parser.add_argument("--provider-config", type=Path, help="User-selected TOML; credentials via environment")
+    parser.add_argument("--env-file", type=Path, help="Explicit dotenv file; existing process environment takes precedence")
     parser.add_argument("--poses", type=Path, default=POSES_PATH)
     parser.add_argument("--calibration", type=Path, help="Optional target calibration; otherwise use the pose file binding")
+    parser.add_argument("--strict-tools", action=argparse.BooleanOptionalAction, default=None,
+                        help="Explicit server strict mode; omitted by default for compatible services; local validation always applies")
     parser.add_argument("--max-rounds", type=int, default=8)
     parser.add_argument("--max-calls", type=int, default=16)
     parser.add_argument("--turn-timeout", type=float, default=60.)
     args = parser.parse_args(argv)
     if (args.demo or args.list_tools) and args.provider_config:
         parser.error("--demo/--list-tools do not use a provider config")
+    if args.env_file and not args.provider_config:
+        parser.error("--env-file requires --provider-config")
     if not args.demo and not args.list_tools and not args.provider_config:
         parser.error("--provider-config is required for a real API call")
     output_lock = Lock()
@@ -72,11 +86,11 @@ def main(argv=None):
     provider = session = None
     try:
         # Validate before instantiating a provider; imports/assembly never open devices.
-        skills = DryRunSkills(reference_poses(args.poses, args.calibration))
+        skills = DryRunSkills(reference_poses(args.poses, args.calibration), strict=args.strict_tools)
         if args.list_tools:
             output({"tools": list(skills.registry().definitions), "mode": "dry_run", "hardware_connected": False})
             return 0
-        provider = DemoProvider() if args.demo else load_provider(args.provider_config)
+        provider = DemoProvider() if args.demo else load_provider(args.provider_config, args.env_file)
         session = create_robot_session(provider, skills, max_rounds=args.max_rounds,
                                max_calls=args.max_calls, timeout_s=args.turn_timeout,
                                emit=lambda event: output({"event": event}))

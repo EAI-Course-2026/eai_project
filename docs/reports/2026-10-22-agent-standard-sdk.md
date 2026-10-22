@@ -20,9 +20,11 @@ Chat Completions 与新增 Responses 路径均复用官方 OpenAI Python SDK 的
 SDK retries=0，保留请求/响应上限、预算、取消与排空、反馈/授权的本地边界。
 不把 pi 的完整交互和持久恢复声称为已实现，也不引入无法对账的动作恢复。
 
+后续多提供方配置和最终验证见[配置报告](2026-10-22-agent-provider-configuration.md)。
+
 ## 证据与限制
 
-- 最终本地完整 543 项测试通过，Agent 专项 44 项；新增 14 项标准兼容性回归。
+- 首个 SDK 修正提交 `4f664b3` 本地完整 543 项测试通过，Agent 专项 44 项；新增 14 项标准兼容性回归。
 - 覆盖官方 Pydantic schema 原样发送、数字/布尔/嵌套/数组/nullable、本地引用、外部引用拒绝、
   多工具交错流与 usage、两条 API 的工具闭环、Responses reasoning 回传与流终态、模态限制和取消隔离。
 - 锁定同步、环境检查、文档/仓库检查、JavaScript、两个 wheel 构建通过。

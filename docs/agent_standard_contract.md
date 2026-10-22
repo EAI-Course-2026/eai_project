@@ -39,7 +39,7 @@ spec = {
 ```
 
 `strict` 的服务端约束使用 OpenAI 支持的 JSON Schema 子集；本地 Draft 2020-12 校验能力更广，
-不代表任意 schema 都会被任意模型接受。不自动重写 strict、不把数字转成字符串，也不为兼容放宽限位。
+不代表任意 schema 都会被任意模型接受。应用默认省略服务端 strict，可显式选择；注册层不重写传入的 strict、不把数字转成字符串，也不为兼容放宽限位。
 外部 schema 引用不会联网读取；需要的定义放在本地 `$defs`。
 
 ## 两种官方 API
@@ -59,7 +59,9 @@ Responses 采用 `store=false`，在当前工具回合保留完整 output，包�
 
 模型 ID 不硬编码；操作者显式选择 API、base_url、model、凭据和模型参数。
 `OpenAI-compatible` 不等于所有服务或模型能力相同；Responses-only 模型不能放到 Chat Completions。
-不自动降级、重试工具轮或切换模型。兼容服务的推理扩展若不属于标准 API，本轮不声称支持。
+不自动降级、重试工具轮或切换模型。模型扩展可通过 SDK 原生 extra_body 显式配置；不覆盖路由/工具/预算。
+完整 assistant（含 reasoning_content）保留当前工具续轮；字段含义依所选服务文档。
+各服务预设、dotenv 与配置命令见[多服务 API 配置](agent_providers.md)。
 
 ## 核心保留什么
 

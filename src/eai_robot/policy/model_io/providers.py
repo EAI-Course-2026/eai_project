@@ -48,6 +48,7 @@ class ProviderConfig:
     base_url: str | None = None
     token_limit_parameter: str = "max_completion_tokens"
     model_options: dict = field(default_factory=dict)
+    extra_body: dict = field(default_factory=dict)
 
     def __post_init__(self):
         if (self.base_url is None) == (self.endpoint is None):
@@ -77,6 +78,11 @@ class ProviderConfig:
         if not isinstance(self.model_options, dict) or self.model_options.keys() - supported:
             raise ValueError("Unsupported model options")
         json.dumps(self.model_options, allow_nan=False)
+        protected = {"model", "messages", "input", "tools", "stream", "max_tokens", "max_completion_tokens",
+                     "max_output_tokens", "api_key", "base_url", "endpoint", "store", "previous_response_id", "conversation"}
+        if not isinstance(self.extra_body, dict) or self.extra_body.keys() & (protected | supported):
+            raise ValueError("extra_body cannot override routing, messages, tools, budgets or state")
+        json.dumps(self.extra_body, allow_nan=False)
         if "stream_options" in self.model_options and not self.streaming:
             raise ValueError("stream_options requires streaming")
 
@@ -148,11 +154,11 @@ class ChatCompletionsProvider:
     _inputs = ["text", "image_url", "input_audio"]
     _allowed_options = {"temperature", "top_p", "reasoning_effort", "tool_choice", "parallel_tool_calls",
                         "response_format", "seed", "stream_options"}
-    def __init__(self, config: ProviderConfig):
+    def __init__(self, config: ProviderConfig, *, credential_values=None):
         if config.model_options.keys() - self._allowed_options:
             raise ValueError("Options do not belong to the selected API")
         self.config = config
-        self._credential = EnvironmentCredential(config.credential_env)
+        self._credential = EnvironmentCredential(config.credential_env, credential_values)
         self._credential.resolve()
         self._closed, self._active = Event(), Lock()
 
@@ -262,6 +268,8 @@ class ChatCompletionsProvider:
         kwargs = {"model": self.config.model, "messages": list(request.messages),
                   self.config.token_limit_parameter: self.config.max_tokens,
                   **self.config.model_options}
+        if self.config.extra_body:
+            kwargs["extra_body"] = self.config.extra_body
         if request.tools:
             kwargs["tools"] = list(request.tools)
             kwargs.setdefault("parallel_tool_calls", False)

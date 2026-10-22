@@ -123,6 +123,7 @@ Agent 分为 `policy/model_io/`（OpenAI SDK 消息/工具、Chat/Responses、�
 `applications/agent/`（机器人能力、prompt 与输入装配），当前工具仅做 dry-run：
 
 ```sh
+uv run --locked eai-course agent-config list
 uv run --locked eai-course agent --list-tools
 uv run --locked eai-course agent --demo
 # 自选服务：配置 base_url/model，用 credential_env 指向 Key 环境变量
@@ -130,7 +131,7 @@ uv run --locked eai-course agent --provider-config configs/agent/provider.local.
 ```
 
 配置示例、API Key 位置、逐行语音转写接入、实际支持与未验收范围见
-[Agent 运行指南](docs/agent_runtime.md)。离线 demo 是固定 fixture，不是外部模型推理证据。
+[Agent 运行指南](docs/agent_runtime.md)和[多服务 API 配置](docs/agent_providers.md)。离线 demo 是固定 fixture，不是外部模型推理证据。
 
 ## 日常协作
 

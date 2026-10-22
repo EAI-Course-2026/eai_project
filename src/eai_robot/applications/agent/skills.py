@@ -12,13 +12,16 @@ def parameters(**properties):
 
 
 class DryRunSkills:
-    def __init__(self, poses: dict[str, list[float]]):
+    def __init__(self, poses: dict[str, list[float]], *, strict: bool | None = None):
         if (not poses or any(not isinstance(name, str) or not 1 <= len(name) <= 128
                              for name in poses)
                 or any(len(values) != 6 or any(type(v) not in (int, float)
                     or not math.isfinite(v) or not 0 <= v <= 1 for v in values)
                        for values in poses.values())):
             raise ValueError("Expected named six-joint 0..1 poses")
+        if strict is not None and type(strict) is not bool:
+            raise ValueError("strict must be bool or omitted")
+        self.strict = strict
         self.poses = {name: list(values) for name, values in poses.items()}
         self.tasks = {}
 
@@ -58,21 +61,22 @@ class DryRunSkills:
         definitions = [
             ({"type": "function", "function": {
                 "name": "get_robot_state", "description": "读取演练状态；无真实反馈。",
-                "parameters": parameters(), "strict": True}}, self.state, False),
+                "parameters": parameters()}}, self.state, False),
             ({"type": "function", "function": {
                 "name": "list_poses", "description": "列出保存的演练姿态。",
-                "parameters": parameters(), "strict": True}}, self.list_poses, False),
+                "parameters": parameters()}}, self.list_poses, False),
             ({"type": "function", "function": {
                 "name": "move_to_pose", "description": "生成命名姿态演练计划，不驱动硬件。",
-                "parameters": parameters(pose_name={"type": "string", "enum": sorted(self.poses)}),
-                "strict": True}}, self.move, False),
+                "parameters": parameters(pose_name={"type": "string", "enum": sorted(self.poses)})}}, self.move, False),
             ({"type": "function", "function": {
                 "name": "get_task_status", "description": "查询本进程的演练任务。",
-                "parameters": parameters(task_id={"type": "string", "minLength": 1, "maxLength": 128}),
-                "strict": True}}, self.task, False),
+                "parameters": parameters(task_id={"type": "string", "minLength": 1, "maxLength": 128})}}, self.task, False),
             ({"type": "function", "function": {
                 "name": "stop_motion", "description": "取消本轮演练并废弃旧响应；不卸扭矩。",
-                "parameters": parameters(), "strict": True}}, self.stop, True),
+                "parameters": parameters()}}, self.stop, True),
         ]
+        if self.strict is not None:
+            for spec, _, _ in definitions:
+                spec["function"]["strict"] = self.strict
         return ToolRegistry([Tool(spec, handler, interrupt) for spec, handler, interrupt in definitions
                              if allowed_tools is None or spec["function"]["name"] in allowed_tools])

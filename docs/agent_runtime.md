@@ -48,7 +48,9 @@ token_limit_parameter = "max_completion_tokens"
 
 **Key 的值放在 `ROBOT_LLM_API_KEY` 环境变量中，不放 TOML。**
 `credential_env` 可换为其他合法环境变量名；resolver 每次请求读取它，便于轮换。
-程序不自动读取 `.env`，不扫描其他项目/用户目录凭据。配置示例的 `example.invalid` 不是默认服务。
+程序不自动读取 `.env`；可通过 `--env-file FILE` 显式加载（进程环境优先、不插值）。
+多服务模板、生成脚本、离线检查与扩展参数见[多服务 API 配置](agent_providers.md)。
+不扫描其他项目/用户目录凭据。配置示例的 `example.invalid` 不是默认服务。
 以 zsh 为例，通过隐藏输入注入（不要把真实 Key 写入命令或聊天）：
 
 ```sh

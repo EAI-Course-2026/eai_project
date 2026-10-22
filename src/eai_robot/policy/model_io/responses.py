@@ -41,6 +41,8 @@ class ResponsesProvider(ChatCompletionsProvider):
                 items.append({"role": role, "content": content or ""})
         kwargs = {"model": self.config.model, "input": items, "max_output_tokens": self.config.max_tokens,
                   "store": False, "include": ["reasoning.encrypted_content"], **self.config.model_options}
+        if self.config.extra_body:
+            kwargs["extra_body"] = deepcopy(self.config.extra_body)
         if request.tools:
             kwargs["tools"] = [{"type": "function", **deepcopy(t["function"])} for t in request.tools]
             kwargs.setdefault("parallel_tool_calls", False)
