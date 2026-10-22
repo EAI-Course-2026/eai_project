@@ -109,11 +109,25 @@ CLI `eai-course agent`、`voice` 保持不变，Python 内部接口调整如下�
 |---|---|
 | `policy.agents.providers` | `policy.model_io.providers`（JSON/SSE）与 `model_io.auth`（环境凭据） |
 | `agents.contracts.ChatRequest/ChatReply/ToolCall/ProviderError` | `model_io.contracts`；新增 Message、ToolDefinition、ModelEvent、ChatProvider |
-| 供应商格式 message/tool dict | 核心使用 Message/ToolDefinition，供应商字段编码在 provider 内 |
-| `ToolRegistry.schemas` | `ToolRegistry.definitions`，返回规范化定义 |
+| 供应商格式 message/tool dict | 2026-10-22 起直接使用 OpenAI SDK 类型/标准字典；见下表 |
+| `ToolRegistry.schemas` | `ToolRegistry.definitions`，返回标准 OpenAI function 定义 |
 | `handler(arguments)` | `handler(arguments, ToolContext)`；须遵守期限/取消，进度通过 context.progress |
 | `AgentSession.stop()` | 通用 `cancel()`；应用通过 on_cancel 注入本地停止 |
 | `policy/agents/prompts/system.txt` | `applications/agent/prompts/system.txt`；通过应用工厂注入核心 |
 
 机械臂会话建议用 `applications.agent.session.create_robot_session` 装配 prompt、能力和停止回调。
 核心可单独用于非机械臂工具，不依赖应用包或模型具体适配器。参见[运行指南](agent_runtime.md)。
+
+## 标准 SDK 契约修正（2026-10-22）
+
+| 首版内部 API | 当前接口 |
+|---|---|
+| `Message(role, text, ...)` | 标准 `{"role": ..., "content": ...}`；Message 是 SDK 类型别名 |
+| `ToolDefinition(name, description, parameters)` | 标准 `{"type":"function", "function":{...}}`；ToolDefinition 是 SDK 类型别名 |
+| `Tool(name, description, parameters, handler)` | `Tool(standard_definition, handler, interrupt=False)`；本地执行元数据不发到模型 |
+| 手写 HTTP/SSE、字符串 schema 子集 | 官方 OpenAI SDK + jsonschema；增加 Responses 接入 |
+| 完整 `endpoint` | 推荐 SDK `base_url`；旧 Chat Completions endpoint 保留迁移支持 |
+| 固定 wire `max_tokens` | Chat 按 token_limit_parameter 选择；Responses 使用 max_output_tokens |
+
+`--list-tools` 可检查实际发出的标准定义。配置、支持范围与标准示例见[运行指南](agent_runtime.md)
+及[复用决策](agent_standard_contract.md)。本轮修改根控制依赖，训练锁文件不需同步加入 Agent SDK。

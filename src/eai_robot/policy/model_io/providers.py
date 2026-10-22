@@ -1,16 +1,23 @@
-"""Text/tool Chat Completions adapter, bounded JSON or SSE; no agent imports."""
-from dataclasses import dataclass
+"""Official OpenAI SDK transport; standard Chat Completions messages and tools.
+
+Only robotics-specific budgets, cancellation and sanitized errors live here.
+HTTP, SSE decoding and streamed tool argument accumulation belong to the SDK.
+"""
+from dataclasses import dataclass, field
 import json
 import math
 from queue import Empty, Full, Queue
 from threading import Event, Lock, Thread
 import time
-from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit
-from urllib.request import HTTPRedirectHandler, Request, build_opener
+
+import httpx
+import openai
+from openai import OpenAI
+from openai.types.chat import ChatCompletion
 
 from .auth import EnvironmentCredential
-from .contracts import ChatReply, ChatRequest, Message, ModelEvent, ProviderError, ToolCall
+from .contracts import ChatReply, ChatRequest, ModelEvent, ProviderError, ToolCall
 
 MAX_BODY = 1024 * 1024
 
@@ -30,22 +37,29 @@ def strict_json(value):
 
 @dataclass(frozen=True)
 class ProviderConfig:
-    endpoint: str
-    model: str
-    execution: str
+    # endpoint is a deprecated complete Chat Completions URL, retained for migration.
+    endpoint: str | None = None
+    model: str = ""
+    execution: str = "managed_api"
     credential_env: str | None = None
     timeout_s: float = 30.0
     max_tokens: int = 512
     streaming: bool = False
+    base_url: str | None = None
+    token_limit_parameter: str = "max_completion_tokens"
+    model_options: dict = field(default_factory=dict)
 
     def __post_init__(self):
-        if not isinstance(self.endpoint, str):
-            raise ValueError("endpoint must be a URL string")
-        parsed = urlsplit(self.endpoint)
+        if (self.base_url is None) == (self.endpoint is None):
+            raise ValueError("Specify base_url, or the legacy endpoint, exclusively")
+        url = self.base_url if self.base_url is not None else self.endpoint
+        if not isinstance(url, str):
+            raise ValueError("Expected a URL")
+        parsed = urlsplit(url)
         if (parsed.scheme not in {"http", "https"} or not parsed.hostname
                 or parsed.username or parsed.password or parsed.query or parsed.fragment
                 or (parsed.scheme == "http" and parsed.hostname not in {"localhost", "127.0.0.1", "::1"})):
-            raise ValueError("Use HTTPS, or loopback HTTP without URL credentials/query/fragment")
+            raise ValueError("Use HTTPS or loopback HTTP without URL credentials/query/fragment")
         if self.execution not in {"local_process", "self_hosted", "managed_api"}:
             raise ValueError("Invalid execution location")
         if self.execution == "managed_api" and parsed.scheme != "https":
@@ -55,67 +69,97 @@ class ProviderConfig:
         EnvironmentCredential(self.credential_env)
         if (type(self.timeout_s) not in (int, float) or not math.isfinite(self.timeout_s)
                 or not .1 <= self.timeout_s <= 120 or type(self.streaming) is not bool
-                or type(self.max_tokens) is not int or not 1 <= self.max_tokens <= 8192):
+                or type(self.max_tokens) is not int or not 1 <= self.max_tokens <= 8192
+                or self.token_limit_parameter not in {"max_tokens", "max_completion_tokens"}):
             raise ValueError("Invalid provider budgets")
+        supported = {"temperature", "top_p", "reasoning_effort", "tool_choice", "parallel_tool_calls",
+                     "response_format", "seed", "stream_options", "reasoning", "text", "include"}
+        if not isinstance(self.model_options, dict) or self.model_options.keys() - supported:
+            raise ValueError("Unsupported model options")
+        json.dumps(self.model_options, allow_nan=False)
+        if "stream_options" in self.model_options and not self.streaming:
+            raise ValueError("stream_options requires streaming")
+
+    @property
+    def api_base_url(self):
+        if self.base_url is not None:
+            return self.base_url.rstrip("/") + "/"
+        return self.endpoint.removesuffix("/chat/completions").removesuffix("/responses").rstrip("/") + "/"
 
 
-class NoRedirect(HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        fp.close()
-        raise ProviderError("redirect_refused")
+class _BoundedBody(httpx.SyncByteStream):
+    """Enforce total bytes/deadline without parsing or interpreting SSE."""
+    def __init__(self, stream, deadline, closed):
+        self.stream, self.deadline, self.closed = stream, deadline, closed
+
+    def __iter__(self):
+        size = 0
+        for chunk in self.stream:
+            if self.closed.is_set():
+                raise ProviderError("cancelled")
+            if time.monotonic() >= self.deadline:
+                raise ProviderError("timeout")
+            size += len(chunk)
+            if size > MAX_BODY:
+                raise ProviderError("response_too_large")
+            yield chunk
+
+    def close(self):
+        self.stream.close()
 
 
-def encode_message(message: Message) -> dict:
-    if not isinstance(message, Message) or message.role not in {"system", "user", "assistant", "tool"}:
-        raise ProviderError("invalid_message")
-    result = {"role": message.role, "content": message.text}
-    if message.tool_calls:
-        result["tool_calls"] = [{"id": call.id, "type": "function", "function": {
-            "name": call.name, "arguments": json.dumps(call.arguments, allow_nan=False, ensure_ascii=False),
-        }} for call in message.tool_calls]
-    if message.tool_call_id is not None:
-        result["tool_call_id"] = message.tool_call_id
-    return result
-
-
-def parse_reply(request, text, calls, reason):
-    if not isinstance(text, str) or len(text) > 32768 or not isinstance(calls, list) or len(calls) > 16:
-        raise ValueError("Invalid response")
+def parse_reply(request, completion):
+    # SDK Pydantic models, with required protocol fields checked before dispatch.
+    data = completion.model_dump(exclude_none=True, warnings=False)
+    completion = ChatCompletion.model_validate(data)
+    if len(completion.choices) != 1:
+        raise ValueError("Expected one choice")
+    choice = completion.choices[0]
+    message, reason = choice.message, choice.finish_reason
+    text = message.content or ""
+    if (message.refusal or reason not in {"stop", "tool_calls"}
+            or not isinstance(text, str) or len(text) > 32768):
+        raise ValueError("Incomplete or refused response")
+    calls = message.tool_calls or []
+    if len(calls) > 16:
+        raise ValueError("Too many tool calls")
     parsed = []
     for call in calls:
-        fn = call["function"]
-        if (call.get("type") != "function" or not isinstance(call["id"], str)
-                or not 1 <= len(call["id"]) <= 128 or not isinstance(fn["name"], str)
-                or not 1 <= len(fn["name"]) <= 128 or not isinstance(fn["arguments"], str)
-                or len(fn["arguments"]) > 4096):
-            raise ValueError("Invalid tool call")
-        args = strict_json(fn["arguments"])
+        if (call.type != "function" or not 1 <= len(call.id) <= 128
+                or not 1 <= len(call.function.name) <= 64 or len(call.function.arguments) > 65536):
+            raise ValueError("Invalid function call")
+        args = strict_json(call.function.arguments)
         if not isinstance(args, dict):
-            raise ValueError("Arguments must be an object")
-        parsed.append(ToolCall(call["id"], fn["name"], args))
-    if (reason not in {"stop", "tool_calls"} or (not parsed and not text)
-            or (reason == "tool_calls" and not parsed)):
-        raise ValueError("Incomplete response")
-    return ChatReply(request.request_id, request.session_id, request.generation, text, tuple(parsed), reason)
+            raise ValueError("Function arguments must be an object")
+        parsed.append(ToolCall(call.id, call.function.name, args))
+    if (not text and not parsed) or (reason == "tool_calls" and not parsed):
+        raise ValueError("Empty response")
+    assistant = message.model_dump(exclude_none=True)
+    assistant.pop("parsed", None)
+    for call in assistant.get("tool_calls", []):
+        call.get("function", {}).pop("parsed_arguments", None)
+    return ChatReply(request.request_id, request.session_id, request.generation, text, tuple(parsed), reason,
+                     completion.usage.model_dump() if completion.usage else {}, assistant)
 
 
 class ChatCompletionsProvider:
-    """Cancellation ends local waiting; remote computation may continue.
-
-    One bounded I/O worker prevents unbounded abandoned requests. The core only
-    receives parsed final tool calls; partial SSE argument JSON never executes.
-    """
+    """One bounded SDK worker. Cancellation stops local waiting, not remote billing."""
+    _adapter = "chat_completions"
+    _inputs = ["text", "image_url", "input_audio"]
+    _allowed_options = {"temperature", "top_p", "reasoning_effort", "tool_choice", "parallel_tool_calls",
+                        "response_format", "seed", "stream_options"}
     def __init__(self, config: ProviderConfig):
+        if config.model_options.keys() - self._allowed_options:
+            raise ValueError("Options do not belong to the selected API")
         self.config = config
         self._credential = EnvironmentCredential(config.credential_env)
         self._credential.resolve()
-        self._closed = Event()
-        self._active = Lock()
+        self._closed, self._active = Event(), Lock()
 
     def describe(self):
-        return {"adapter": "chat_completions", "model": self.config.model,
-                "model_revision": "unknown", "execution": self.config.execution,
-                "inputs": ["text"], "outputs": ["text", "tool_calls"],
+        return {"adapter": self._adapter, "sdk": "openai", "sdk_version": openai.__version__,
+                "model": self.config.model, "model_revision": "unknown", "execution": self.config.execution,
+                "inputs": self._inputs, "capabilities_verified": False, "outputs": ["text", "tool_calls"],
                 "streaming": self.config.streaming, "cancel": "local_wait_only"}
 
     def stream(self, request: ChatRequest, *, cancel: Event):
@@ -176,118 +220,63 @@ class ChatCompletionsProvider:
         raise ProviderError("incomplete_response")
 
     def _exchange(self, request, publish, deadline):
-        body = json.dumps({"model": self.config.model,
-                           "messages": [encode_message(m) for m in request.messages],
-                           "tools": [{"type": "function", "function": {
-                               "name": t.name, "description": t.description, "parameters": t.parameters,
-                           }} for t in request.tools],
-                           "stream": self.config.streaming,
-                           "max_tokens": self.config.max_tokens}, allow_nan=False).encode()
-        if len(body) > MAX_BODY:
+        kwargs = self._request_kwargs(request)
+        if len(json.dumps(kwargs, allow_nan=False).encode()) > MAX_BODY:
             raise ProviderError("request_too_large")
-        headers = {"Content-Type": "application/json"}
+        def bound(response):
+            response.stream = _BoundedBody(response.stream, deadline, self._closed)
+            if not self.config.streaming and response.is_success:
+                try:
+                    strict_json(response.read())
+                except (ValueError, UnicodeError):
+                    raise ProviderError("protocol_error") from None
+        # Never discover OPENAI_API_KEY when no credential_env was selected.
         key = self._credential.resolve()
-        if key:
-            headers["Authorization"] = "Bearer " + key
-        wire = Request(self.config.endpoint, data=body, headers=headers, method="POST")
+        transport = httpx.Client(follow_redirects=False, event_hooks={"response": [bound]})
         try:
-            with build_opener(NoRedirect()).open(wire, timeout=min(request.timeout_s, self.config.timeout_s)) as response:
-                chunks = self._chunks(response, deadline)
-                if self.config.streaming:
-                    return self._sse(request, chunks, publish)
-                raw = b"".join(chunks)
-            choice = strict_json(raw)["choices"][0]
-            message = choice["message"]
-            if message.get("role") != "assistant" or message.get("refusal"):
-                raise ValueError("Invalid assistant response")
-            return parse_reply(request, message.get("content") if message.get("content") is not None else "",
-                               message.get("tool_calls") if message.get("tool_calls") is not None else [],
-                               choice["finish_reason"])
-        except HTTPError as exc:
-            status = exc.code
-            exc.close()
+            with OpenAI(api_key=key or "not-required", base_url=self.config.api_base_url,
+                        max_retries=0, timeout=min(request.timeout_s, self.config.timeout_s),
+                        http_client=transport) as client:
+                return self._sdk_exchange(client, request, kwargs, publish)
+        except openai.APIStatusError as exc:
+            status = exc.status_code
             raise ProviderError("authentication" if status in (401, 403) else
-                                "rate_limited" if status == 429 else "http_error") from None
-        except TimeoutError:
+                                "rate_limited" if status == 429 else
+                                "redirect_refused" if 300 <= status < 400 else
+                                "invalid_request" if status == 400 else "http_error") from None
+        except (openai.APITimeoutError, httpx.TimeoutException, TimeoutError):
             raise ProviderError("timeout") from None
-        except URLError as exc:
-            raise ProviderError("timeout" if isinstance(exc.reason, TimeoutError) else "transport_error") from None
-        except OSError:
+        except openai.APIConnectionError as exc:
+            cause = exc.__cause__
+            if isinstance(cause, ProviderError):
+                raise cause from None
             raise ProviderError("transport_error") from None
-        except (ValueError, TypeError, KeyError, IndexError, UnicodeError):
+        except (ValueError, TypeError, KeyError, IndexError, AttributeError, AssertionError,
+                openai.APIResponseValidationError, openai.LengthFinishReasonError,
+                openai.ContentFilterFinishReasonError):
             raise ProviderError("protocol_error") from None
+        finally:
+            transport.close()
 
-    def _chunks(self, response, deadline):
-        size = 0
-        while size <= MAX_BODY:
-            if self._closed.is_set():
-                raise ProviderError("cancelled")
-            if time.monotonic() >= deadline:
-                raise ProviderError("timeout")
-            chunk = response.read1(min(65536, MAX_BODY + 1 - size))
-            if not chunk:
-                return
-            size += len(chunk)
-            if size > MAX_BODY:
-                raise ProviderError("response_too_large")
-            yield chunk
+    def _request_kwargs(self, request):
+        kwargs = {"model": self.config.model, "messages": list(request.messages),
+                  self.config.token_limit_parameter: self.config.max_tokens,
+                  **self.config.model_options}
+        if request.tools:
+            kwargs["tools"] = list(request.tools)
+            kwargs.setdefault("parallel_tool_calls", False)
+        return kwargs
 
-    def _sse(self, request, chunks, publish):
-        buffer, lines, text, calls, reason = b"", [], "", {}, None
-        for chunk in chunks:
-            buffer += chunk
-            while b"\n" in buffer:
-                line, buffer = buffer.split(b"\n", 1)
-                line = line.rstrip(b"\r")
-                if line.startswith(b"data:"):
-                    lines.append(line[5:].lstrip(b" "))
-                elif line == b"" and lines:
-                    payload, lines = b"\n".join(lines), []
-                    if payload == b"[DONE]":
-                        return parse_reply(request, text, [calls[i] for i in sorted(calls)], reason)
-                    data = strict_json(payload)
-                    if data.get("error") or not isinstance(data.get("choices"), list):
-                        raise ValueError("Invalid stream packet")
-                    if not data["choices"]:  # Optional usage-only final packet.
-                        continue
-                    choice = data["choices"][0]
-                    delta = choice.get("delta", {})
-                    if not isinstance(delta, dict) or delta.get("refusal") or delta.get("role") not in (None, "assistant"):
-                        raise ValueError("Invalid delta")
-                    content, fragments = delta.get("content"), delta.get("tool_calls", [])
-                    if reason is not None and (content or fragments):
-                        raise ValueError("Content after finish")
-                    if content is not None:
-                        if not isinstance(content, str) or len(text) + len(content) > 32768:
-                            raise ValueError("Invalid text delta")
-                        text += content
-                        if content:
-                            publish(ModelEvent("text_delta", text=content))
-                    if not isinstance(fragments, list):
-                        raise ValueError("Invalid tool fragments")
-                    for fragment in fragments:
-                        index = fragment["index"]
-                        if type(index) is not int or not 0 <= index < 16:
-                            raise ValueError("Invalid tool index")
-                        target = calls.setdefault(index, {"id": "", "type": "function",
-                                                        "function": {"name": "", "arguments": ""}})
-                        if fragment.get("type") not in (None, "function"):
-                            raise ValueError("Invalid tool type")
-                        for field, value in (("id", fragment.get("id")),
-                                             ("name", fragment.get("function", {}).get("name")),
-                                             ("arguments", fragment.get("function", {}).get("arguments"))):
-                            if value is not None:
-                                if not isinstance(value, str):
-                                    raise ValueError("Invalid fragment")
-                                dest = target if field == "id" else target["function"]
-                                dest[field] += value
-                                if len(dest[field]) > (4096 if field == "arguments" else 128):
-                                    raise ValueError("Oversized fragment")
-                    if choice.get("finish_reason") is not None:
-                        if reason is not None:
-                            raise ValueError("Duplicate finish")
-                        reason = choice["finish_reason"]
-        raise ValueError("Missing complete stream terminator")
+    def _sdk_exchange(self, client, request, kwargs, publish):
+        if self.config.streaming:
+            with client.chat.completions.stream(**kwargs) as stream:
+                for event in stream:
+                    if event.type == "content.delta":
+                        publish(ModelEvent("text_delta", text=event.delta))
+                completion = stream.get_final_completion()
+        else:
+            completion = client.chat.completions.create(**kwargs)
+        return parse_reply(request, completion)
 
     def close(self):
         self._closed.set()

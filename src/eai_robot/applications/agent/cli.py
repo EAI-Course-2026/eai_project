@@ -12,6 +12,8 @@ from eai_robot.control.planning.poses import POSES_PATH, load_poses
 from eai_robot.policy.model_io.contracts import ProviderError
 from eai_robot.policy.model_io.providers import ChatCompletionsProvider, ProviderConfig
 
+from eai_robot.policy.model_io.responses import ResponsesProvider
+
 from .demo import DemoProvider
 from .session import create_robot_session, is_stop, run_stdin
 from .skills import DryRunSkills
@@ -23,13 +25,14 @@ def load_provider(path):
     if set(config) != {"provider"} or not isinstance(config["provider"], dict):
         raise ValueError("Expected only a [provider] section")
     settings = dict(config["provider"])
-    if settings.pop("adapter", None) != "chat_completions":
+    provider_class = {"chat_completions": ChatCompletionsProvider, "responses": ResponsesProvider}.get(settings.pop("adapter", None))
+    if provider_class is None:
         raise ValueError("Unsupported provider adapter")
     try:
         spec = ProviderConfig(**settings)
     except TypeError:
         raise ValueError("Invalid provider fields; store credentials in the named environment variable") from None
-    return ChatCompletionsProvider(spec)
+    return provider_class(spec)
 
 
 def reference_poses(path, calibration_path=None):
@@ -49,6 +52,7 @@ def main(argv=None):
     source = parser.add_mutually_exclusive_group(required=True)
     source.add_argument("--text", help="One text turn")
     source.add_argument("--stdin", action="store_true", help="UTF-8, one final transcript per line")
+    source.add_argument("--list-tools", action="store_true", help="Print standard OpenAI tool definitions without inference")
     source.add_argument("--demo", action="store_true", help="Fixed offline fixture; does not call a model")
     parser.add_argument("--provider-config", type=Path, help="User-selected TOML; credentials via environment")
     parser.add_argument("--poses", type=Path, default=POSES_PATH)
@@ -57,9 +61,9 @@ def main(argv=None):
     parser.add_argument("--max-calls", type=int, default=16)
     parser.add_argument("--turn-timeout", type=float, default=60.)
     args = parser.parse_args(argv)
-    if args.demo and args.provider_config:
-        parser.error("--demo does not use a provider config")
-    if not args.demo and not args.provider_config:
+    if (args.demo or args.list_tools) and args.provider_config:
+        parser.error("--demo/--list-tools do not use a provider config")
+    if not args.demo and not args.list_tools and not args.provider_config:
         parser.error("--provider-config is required for a real API call")
     output_lock = Lock()
     def output(value):
@@ -69,6 +73,9 @@ def main(argv=None):
     try:
         # Validate before instantiating a provider; imports/assembly never open devices.
         skills = DryRunSkills(reference_poses(args.poses, args.calibration))
+        if args.list_tools:
+            output({"tools": list(skills.registry().definitions), "mode": "dry_run", "hardware_connected": False})
+            return 0
         provider = DemoProvider() if args.demo else load_provider(args.provider_config)
         session = create_robot_session(provider, skills, max_rounds=args.max_rounds,
                                max_calls=args.max_calls, timeout_s=args.turn_timeout,

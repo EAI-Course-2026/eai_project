@@ -54,13 +54,25 @@ class DryRunSkills:
                                                "active_motion": False})
 
     def registry(self, allowed_tools=None):
-        tools = [
-            Tool("get_robot_state", "读取状态；当前只提供演练状态，无真实反馈。", parameters(), self.state),
-            Tool("list_poses", "列出可用于演练的已保存姿态。", parameters(), self.list_poses),
-            Tool("move_to_pose", "生成命名姿态的演练计划；不驱动硬件。",
-                 parameters(pose_name={"type": "string", "enum": sorted(self.poses)}), self.move),
-            Tool("get_task_status", "查询本次进程内的演练任务。",
-                 parameters(task_id={"type": "string"}), self.task),
-            Tool("stop_motion", "立即停止本轮演练并废弃旧模型响应；不卸扭矩。", parameters(), self.stop, interrupt=True),
+        # These dictionaries are the actual tools payload accepted by the SDK.
+        definitions = [
+            ({"type": "function", "function": {
+                "name": "get_robot_state", "description": "读取演练状态；无真实反馈。",
+                "parameters": parameters(), "strict": True}}, self.state, False),
+            ({"type": "function", "function": {
+                "name": "list_poses", "description": "列出保存的演练姿态。",
+                "parameters": parameters(), "strict": True}}, self.list_poses, False),
+            ({"type": "function", "function": {
+                "name": "move_to_pose", "description": "生成命名姿态演练计划，不驱动硬件。",
+                "parameters": parameters(pose_name={"type": "string", "enum": sorted(self.poses)}),
+                "strict": True}}, self.move, False),
+            ({"type": "function", "function": {
+                "name": "get_task_status", "description": "查询本进程的演练任务。",
+                "parameters": parameters(task_id={"type": "string", "minLength": 1, "maxLength": 128}),
+                "strict": True}}, self.task, False),
+            ({"type": "function", "function": {
+                "name": "stop_motion", "description": "取消本轮演练并废弃旧响应；不卸扭矩。",
+                "parameters": parameters(), "strict": True}}, self.stop, True),
         ]
-        return ToolRegistry([tool for tool in tools if allowed_tools is None or tool.name in allowed_tools])
+        return ToolRegistry([Tool(spec, handler, interrupt) for spec, handler, interrupt in definitions
+                             if allowed_tools is None or spec["function"]["name"] in allowed_tools])

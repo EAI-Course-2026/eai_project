@@ -6,6 +6,12 @@ from queue import Empty, Queue
 from threading import Event, Lock, RLock, Thread
 import time
 import uuid
+from copy import deepcopy
+
+from openai.types.chat import ChatCompletionContentPartParam
+from pydantic import TypeAdapter, ValidationError
+
+_USER_CONTENT = TypeAdapter(list[ChatCompletionContentPartParam])
 
 from eai_robot.policy.model_io.contracts import ChatProvider, ChatRequest, Message, ProviderError
 from .context import ConversationHistory
@@ -145,8 +151,18 @@ class AgentSession:
         except ToolInterrupted:
             raise
 
-    def run_turn(self, text: str, *, ready: Event | None = None) -> TurnResult:
-        if not isinstance(text, str) or not text.strip() or len(text) > 8192:
+    def run_turn(self, text: str | list[ChatCompletionContentPartParam], *, ready: Event | None = None) -> TurnResult:
+        try:
+            if isinstance(text, str):
+                valid = bool(text.strip()) and len(text) <= 8192
+            elif isinstance(text, list):
+                text = _USER_CONTENT.validate_python(text, strict=True)
+                valid = bool(text) and len(json.dumps(text, allow_nan=False).encode()) <= 1024 * 1024
+            else:
+                valid = False
+        except (ValueError, TypeError, ValidationError):
+            valid = False
+        if not valid:
             if ready is not None:
                 ready.set()
             return TurnResult("rejected", error_code="invalid_text")
@@ -171,7 +187,8 @@ class AgentSession:
             if ready is not None:
                 ready.set()
             self._event("run_start", run_id, generation)
-            messages = [*history, Message("user", text)]
+            messages = [*history, {"role": "user", "content": deepcopy(text)}]
+            provider_state = []
             deadline, seen, count = started + self.timeout_s, set(), 0
             for _ in range(self.max_rounds):
                 if not self._current(generation, cancel):
@@ -179,21 +196,21 @@ class AgentSession:
                 left = deadline - time.monotonic()
                 if left <= 0:
                     raise ProviderError("turn_timeout")
-                leading = [Message("system", self.system_prompt)]
+                leading = [{"role": "system", "content": self.system_prompt}]
                 if self.context_provider:
                     snapshot = self.context_provider()
                     try:
                         snapshot.validate()
                     except (ValueError, AttributeError):
                         raise ProviderError("stale_context") from None
-                    leading.append(Message("system", snapshot.text))
+                    leading.append({"role": "system", "content": snapshot.text})
                 left = deadline - time.monotonic()
                 if left <= 0:
                     raise ProviderError("turn_timeout")
                 if not self._current(generation, cancel):
                     raise ToolInterrupted("cancelled")
                 request = ChatRequest(uuid.uuid4().hex, self.session_id, generation,
-                                      tuple(leading + messages), self.tools.definitions, left)
+                                      tuple(leading + messages), self.tools.definitions, left, tuple(provider_state))
                 self._event("model_start", run_id, generation, request_id=request.request_id)
                 reply = None
                 stream = self.provider.stream(request, cancel=cancel)
@@ -219,7 +236,7 @@ class AgentSession:
                     raise ProviderError("identity_mismatch")
                 if reply.finish_reason not in {"stop", "tool_calls"}:
                     raise ProviderError("incomplete_response")
-                self._event("model_end", run_id, generation, request_id=request.request_id)
+                self._event("model_end", run_id, generation, request_id=request.request_id, usage=reply.usage)
                 ids = [call.id for call in reply.tool_calls]
                 if len(set(ids)) != len(ids) or seen.intersection(ids):
                     raise ProviderError("duplicate_tool_call")
@@ -227,6 +244,8 @@ class AgentSession:
                     raise ProviderError("call_budget")
                 seen.update(ids)
                 count += len(ids)
+                if reply.provider_state is not None:
+                    provider_state.append(deepcopy(reply.provider_state))
                 messages.append(reply.message())
                 # Interrupt semantics are tool metadata, not a domain name in the core.
                 for call in reply.tool_calls:
@@ -252,7 +271,7 @@ class AgentSession:
                     self._event("tool_end", run_id, generation, tool=call.name, tool_call_id=call.id, status=result.status, ok=result.ok)
                     content = {**asdict(result), "session_id": self.session_id,
                                "generation": generation, "tool_call_id": call.id}
-                    messages.append(Message("tool", json.dumps(content, ensure_ascii=False, allow_nan=False), tool_call_id=call.id))
+                    messages.append({"role": "tool", "content": json.dumps(content, ensure_ascii=False, allow_nan=False), "tool_call_id": call.id})
                 if not reply.tool_calls:
                     with self._lock:
                         if not self._current(generation, cancel):

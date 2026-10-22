@@ -81,7 +81,7 @@ eai_robot/
 ## 下一阶段的模块约定
 
 [两条开发主线](../docs/development_workstreams.md)共用现有目录与执行门禁。
-`policy/model_io/` 提供规范化模型消息、HTTP JSON/SSE 与鉴权；`policy/agents/` 组织上下文、工具和生命周期。
+`policy/model_io/` 提供OpenAI SDK 消息/工具类型、Chat/Responses 接入与鉴权；`policy/agents/` 组织上下文、工具和生命周期。
 `applications/agent/` 装配机器人能力、prompt、逐行文本与 dry-run handler；媒体/实物技能仍待接入。
 依赖为应用 → 核心 → 模型 I/O，模型适配不得反向导入核心；[三层说明](../docs/agent_layers.md)。
 `policy/inference/` 保持 VLA 动作块推理与传输职责。

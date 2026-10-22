@@ -119,12 +119,13 @@ uv run --locked eai-course voice --list-commands
 
 ## 文本 Agent 与 API 配置
 
-Agent 分为 `policy/model_io/`（模型消息/鉴权/JSON/SSE）、`policy/agents/`（会话/工具核心）和
+Agent 分为 `policy/model_io/`（OpenAI SDK 消息/工具、Chat/Responses、鉴权）、`policy/agents/`（会话/工具核心）和
 `applications/agent/`（机器人能力、prompt 与输入装配），当前工具仅做 dry-run：
 
 ```sh
+uv run --locked eai-course agent --list-tools
 uv run --locked eai-course agent --demo
-# 自选服务：配置完整 endpoint/model，用 credential_env 指向 Key 环境变量
+# 自选服务：配置 base_url/model，用 credential_env 指向 Key 环境变量
 uv run --locked eai-course agent --provider-config configs/agent/provider.local.toml --text "演练站立"
 ```
 

@@ -33,7 +33,11 @@ EMPTY = {"type": "object", "properties": {}, "additionalProperties": False}
 
 
 def packet(delta=None, reason=None):
-    return ("data: " + json.dumps({"choices": [{"delta": delta or {}, "finish_reason": reason}]},
+    delta = dict(delta or {})
+    if "content" in delta or any("id" in t for t in delta.get("tool_calls", [])):
+        delta["role"] = "assistant"
+    return ("data: " + json.dumps({"id": "fixture", "object": "chat.completion.chunk", "created": 0,
+                                  "model": "fixture", "choices": [{"index": 0, "delta": delta, "finish_reason": reason}]},
                                   ensure_ascii=False) + "\n\n").encode()
 
 
@@ -131,9 +135,9 @@ class LayersTests(unittest.TestCase):
             self.assertEqual(kinds[-2:], ["run_end", "run_settled"])
             self.assertEqual([e["sequence"] for e in events], list(range(1, len(events) + 1)))
 
-    def test_truncated_stream_never_dispatches_a_complete_looking_tool(self):
+    def test_unfinished_stream_never_dispatches_a_complete_looking_tool(self):
         body = packet({"tool_calls": [{"index": 0, "id": "x", "type": "function", "function": {
-            "name": "move_to_pose", "arguments": '{"pose_name":"stand"}'}}]}) + packet(reason="tool_calls")
+            "name": "move_to_pose", "arguments": '{"pose_name":"stand"}'}}]})
         skills = DryRunSkills({"stand": [.5] * 6})
         with service(lambda _: (200, body)) as (url, _, _):
             provider = ChatCompletionsProvider(ProviderConfig(url, "fixture", "self_hosted", streaming=True))
@@ -144,16 +148,20 @@ class LayersTests(unittest.TestCase):
         self.assertEqual(skills.tasks, {})
 
     def test_sse_utf8_framing_and_invalid_tool_json(self):
-        provider = ChatCompletionsProvider(ProviderConfig("http://127.0.0.1/x", "fixture", "self_hosted", streaming=True))
         raw = packet({"content": "你好"}) + packet(reason="stop") + b'data: [DONE]\n\n'
-        events = []
-        result = provider._sse(request(), (bytes([b]) for b in raw), events.append)
-        self.assertEqual(result.text, "你好")
-        self.assertEqual("".join(e.text for e in events), "你好")
-        invalid = packet({"tool_calls": [{"index": 0, "id": "x", "function": {
+        with streaming_service(lambda *_: ([bytes([b]) for b in raw], None)) as (url, _):
+            provider = ChatCompletionsProvider(ProviderConfig(url, "fixture", "self_hosted", streaming=True))
+            self.addCleanup(provider.close)
+            events = list(provider.stream(request(), cancel=Event()))
+            self.assertEqual(events[-1].reply.text, "你好")
+            self.assertEqual("".join(e.text for e in events), "你好")
+        invalid = packet({"tool_calls": [{"index": 0, "id": "x", "type": "function", "function": {
             "name": "work", "arguments": '{"incomplete":'}}]}) + packet(reason="tool_calls") + b'data: [DONE]\n\n'
-        with self.assertRaises(ValueError):
-            provider._sse(request(), iter([invalid]), lambda _: None)
+        with streaming_service(lambda *_: ([invalid], None)) as (url, _):
+            provider = ChatCompletionsProvider(ProviderConfig(url, "fixture", "self_hosted", streaming=True))
+            self.addCleanup(provider.close)
+            with self.assertRaisesRegex(Exception, "protocol_error"):
+                provider.complete(request(), cancel=Event())
 
     def test_credentials_are_resolved_per_request_and_never_in_messages(self):
         with service(lambda _: (200, answer())) as (url, requests, headers), patch.dict(os.environ, {"ROTATING_TEST_KEY": "first"}):
@@ -172,27 +180,27 @@ class LayersTests(unittest.TestCase):
                 self.requests = []
             def complete(self, req, *, cancel):
                 self.requests.append(req)
-                return ChatReply(req.request_id, req.session_id, req.generation, "answer " + req.messages[-1].text)
+                return ChatReply(req.request_id, req.session_id, req.generation, "answer " + req.messages[-1]["content"])
         provider = Provider()
         session = AgentSession(provider, ToolRegistry([]), history_turns=1)
         self.addCleanup(session.close)
         self.assertEqual(session.run_turn("first").status, "completed")
         self.assertEqual(session.run_turn("second").status, "completed")
-        self.assertEqual([m.text for m in provider.requests[-1].messages[1:]], ["first", "answer first", "second"])
+        self.assertEqual([m["content"] for m in provider.requests[-1].messages[1:]], ["first", "answer first", "second"])
         session.run_turn("third")
-        self.assertEqual([m.text for m in provider.requests[-1].messages[1:]], ["second", "answer second", "third"])
-        self.assertTrue(all(isinstance(m, Message) for m in provider.requests[-1].messages))
+        self.assertEqual([m["content"] for m in provider.requests[-1].messages[1:]], ["second", "answer second", "third"])
+        self.assertTrue(all(isinstance(m, dict) for m in provider.requests[-1].messages))
         session.clear_history()
         self.assertEqual(session.snapshot()["history_messages"], 0)
 
     def test_tool_results_stay_out_of_next_user_turn(self):
         provider = SingleToolProvider()
-        session = AgentSession(provider, ToolRegistry([Tool("work", "work", EMPTY, lambda a, ctx: ToolResult(True, "accepted", {"task_id": "pending"}))]))
+        session = AgentSession(provider, ToolRegistry([Tool({"type": "function", "function": {"name": "work", "description": "work", "parameters": EMPTY}}, lambda a, ctx: ToolResult(True, "accepted", {"task_id": "pending"}))]))
         self.addCleanup(session.close)
         session.run_turn("first")
-        self.assertTrue(any(m.role == "tool" for m in provider.requests[-1].messages))
+        self.assertTrue(any(m["role"] == "tool" for m in provider.requests[-1].messages))
         session.run_turn("second")
-        self.assertFalse(any(m.role == "tool" or m.tool_calls for m in provider.requests[-1].messages))
+        self.assertFalse(any(m["role"] == "tool" or m.get("tool_calls") for m in provider.requests[-1].messages))
 
     def test_context_is_refreshed_for_every_model_request_and_stale_is_rejected(self):
         calls = []
@@ -200,7 +208,7 @@ class LayersTests(unittest.TestCase):
             calls.append(True)
             return ContextSnapshot("fresh declaration", time.monotonic() if len(calls) == 1 else time.monotonic() - 10, 1.)
         provider = SingleToolProvider()
-        session = AgentSession(provider, ToolRegistry([Tool("work", "work", EMPTY, lambda a, ctx: ToolResult(True, "simulated"))]), context_provider=context)
+        session = AgentSession(provider, ToolRegistry([Tool({"type": "function", "function": {"name": "work", "description": "work", "parameters": EMPTY}}, lambda a, ctx: ToolResult(True, "simulated"))]), context_provider=context)
         self.addCleanup(session.close)
         self.assertEqual(session.run_turn("test").error_code, "stale_context")
         self.assertEqual(len(provider.requests), 1)
@@ -224,7 +232,7 @@ class LayersTests(unittest.TestCase):
             events.append(event)
             if event["type"] == "run_settled":
                 settled.set()
-        session = AgentSession(SingleToolProvider(), ToolRegistry([Tool("work", "work", EMPTY, handler)]), on_cancel=stop, emit=emit)
+        session = AgentSession(SingleToolProvider(), ToolRegistry([Tool({"type": "function", "function": {"name": "work", "description": "work", "parameters": EMPTY}}, handler)]), on_cancel=stop, emit=emit)
         self.addCleanup(session.close)
         worker = Thread(target=lambda: results.append(session.run_turn("test")), daemon=True)
         worker.start()
@@ -255,7 +263,7 @@ class LayersTests(unittest.TestCase):
             release.wait(10)
             context.check_active()
             return ToolResult(True, "completed")
-        session = AgentSession(SingleToolProvider(), ToolRegistry([Tool("work", "work", EMPTY, handler)]), timeout_s=.1,
+        session = AgentSession(SingleToolProvider(), ToolRegistry([Tool({"type": "function", "function": {"name": "work", "description": "work", "parameters": EMPTY}}, handler)]), timeout_s=.1,
                                emit=lambda e: settled.set() if e["type"] == "run_settled" else None)
         self.addCleanup(session.close)
         # Expire only after handler entry; scheduler load must not turn this into
@@ -281,7 +289,7 @@ class LayersTests(unittest.TestCase):
             contexts.append(context)
             context.progress({"phase": "active"})
             return ToolResult(True, "completed")
-        session = AgentSession(SingleToolProvider(), ToolRegistry([Tool("work", "work", EMPTY, handler)]), emit=updates.append)
+        session = AgentSession(SingleToolProvider(), ToolRegistry([Tool({"type": "function", "function": {"name": "work", "description": "work", "parameters": EMPTY}}, handler)]), emit=updates.append)
         self.addCleanup(session.close)
         self.assertEqual(session.run_turn("test").status, "completed")
         before = len(updates)
@@ -302,7 +310,7 @@ class LayersTests(unittest.TestCase):
         def handler(args, context):
             executed.append(True)
             return ToolResult(True, "completed")
-        session = AgentSession(SingleToolProvider(), ToolRegistry([Tool("work", "work", EMPTY, handler)]),
+        session = AgentSession(SingleToolProvider(), ToolRegistry([Tool({"type": "function", "function": {"name": "work", "description": "work", "parameters": EMPTY}}, handler)]),
                                before_tool=lambda t, a, c: ToolResult(False, "rejected", error_code="condition_unmet"),
                                after_tool=lambda t, r, c: observed.append(r.error_code))
         self.addCleanup(session.close)
@@ -368,7 +376,7 @@ class LayersTests(unittest.TestCase):
             def complete(self, req, *, cancel):
                 self.index += 1
                 if self.index == 1:
-                    self.allowed = [tool.name for tool in req.tools]
+                    self.allowed = [tool["function"]["name"] for tool in req.tools]
                     return ChatReply(req.request_id, req.session_id, req.generation,
                                      tool_calls=(ToolCall("x", "move_to_pose", {"pose_name": "stand"}),), finish_reason="tool_calls")
                 return ChatReply(req.request_id, req.session_id, req.generation, "unavailable")

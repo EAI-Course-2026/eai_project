@@ -19,7 +19,7 @@ class DemoProvider:
             result = ChatReply(request.request_id, request.session_id, request.generation,
                                tool_calls=(calls[self.index],), finish_reason="tool_calls")
         elif self.index == 3:
-            data = json.loads(request.messages[-1].text)["data"]
+            data = json.loads(request.messages[-1]["content"])["data"]
             result = ChatReply(request.request_id, request.session_id, request.generation,
                                tool_calls=(ToolCall("demo-task", "get_task_status",
                                                     {"task_id": data["task_id"]}),), finish_reason="tool_calls")

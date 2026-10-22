@@ -1,5 +1,7 @@
 """Bounded dialogue memory and short-lived, application-supplied context."""
 from dataclasses import dataclass
+from copy import deepcopy
+import json
 import math
 import time
 
@@ -31,12 +33,12 @@ class ConversationHistory:
         self._turns = []
 
     def messages(self) -> tuple[Message, ...]:
-        return tuple(message for pair in self._turns for message in pair)
+        return tuple(deepcopy(message) for pair in self._turns for message in pair)
 
     def commit(self, user_text, assistant_text):
-        self._turns.append((Message("user", user_text), Message("assistant", assistant_text)))
+        self._turns.append(({"role": "user", "content": deepcopy(user_text)}, {"role": "assistant", "content": assistant_text}))
         while self._turns and (len(self._turns) > self.max_turns or
-                              sum(len(m.text) for pair in self._turns for m in pair) > self.max_chars):
+                              sum(len(json.dumps(m, ensure_ascii=False)) for pair in self._turns for m in pair) > self.max_chars):
             self._turns.pop(0)
 
     def clear(self):

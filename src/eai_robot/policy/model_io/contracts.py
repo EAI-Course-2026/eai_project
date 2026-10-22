@@ -1,5 +1,9 @@
-"""Provider-neutral text model contracts. Wire formats belong in adapters."""
-from dataclasses import dataclass
+"""OpenAI message/tool types plus local execution identity and event envelopes."""
+from dataclasses import dataclass, field
+from copy import deepcopy
+import json
+
+from openai.types.chat import ChatCompletionMessageParam, ChatCompletionFunctionToolParam
 from threading import Event
 from typing import Iterator, Protocol
 
@@ -18,19 +22,9 @@ class ToolCall:
     arguments: dict
 
 
-@dataclass(frozen=True)
-class ToolDefinition:
-    name: str
-    description: str
-    parameters: dict
-
-
-@dataclass(frozen=True)
-class Message:
-    role: str
-    text: str = ""
-    tool_calls: tuple[ToolCall, ...] = ()
-    tool_call_id: str | None = None
+# Aliases, not a second message or schema representation.
+Message = ChatCompletionMessageParam
+ToolDefinition = ChatCompletionFunctionToolParam
 
 
 @dataclass(frozen=True)
@@ -41,6 +35,7 @@ class ChatRequest:
     messages: tuple[Message, ...]
     tools: tuple[ToolDefinition, ...]
     timeout_s: float
+    provider_state: tuple[dict, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -52,8 +47,19 @@ class ChatReply:
     tool_calls: tuple[ToolCall, ...] = ()
     finish_reason: str = "stop"
 
+    usage: dict = field(default_factory=dict)
+    assistant_message: dict | None = None
+    provider_state: dict | None = None
+
     def message(self) -> Message:
-        return Message("assistant", self.text, self.tool_calls)
+        if self.assistant_message is not None:
+            return deepcopy(self.assistant_message)
+        message = {"role": "assistant", "content": self.text or None}
+        if self.tool_calls:
+            message["tool_calls"] = [{"id": c.id, "type": "function", "function": {
+                "name": c.name, "arguments": json.dumps(c.arguments, allow_nan=False),
+            }} for c in self.tool_calls]
+        return message
 
 
 @dataclass(frozen=True)
