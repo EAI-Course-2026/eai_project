@@ -71,7 +71,9 @@ def tool_context():
     return ToolContext("test", 0, time.monotonic() + 5, Event(), lambda: True, lambda _: None)
 
 
-def request(timeout=2):
+def request(timeout=10):
+    # Ordinary protocol fixtures include SDK cold import/SSL initialization.
+    # Deadline tests set explicit short provider/request budgets independently.
     return ChatRequest("r", "s", 0, ({"role": "user", "content": "test"},), (), timeout)
 
 
