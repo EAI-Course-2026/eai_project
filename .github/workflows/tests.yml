@@ -40,6 +40,15 @@ jobs:
       - run: uv run --no-sync python scripts/check_repository.py
       - run: node --check src/eai_robot/applications/desktop/assets/app.js
       - run: uv build --wheel --all-packages
+      - name: Set up Conda for compatibility smoke check
+        uses: conda-incubator/setup-miniconda@be893c923ea9cf1cf7cd510fbdde27c7e18cbdcb # v4
+        with:
+          miniforge-version: '26.7.2-1'
+          activate-environment: ''
+          auto-activate: false
+          run-init: false
+      - name: Conda quick start (software only)
+        run: uv run --no-sync python scripts/setup_conda.py --name eai-conda-ci --skip-tests
   windows-training-install:
     name: Windows CUDA training software (no GPU)
     runs-on: windows-latest
