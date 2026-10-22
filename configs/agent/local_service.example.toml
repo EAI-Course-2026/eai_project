@@ -1,0 +1,13 @@
+# Example only: any local service implementing the text/tool protocol may work.
+# Port/model are examples, not a dependency on a specific launcher or model.
+[provider]
+adapter = "chat_completions"
+execution = "local_process"
+endpoint = "http://127.0.0.1:8000/v1/chat/completions"
+model = "YOUR_LOCAL_MODEL_ID"
+timeout_s = 30.0
+max_tokens = 512
+# If authentication is enabled, set credential_env to the environment variable name.
+
+# Enable only if the selected service supports SSE text/tool streaming.
+streaming = false

@@ -7,6 +7,13 @@
 
 **长期保留 `main` 和 `develop`。** main 是可复现的集成基线，也是默认分支；develop 承接日常集成。两者均通过 PR、代码审查和三项托管检查更新。临时功能分支从 develop 创建。macOS、Windows 和 CUDA 共用源码，以独立配置和锁文件区分环境，不需要长期平台分支。完整规则见 [CONTRIBUTING](CONTRIBUTING.md)。
 
+## 项目目标
+
+长期目标是通过自然语言（含语音）向机械臂提出控制任务，由系统理解、观测、选择技能、
+执行并验证结果。硬件的行程、负载、保持误差和视野决定能力边界；任务质量通过固定任务集持续测量。
+项目是感知、模型路由、harness 和控制的共同优化过程，训练按失败证据选择投入。
+见[定位与评测](docs/project_scope.md)、[三层架构与 pi 参考](docs/agent_layers.md)。
+
 ## 接下来的开发方向
 
 研发收敛为两条主线：**模型与规则控制**（先完善视觉伺服、反馈与 FK/IK）和
@@ -15,7 +22,7 @@
 见[主线与分支安排](docs/development_workstreams.md)。
 
 仓库已经包含 VLA 本地运行器、模型工件管理和自有服务的跨机推理接口；权重与数据不入 Git。
-外部 ASR 目前以逐行文本对接，LLM/VLM 托管 API 与 Omni 会话尚待实现。
+外部 ASR 以逐行文本对接；文本 LLM 的 API 工具循环与 dry-run 已实现，视觉与 Omni 会话尚待接入。
 框架依赖、模型资产、外部进程、自有服务、第三方 API 分别管理，接口与模块归属见
 [推理边界决定](docs/inference_boundaries.md)。
 
@@ -27,7 +34,7 @@
 | 终端键盘末端控制 | 操作者已确认可移动；显示请求 TCP、编码器 FK 与关节误差 | 实际轴向、距离、模型零点的测量 |
 | 上位机 FK/IK、单步/连续 XYZ、路径预览 | 离线回归与模拟页面验证 | 新版 GUI 末端实物验收；无碰撞规划，仅约束位置 |
 | LeRobot 标定、遥操作、录制 | 插件发现、标准命令行模拟、本地 RGB 数据片段；插件实物只读验证 | 真机械臂与摄像头同步录制、回放 |
-| 语音命令调度（白名单 + 演练模式） | 7 条固定命令的解析、姿态计划、`stop` 抢占与 27 项离线回归；默认演练模式不打开串口 | 真机逐条命令验收、夹爪姿态记录、真实识别文本覆盖率 |
+| 语音命令调度（可替换识别端 + 演练模式） | 7 条固定命令的解析、姿态计划、`stop` 抢占与 27 项离线回归；标准输入可接任意转写生产端；默认演练模式不打开串口 | 真机逐条命令验收、夹爪姿态记录、其他识别提供方接入与真实文本覆盖率 |
 | ArUco 中央区域伺服 | 2026-10-18末端相机真机10次纠偏、27步反馈确认，已录制demo | 已有短程前伸日志；完整停靠、精密四角点及任意物体真机跟随待验收 |
 | Windows / CUDA 环境 | Mac/Windows 离线 CI；Windows CUDA 软件安装与训练入口检查 | Windows 实物访问、真实 GPU 运算、训练与策略评估 |
 
@@ -110,6 +117,20 @@ uv run --locked eai-course voice --list-commands
 识别文本通过标准输入逐行传入（每行是一条识别结果）；真机运动需要 `--enable` 并由操作者明确确认，
 详见[语音命令调度](docs/course/voice/README.md)。
 
+## 文本 Agent 与 API 配置
+
+Agent 分为 `policy/model_io/`（模型消息/鉴权/JSON/SSE）、`policy/agents/`（会话/工具核心）和
+`applications/agent/`（机器人能力、prompt 与输入装配），当前工具仅做 dry-run：
+
+```sh
+uv run --locked eai-course agent --demo
+# 自选服务：配置完整 endpoint/model，用 credential_env 指向 Key 环境变量
+uv run --locked eai-course agent --provider-config configs/agent/provider.local.toml --text "演练站立"
+```
+
+配置示例、API Key 位置、逐行语音转写接入、实际支持与未验收范围见
+[Agent 运行指南](docs/agent_runtime.md)。离线 demo 是固定 fixture，不是外部模型推理证据。
+
 ## 日常协作
 
 ```sh
@@ -158,7 +179,8 @@ SmolVLA 已完成 Mac MPS 的真实离线加载与动作块输出；GPU、本机
 - [课程基线](docs/course/README.md) · [35 文件迁移清单](docs/course/COVERAGE.md)
 - [2026-10-02 功能报告](docs/reports/2026-10-02.md) · [2026-10-03 仓库与 CI 修复报告](docs/reports/2026-10-03.md)
 
-历史课程资料保留在 `docs/course/source/`，其中的旧安装命令不再作为当前入口。语音识别端已在本机
-`edge_inference_lab` 实验中验证；本仓库只接收识别文本并进行白名单命令调度。判断标准与真机
-验收前置见[语音命令调度](docs/course/voice/README.md)。项目整体开源许可证尚待团队选择；第三方资料
+历史课程资料保留在 `docs/course/source/`，其中的旧安装命令不再作为当前入口。语音识别服务
+由用户按设备和偏好选择；本仓库通过通用文本输入边界接收转写并进行白名单命令调度。
+`edge_inference_lab` 是一个已验证示例，不是仓库依赖。当前能力与后续提供方接口设计见
+[语音命令调度](docs/course/voice/README.md)和[语音架构说明](docs/course/voice/ARCHITECTURE.md)。项目整体开源许可证尚待团队选择；第三方资料
 已有声明保持原样，上游贡献需另行准备许可和可复现实物证据。

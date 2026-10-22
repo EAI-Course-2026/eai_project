@@ -100,3 +100,20 @@ ArUco 接续开发请使用：
 
 共享标定、锁文件与相机结果约定不因目录调整而变化。默认姿态 JSON、URDF 和网页资源已随实现归位。
 原始本机实验材料没有改动；退出源码的旧字节码目录已保存在被忽略的本机材料区。
+
+## Agent 三层内部 API（2026-10-19）
+
+CLI `eai-course agent`、`voice` 保持不变，Python 内部接口调整如下；不保留永久转发模块。
+
+| 原接口/位置 | 当前接口/位置 |
+|---|---|
+| `policy.agents.providers` | `policy.model_io.providers`（JSON/SSE）与 `model_io.auth`（环境凭据） |
+| `agents.contracts.ChatRequest/ChatReply/ToolCall/ProviderError` | `model_io.contracts`；新增 Message、ToolDefinition、ModelEvent、ChatProvider |
+| 供应商格式 message/tool dict | 核心使用 Message/ToolDefinition，供应商字段编码在 provider 内 |
+| `ToolRegistry.schemas` | `ToolRegistry.definitions`，返回规范化定义 |
+| `handler(arguments)` | `handler(arguments, ToolContext)`；须遵守期限/取消，进度通过 context.progress |
+| `AgentSession.stop()` | 通用 `cancel()`；应用通过 on_cancel 注入本地停止 |
+| `policy/agents/prompts/system.txt` | `applications/agent/prompts/system.txt`；通过应用工厂注入核心 |
+
+机械臂会话建议用 `applications.agent.session.create_robot_session` 装配 prompt、能力和停止回调。
+核心可单独用于非机械臂工具，不依赖应用包或模型具体适配器。参见[运行指南](agent_runtime.md)。

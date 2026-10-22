@@ -1,6 +1,6 @@
 # 多模态 Agent 与动作模仿开发规划
 
-2026-10-19，已确定开发方案，新增 Agent 运行模块尚未实现。目标是把已有语音、感知、运动控制与学习策略串成可扩展的机械臂交互系统。
+2026-10-19，已确定开发方案，文本 Agent 目录、可配置 HTTP 与 dry-run 工具循环已实现；后续视觉/音频与实物任务仍未实现。目标是把已有语音、感知、运动控制与学习策略串成可扩展的机械臂交互系统。
 本轮只规划仓库与验收，不调用付费模型，不采集或上传音视频，不连接设备。
 
 依据：[任务书：视觉感知、理解与多关节控制](https://sa87gcdhzg.feishu.cn/wiki/E67LwdzANimYxckiuNhcyBuvn9b)，读取版本 revision 1876；
@@ -54,14 +54,14 @@ VLA → 已有 policy 执行器（动作块契约继续独立）
 
 | 能力 | 可复用代码 | 当前边界 / 还要做什么 |
 |---|---|---|
-| voice 规则命令 | `applications/teleoperation/intent.py`、`dispatcher.py`、`voice.py` | 本仓库收文本；ASR 在独立实验；尚无本仓库麦克风/双向语音会话 |
+| voice 规则命令 | `applications/teleoperation/intent.py`、`dispatcher.py`、`voice.py` | 本仓库收可替换提供方的文本；独立实验仅为案例；尚无本仓库麦克风/双向语音会话 |
 | 命名姿态 | `control/planning/poses.py`、`demo.py`；`control/execution/arm.py` | 可作为技能；缺失姿态仍拒绝；不能把任意模型文本当姿态文件 |
 | 末端 IK | `control/kinematics/`、`control/planning/cartesian.py` | 复用路径预检、单位和坐标系；位置 IK 不保证朝向或避碰 |
 | 视觉检测与跟踪 | `vision/perception/`、`detection/`、`tracking/` | 模型检测基础存在；文本描述找物体与稳定 object_id 尚需绑定实现 |
 | 视觉伺服 | `applications/visual_servo/`、`control/visual_servo/` | ArUco 回中已有真机证据；任意物体与完整停靠不可一概标为通过 |
 | VLA / 模仿学习策略 | `policy/inference/`、`execution/`、`data/` | 已有推理与执行门禁；没有匹配本机任务的自主实物验收 |
 | 人体动作理解与模仿 | 无完整业务链 | 新增 VLM 请求、结构化关节候选、计划审查与对照实验 |
-| LLM 工具调用 | 无完整业务链 | 新增外部 API 适配、工具 schema、循环、执行绑定及留证 |
+| LLM 工具调用 | 已有文本 HTTP、schema、循环和演练技能 | 真实供应商验收、视觉/音频与实物技能仍待接入 |
 
 当前相机共享方案位于 `applications/visual_servo/shared_camera.py`，应先适配复用；
 不要让 Agent 和视觉伺服分别打开同一摄像头。
@@ -69,18 +69,18 @@ VLA → 已有 policy 执行器（动作块契约继续独立）
 
 ## 3. 确定的仓库增量
 
-保持六个一级能力目录。以下都是拟新增文件；按阶段落地，不预建空包。
+保持六个一级能力目录。模型 I/O、核心 context/contracts/tools/loop 与应用 prompt/cli/session/skills/demo/capabilities 已落地；
+其余文件仍按阶段增加，不预建空包。实际范围见[运行指南](agent_runtime.md)。
 
 ```text
 src/eai_robot/
   policy/
+    model_io/                 模型消息、JSON/SSE 适配与环境鉴权（已实现）
     agents/                   新增：任务决策，依赖注入，不拥有设备
       contracts.py            消息、工具请求/结果、任务句柄、会话版本
       tools.py                白名单 schema、参数校验、注入的 handler 协议
-      providers.py            外部模型 API 适配与能力声明；先实现一家
       loop.py                 tool call → 执行 → tool result → 继续推理
       imitation.py            动作描述与六关节候选的解析/验证
-      prompts/                system、模仿基线/改进版、few-shot 包资源
     inference/                保留：VLA 模型、处理器、工件及传输
     execution/                保留：策略执行门禁；不直接复用为对话循环
     data/                     保留：训练与评估数据
@@ -97,7 +97,7 @@ configs/agent/                可提交的非机密配置示例
 tests/test_agent_*.py         只在对应功能实现时新增离线行为与故障回归
 ```
 
-prompt 随 `policy/agents/prompts/` 作为包资源加载，实现时验证 wheel 内资源齐全。
+prompt 已归入 `applications/agent/prompts/`；三层职责与实际路径以[三层架构](agent_layers.md)为准。
 
 依赖方向：`applications/agent` → `policy/agents`、`control`、`vision`、设备接口。
 `policy/agents` 不导入 `applications`，工具执行通过 handler 注入；
