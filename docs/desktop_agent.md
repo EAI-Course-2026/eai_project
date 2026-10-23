@@ -4,6 +4,16 @@
 共用 AgentSession、prompt、OpenAI 标准工具与停止机制。当前技能全部 dry-run。
 无需连接机械臂即可对话。腕部相机、跟踪/IK 工具与 Agent 实物执行尚未接入。
 
+![上位机 Agent：模型选择、页面 API 接入与文字/语音输入](assets/agent-desktop.jpg)
+
+## 模型怎么选
+
+课程联调默认使用百炼北京免费额度：聊天 `qwen-plus`（非思考）、
+识别 `qwen-audio-3.1-asr-flash-message`、合成 `qwen-audio-3.1-tts-flash`。
+真实调用前逐模型确认余量、有效期并启用平台「免费额度用完即停」；当前程序不读取余额或代开该开关。
+额度不足时停止调用，不自动转付费。具体参数、用量安排及候选模型验收见
+[模型与免费额度建议](agent_models.md)。
+
 ## 一键启动与页面配置
 
 使用项目 Python 3.12 与 uv；云语音 SDK 为可选依赖，不需要端侧模型或 Conda：

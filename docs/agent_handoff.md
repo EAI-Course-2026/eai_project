@@ -228,6 +228,14 @@ prompt 唯一源码为 `applications/agent/prompts/system.txt`，随 wheel 发�
 
 ## 7. 增加或切换模型服务
 
+### 7.0 团队模型基线与额度约定
+
+日常联调优先使用百炼北京免费额度，推荐组合、前置检查和分阶段测试安排见
+[模型与免费额度建议](agent_models.md)。当前已验证 qwen-plus + ASR Message + TTS Flash；
+更便宜或更新的模型只有通过固定工具/取消任务集后才能替换基线。额度不足则停止真实调用，
+不自动切付费模型；离线 CI 不使用 API Key，不消耗免费额度。
+平台额度开关、客户端调用预算和执行器运动门禁是三件事，不能相互替代。
+
 ### 7.1 同协议聊天服务
 
 如果服务支持现有 Chat Completions 或 Responses，先用自定义 URL/模型/Key 和显式 extra_body，
