@@ -81,7 +81,7 @@
   function localStop() { epoch++; stopPlayback(); finishRecording(false); }
   el('stop').addEventListener('click', async () => { localStop(); try { await post('stop',{}); } catch(error) { localError = '停止请求失败：' + error.message; } controls(); });
   document.getElementById('stop-btn').addEventListener('click',localStop);
-  window.addEventListener('pagehide',()=>{localStop();fetch('/api/agent/stop',{method:'POST',keepalive:true,headers:{'Content-Type':'application/json','X-Arm-Desk':'1'},body:'{}'}).catch(()=>{});});
+  window.addEventListener('pagehide',()=>{const active=state.busy||pending||recording||preparingMic;localStop();if(active)fetch('/api/agent/stop',{method:'POST',keepalive:true,headers:{'Content-Type':'application/json','X-Arm-Desk':'1'},body:'{}'}).catch(()=>{});});
   document.addEventListener('visibilitychange',()=>{if(document.hidden) finishRecording(false);});
   document.querySelectorAll('[data-view]').forEach(button=>button.addEventListener('click',()=>{if(button.dataset.view!=='agent'){epoch++;finishRecording(false);stopPlayback();}}));
   document.querySelectorAll('[data-agent-prompt]').forEach(button=>button.addEventListener('click',()=>{el('text').value=button.dataset.agentPrompt;if(!state.enabled)document.dispatchEvent(new Event('agent:settings-open'));else el('text').focus();}));
