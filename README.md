@@ -165,7 +165,8 @@ uv run --locked eai-course agent --provider-config configs/agent/provider.local.
 上位机左侧「Agent」支持文字与按回合语音输入、云端 ASR/TTS、工具状态和停止。
 运行 `uv run --locked --extra speech python scripts/arm_desk.py`，在页面「API 接入」分别配置
 聊天、识别和合成服务；密钥仅存当前会话服务端内存，不需要编辑文件。详见
-[上位机 Agent](docs/desktop_agent.md)。语音双工待接入，机器人技能仍仅演练；真实服务证据见
+[上位机 Agent 使用手册](docs/desktop_agent.md)与[开发交接手册](docs/agent_handoff.md)。
+语音双工待接入，机器人技能仍仅演练；真实服务证据见
 [云语音报告](docs/reports/2026-10-24-cloud-speech.md)。
 
 ## 日常协作

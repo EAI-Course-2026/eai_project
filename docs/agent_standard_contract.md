@@ -2,6 +2,9 @@
 
 2026-10-22。取代首版的自定义 Message/ToolDefinition 和手写 HTTP/SSE 实现。
 本项目使用 OpenAI 标准 API 与官方 Python SDK，不实现另一套工具协议，也不依赖 pi checkout。
+2026-10-24 更新：上位机已接入按回合录音、原生百炼 ASR/TTS 与页面 API 配置；
+真实合成语音/工具证据见[报告](reports/2026-10-24-cloud-speech.md)，使用与开发见
+[上位机手册](desktop_agent.md)、[交接手册](agent_handoff.md)。真实麦克风、相机和实物仍未验收。
 
 ## 哪些直接复用
 
@@ -71,7 +74,8 @@ Responses 采用 `store=false`，在当前工具回合保留完整 output，包�
 
 本轮没有实现 pi 的 TUI、树状持久会话、压缩、steering 或崩溃恢复，也不以手写替代品凑齐功能。
 恢复动作需要 durable intent、幂等语义和物理状态对账，不能把通用聊天历史恢复直接用于机械臂重放。
-当前只保留有界的已完成对话；opaque reasoning/工具队列限于本轮，取消/失败后不会恢复执行。
+当前只保留有界的已完成对话；最终 assistant 的厂商元数据可跨完成回合保留。
+中间工具队列和待执行调用不跨回合恢复，取消/失败后不会恢复执行。
 后续评估通用框架时，以取消/重放/执行器门禁测试为准，不只看接口名称是否相似。
 
 官方依据：[Function calling](https://developers.openai.com/api/docs/guides/function-calling)、
