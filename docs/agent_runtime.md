@@ -118,6 +118,9 @@ EOF 等待本轮结束，Ctrl-C 先取消再等待退出。提供方失败后不
 默认保留最近 8 个已完成对话回合，最多 32768 字符，按完整 user/final-assistant 对裁剪。
 失败/取消回合不提交；工具结果与工具调用不进入下一用户回合。不会持久化或恢复动作队列。
 `clear_history()` 只允许在空闲时清理对话。历史回答用于指代，不能代替当前观测。
+历史还保留完成回合最终 assistant 的元数据（含服务返回的 reasoning_content），计入同一预算；
+工具调用队列和 Responses opaque continuation 不跨回合保存。通过
+[`agent-config probe`](agent_api_acceptance.md) 可验证具体模型的跨轮对话、JSON/SSE 与工具闭环。
 应用能力快照每次模型请求刷新并检查本机时间/有效期；实际设备反馈仍需重新获取。
 
 五个应用工具保持 dry-run：get_robot_state、list_poses、move_to_pose、get_task_status、stop_motion。

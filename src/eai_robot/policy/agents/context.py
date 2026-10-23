@@ -25,7 +25,7 @@ class ContextSnapshot:
 
 
 class ConversationHistory:
-    """Only completed user/final-text pairs survive; never executable tool queues."""
+    """Completed dialogue and final assistant metadata; never tool queues."""
     def __init__(self, max_turns=8, max_chars=32768):
         if type(max_turns) is not int or not 0 <= max_turns <= 32 or type(max_chars) is not int or not 1024 <= max_chars <= 262144:
             raise ValueError("Invalid history budget")

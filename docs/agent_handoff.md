@@ -11,7 +11,7 @@
 | 三层模型/核心/机器人应用 | 已实现，标准 OpenAI SDK 消息和工具 | [三层架构](agent_layers.md)、[标准契约](agent_standard_contract.md) |
 | 网页 Agent 与会话 API 配置 | PR #25 交付，不需要网页用户编辑文件 | [PR #25](https://github.com/EAI-Course-2026/eai_project/pull/25) |
 | 文字、按回合云 ASR/TTS | 北京百炼真实请求已验证 | [真实服务报告](reports/2026-10-24-cloud-speech.md) |
-| 更多聊天模型的真实验收 CLI | 独立 PR #24，尚未合并时本分支不含该命令 | [PR #24](https://github.com/EAI-Course-2026/eai_project/pull/24) |
+| 更多聊天模型的真实验收 CLI | PR #24 已合并并同步到本分支，提供 agent-config probe | [API 验收手册](agent_api_acceptance.md) |
 | 页面内 Chat Completions / Responses | 复用既有适配器；各模型能力要单独验收 | `policy/model_io/` |
 | 持续识别、自然打断、语音双工 | 未实现，页面入口禁用并标注待接入 | 本页第 9 节 |
 | 腕部相机进入 Agent | 未接入；标准图像消息能力不等于已接上相机 | `policy/model_io/` 与视觉应用 |

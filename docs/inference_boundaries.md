@@ -1,7 +1,9 @@
 # 推理归属、外部依赖与接口决定
 
 2026-10-19。此文确定模块边界；文本 ChatProvider、工具循环和演练 CLI 已实现，见[运行指南](agent_runtime.md)。
-2026-10-24 新增[上位机 Agent](desktop_agent.md)，页面内分别配置聊天、ASR/TTS；原生百炼语音已有薄适配；
+2026-10-24：聊天 API 接入/验收优先的基线已集成，新增[上位机 Agent](desktop_agent.md)，
+页面内分别配置聊天、ASR/TTS；原生百炼语音已有薄适配。端侧作为解耦平行路径保留，
+不新增端侧优化或自动安装；各阶段服务和凭据不能互相代替。
 下文通用媒体/Omni 与实物技能协议仍为演进目标，不能据目标表格推断全部已实现。
 研发方向见[两条开发主线](development_workstreams.md)，业务切片见[Agent 规划](agent_development_plan.md)。
 
@@ -15,7 +17,7 @@
 | 本地设备与动作门禁 | `policy/execution/runner.py`、`safety.py` | 保持在机械臂所在主机；推理服务不持有 Robot 或运动权限 |
 | 图像检测器 | `vision/perception/detector.py`、`registry.py`、`spec.py` | 已有 detector 协议、模型设备规格、工厂与异步检测；具体模型按注册能力提供 |
 | 语音识别 | 云端百炼 ASR；外部逐行文本提供方 | 上位机可录音后上传并接收最终转写；原 stdin 仍可使用，不依赖本机实验目录 |
-| 文本 LLM Tools | `policy/model_io/`、`policy/agents/`、`applications/agent/` | 已实现可配置 HTTP、工具循环、逐行文本与演练技能；尚无实际供应商验收 |
+| 文本 LLM Tools | `policy/model_io/`、`policy/agents/`、`applications/agent/` | 已实现可配置 HTTP、工具循环、逐行文本与演练技能；百炼 qwen-plus 已有真实工具回传证据；其他模型单独验收 |
 | TTS | 云端百炼薄适配 | 上位机生成并播放 WAV；本地取消丢弃迟到音频 |
 | VLM / Omni | 尚未实现完整接入 | 后续媒体适配器；不能把 VLA HTTP 当作聊天 API |
 

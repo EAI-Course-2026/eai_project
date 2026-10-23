@@ -161,6 +161,9 @@ uv run --locked eai-course agent --provider-config configs/agent/provider.local.
 
 配置示例、API Key 位置、逐行语音转写接入、实际支持与未验收范围见
 [Agent 运行指南](docs/agent_runtime.md)和[多服务 API 配置](docs/agent_providers.md)。离线 demo 是固定 fixture，不是外部模型推理证据。
+配置后使用 `eai-course agent-config probe --provider-config FILE --env-file FILE` 实际核验
+JSON/SSE、多轮对话与只读工具闭环，见[API 验收](docs/agent_api_acceptance.md)。
+语音主线优先云端 ASR/TTS，端侧作为独立可替换路径保留；当前尚未内置音频服务适配。
 
 上位机左侧「Agent」支持文字与按回合语音输入、云端 ASR/TTS、工具状态和停止。
 运行 `uv run --locked --extra speech python scripts/arm_desk.py`，在页面「API 接入」分别配置

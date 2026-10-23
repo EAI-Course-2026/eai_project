@@ -135,14 +135,23 @@ The chat provider config does not select an ASR model, capture audio, or replace
 robot hardware settings. Structured recognition events and local speech-provider
 configuration above remain future work. See the [Agent runtime](../../agent_runtime.md).
 
-## Desktop cloud speech (2026-10-24)
+## Cloud integration order and current desktop (2026-10-24)
 
-The existing arm desktop now embeds an Agent chat view with explicit microphone
-capture, cloud ASR, the existing text/tool harness and cloud TTS playback.
-Chat, ASR and TTS have independent browser-session API settings held in server RAM;
-file profiles remain optional operator/CLI compatibility. ASR/TTS use the official DashScope SDK;
-they do not depend on a local inference project or replace stdin providers.
-Only final transcripts enter the harness. This first version uploads a completed
-recording; it is not continuous listening or Omni. Tools remain dry-run.
-See the [startup and configuration guide](../../desktop_agent.md) and
+The implementation order is chat API compatibility and acceptance, followed by
+cloud ASR/TTS. The [chat API acceptance guide](../../agent_api_acceptance.md)
+describes the production SDK/tool-loop probes now merged into the baseline.
+
+The existing arm desktop embeds one Agent with text and recorded-speech modes,
+cloud ASR, the same text/tool harness and cloud TTS playback. Chat, ASR and TTS
+have independent browser-session API settings held in server RAM; file profiles
+remain optional operator/CLI compatibility. ASR/TTS use the official DashScope SDK.
+Only final transcripts enter the harness; the current version uploads a completed
+recording. Continuous listening, duplex/Omni and physical Agent tools are pending.
+
+Local inference remains a separate, replaceable path across the same transcript
+and playback boundaries, without a local checkout dependency, automatic fallback
+or additional edge-model optimization in this phase. Existing stdin input stays
+available. See the [desktop guide](../../desktop_agent.md),
+[model/free-quota recommendations](../../agent_models.md) and
 [real API evidence](../../reports/2026-10-24-cloud-speech.md).
+These results do not claim complete task 4.3 acceptance.

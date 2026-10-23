@@ -2,6 +2,9 @@
 
 2026-10-22。统一采用官方 OpenAI SDK，按协议选择 Chat Completions 或 Responses。
 提供方预设只是可修改的连接配置，不是模型能力白名单或真实服务验收结论。
+2026-10-24 新增 `agent-config probe`：复用生产 SDK/会话，实际验证 JSON/SSE、文本、
+跨轮对话、只读工具闭环及取消。完整命令、预算、报告与失败判据见[API 验收](agent_api_acceptance.md)。
+`check` 仍保持离线；这里的聊天配置不会自动接通 ASR/TTS。
 
 ## 一次生成配置与本机密钥文件
 
@@ -92,6 +95,8 @@ type = "enabled"        # 示例：不是所有服务/模型都支持或需要
 但具体字段和值以所选模型官方文档为准。不能覆盖 messages/input、tools、stream、模型、
 路由、token 预算、store/previous_response_id；标准 model_options 字段也不能在 extra_body 重复定义。
 完整 assistant（包括 reasoning_content / think 内容）在当前工具回合保留并回传，不只保留最终文字。
+已完成回合还保留最终 assistant 的元数据，计入有界对话历史，满足后续请求的字段要求；
+不会跨轮重放先前工具调用。大段 reasoning 可能导致较早的整个对话回合被历史预算淘汰。
 
 兼容服务对服务端 strict 支持不同。应用默认省略 strict，显式 `--strict-tools` 或
 `--no-strict-tools` 可选择发送 true/false；本地 JSON Schema 校验与执行门禁始终生效。
