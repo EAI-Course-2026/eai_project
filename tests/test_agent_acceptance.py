@@ -181,10 +181,11 @@ class AcceptanceTests(unittest.TestCase):
 
     def test_history_retains_bounded_copied_final_metadata_but_rejects_tool_queue(self):
         history = ConversationHistory(max_turns=1)
-        message = {"role": "assistant", "content": "Done", "reasoning_content": "opaque"}
+        message = {"role": "assistant", "content": "Done", "reasoning_content": "opaque", "tool_calls": []}
         history.commit("a", "Done", assistant_message=message)
         message["reasoning_content"] = "mutated"
         self.assertEqual(history.messages()[1]["reasoning_content"], "opaque")
+        self.assertNotIn("tool_calls", history.messages()[1])
         with self.assertRaises(ValueError):
             history.commit("b", "", assistant_message={"role": "assistant", "tool_calls": [{"id": "never-replay"}]})
         history.commit("c", "Final")

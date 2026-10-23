@@ -39,6 +39,8 @@ class ConversationHistory:
         assistant = deepcopy(assistant_message) if assistant_message is not None else {"role": "assistant", "content": assistant_text}
         if assistant.get("role") != "assistant" or assistant.get("tool_calls") or assistant.get("function_call"):
             raise ValueError("Only a final assistant message can enter dialogue history")
+        assistant.pop("tool_calls", None)
+        assistant.pop("function_call", None)
         self._turns.append(({"role": "user", "content": deepcopy(user_text)}, assistant))
         while self._turns and (len(self._turns) > self.max_turns or
                               sum(len(json.dumps(m, ensure_ascii=False)) for pair in self._turns for m in pair) > self.max_chars):
