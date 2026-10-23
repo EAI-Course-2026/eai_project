@@ -2,6 +2,8 @@
 
 2026-10-19。此文确定模块边界；文本 ChatProvider、工具循环和演练 CLI 已实现，见[运行指南](agent_runtime.md)。
 下文 ASR/TTS/Omni、媒体与实物技能协议仍为演进目标；不能据目标表格推断全部已实现。
+2026-10-24：聊天 API 接入/验收优先，随后实现云端 ASR/TTS；端侧作为解耦的平行路径保留，
+不新增端侧优化或自动安装。聊天 profile、ASR profile、TTS profile 分别选择服务与凭据，不能互相代替。
 研发方向见[两条开发主线](development_workstreams.md)，业务切片见[Agent 规划](agent_development_plan.md)。
 
 ## 已有推理基础在本仓库

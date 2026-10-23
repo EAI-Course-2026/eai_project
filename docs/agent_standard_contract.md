@@ -61,6 +61,9 @@ Responses 采用 `store=false`，在当前工具回合保留完整 output，包�
 `OpenAI-compatible` 不等于所有服务或模型能力相同；Responses-only 模型不能放到 Chat Completions。
 不自动降级、重试工具轮或切换模型。模型扩展可通过 SDK 原生 extra_body 显式配置；不覆盖路由/工具/预算。
 完整 assistant（含 reasoning_content）保留当前工具续轮；字段含义依所选服务文档。
+2026-10-24：完成后的最终 assistant 元数据也保留在有界对话历史中，修复多轮思考模型的
+字段丢失；旧工具调用仍不跨轮重放。实际配置/模型可用 `agent-config probe` 验证，见
+[API 验收](agent_api_acceptance.md)。
 各服务预设、dotenv 与配置命令见[多服务 API 配置](agent_providers.md)。
 
 ## 核心保留什么

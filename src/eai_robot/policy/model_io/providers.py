@@ -249,7 +249,9 @@ class ChatCompletionsProvider:
             raise ProviderError("authentication" if status in (401, 403) else
                                 "rate_limited" if status == 429 else
                                 "redirect_refused" if 300 <= status < 400 else
-                                "invalid_request" if status == 400 else "http_error") from None
+                                "invalid_request" if status in (400, 422) else
+                                "endpoint_or_model_not_found" if status == 404 else
+                                "service_unavailable" if 500 <= status < 600 else "http_error") from None
         except (openai.APITimeoutError, httpx.TimeoutException, TimeoutError):
             raise ProviderError("timeout") from None
         except openai.APIConnectionError as exc:

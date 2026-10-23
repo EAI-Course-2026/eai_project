@@ -1,4 +1,4 @@
-"""Generate explicit local API profiles and check them without making API calls."""
+"""API profiles: offline list/init/check and explicit network acceptance probe."""
 import argparse
 from importlib.resources import files
 import json
@@ -9,7 +9,7 @@ import tomli_w
 
 from eai_robot.policy.model_io.contracts import ProviderError
 from eai_robot.policy.model_io.providers import ProviderConfig
-from .cli import load_provider
+from .configuration import load_provider
 
 
 def catalog():
@@ -80,6 +80,12 @@ def main(argv=None):
     check = commands.add_parser("check", help="Check config and selected credential locally; no API request")
     check.add_argument("--provider-config", type=Path, required=True)
     check.add_argument("--env-file", type=Path)
+    probe_parser = commands.add_parser("probe", help="Make real API requests: text, conversation, read-only tools; may incur charges")
+    probe_parser.add_argument("--provider-config", type=Path, action="append", required=True)
+    probe_parser.add_argument("--env-file", type=Path)
+    probe_parser.add_argument("--transport", choices=("configured", "json", "sse", "both"), default="both")
+    probe_parser.add_argument("--case", choices=("text", "conversation", "tools", "cancel"), action="append", dest="cases")
+    probe_parser.add_argument("--strict-tools", action=argparse.BooleanOptionalAction, default=None)
     args = parser.parse_args(argv)
     try:
         if args.command == "list":
@@ -88,6 +94,10 @@ def main(argv=None):
             options = vars(args).copy()
             options.pop("command")
             result = generate(**options)
+        elif args.command == "probe":
+            from .acceptance import DEFAULT_CASES, probe
+            result = probe(args.provider_config, env_file=args.env_file, transport=args.transport,
+                           cases=args.cases or DEFAULT_CASES, strict_tools=args.strict_tools)
         else:
             provider = load_provider(args.provider_config, args.env_file)
             try:
@@ -95,7 +105,7 @@ def main(argv=None):
             finally:
                 provider.close()
         print(json.dumps(result, ensure_ascii=False, allow_nan=False))
-        return 0
+        return 1 if result.get("status") == "failed" else 0
     except ProviderError as exc:
         print(json.dumps({"status": "invalid", "error_code": exc.code, "network_called": False}))
         return 1
