@@ -57,8 +57,9 @@ Responses 采用 `store=false`，在当前工具回合保留完整 output，包�
 |---|---|---|---|
 | Chat Completions | 文本、image_url、input_audio 标准内容块 | 文本、函数调用、SSE、usage | 真实 loopback HTTP/SSE + SDK 测试 |
 | Responses | 文本、图像；音频明确拒绝 | 文本、函数调用、reasoning 续轮、SSE、usage | 真实 loopback HTTP/SSE + SDK 测试 |
-| 麦克风/相机采集、实时 Omni | 尚未接入 | 尚未接入 | 不计为完成 |
-| 真实供应商/具体模型/实物 | 需操作者配置与单独验收 | 不做通用兼容声明 | 本轮未访问 |
+| 浏览器按回合录音、云 ASR/TTS | 应用层独立配置，最终转写进入文本核心 | WAV 播放与取消 | 合成文件与 UI 链路已验；真实麦克风未验 |
+| 腕部相机、持续音频、实时 Omni | 尚未接入 | 尚未接入 | 不计为完成 |
+| 真实供应商/具体模型/实物 | 需操作者配置与单独验收 | 不做通用兼容声明 | 百炼指定组合已有报告，其他供应商与实物仍单独验收 |
 
 模型 ID 不硬编码；操作者显式选择 API、base_url、model、凭据和模型参数。
 `OpenAI-compatible` 不等于所有服务或模型能力相同；Responses-only 模型不能放到 Chat Completions。
