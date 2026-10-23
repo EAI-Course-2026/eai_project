@@ -1,7 +1,7 @@
 # 推理归属、外部依赖与接口决定
 
 2026-10-19。此文确定模块边界；文本 ChatProvider、工具循环和演练 CLI 已实现，见[运行指南](agent_runtime.md)。
-2026-10-24 新增[上位机云语音聊天](speech_agent.md)，原生百炼 ASR/TTS 已有薄适配；
+2026-10-24 新增[上位机 Agent](desktop_agent.md)，页面内分别配置聊天、ASR/TTS；原生百炼语音已有薄适配；
 下文通用媒体/Omni 与实物技能协议仍为演进目标，不能据目标表格推断全部已实现。
 研发方向见[两条开发主线](development_workstreams.md)，业务切片见[Agent 规划](agent_development_plan.md)。
 

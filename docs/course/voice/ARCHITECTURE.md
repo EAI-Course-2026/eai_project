@@ -144,5 +144,5 @@ file profiles remain optional operator/CLI compatibility. ASR/TTS use the offici
 they do not depend on a local inference project or replace stdin providers.
 Only final transcripts enter the harness. This first version uploads a completed
 recording; it is not continuous listening or Omni. Tools remain dry-run.
-See the [startup and configuration guide](../../speech_agent.md) and
+See the [startup and configuration guide](../../desktop_agent.md) and
 [real API evidence](../../reports/2026-10-24-cloud-speech.md).
