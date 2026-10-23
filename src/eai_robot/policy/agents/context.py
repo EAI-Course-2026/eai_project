@@ -25,7 +25,7 @@ class ContextSnapshot:
 
 
 class ConversationHistory:
-    """Only completed user/final-text pairs survive; never executable tool queues."""
+    """Completed dialogue and final assistant metadata; never tool queues."""
     def __init__(self, max_turns=8, max_chars=32768):
         if type(max_turns) is not int or not 0 <= max_turns <= 32 or type(max_chars) is not int or not 1024 <= max_chars <= 262144:
             raise ValueError("Invalid history budget")
@@ -35,8 +35,13 @@ class ConversationHistory:
     def messages(self) -> tuple[Message, ...]:
         return tuple(deepcopy(message) for pair in self._turns for message in pair)
 
-    def commit(self, user_text, assistant_text):
-        self._turns.append(({"role": "user", "content": deepcopy(user_text)}, {"role": "assistant", "content": assistant_text}))
+    def commit(self, user_text, assistant_text, *, assistant_message=None):
+        assistant = deepcopy(assistant_message) if assistant_message is not None else {"role": "assistant", "content": assistant_text}
+        if assistant.get("role") != "assistant" or assistant.get("tool_calls") or assistant.get("function_call"):
+            raise ValueError("Only a final assistant message can enter dialogue history")
+        assistant.pop("tool_calls", None)
+        assistant.pop("function_call", None)
+        self._turns.append(({"role": "user", "content": deepcopy(user_text)}, assistant))
         while self._turns and (len(self._turns) > self.max_turns or
                               sum(len(json.dumps(m, ensure_ascii=False)) for pair in self._turns for m in pair) > self.max_chars):
             self._turns.pop(0)

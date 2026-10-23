@@ -134,3 +134,16 @@ dry-run tools only. `eai-course voice` keeps the deterministic command policy.
 The chat provider config does not select an ASR model, capture audio, or replace
 robot hardware settings. Structured recognition events and local speech-provider
 configuration above remain future work. See the [Agent runtime](../../agent_runtime.md).
+
+## Cloud speech priority (2026-10-24)
+
+The implementation order is chat API compatibility and acceptance, followed by
+cloud ASR and cloud TTS. These three services will have independent profiles and
+credentials; selecting a chat provider does not select speech services. See the
+[chat API acceptance guide](../../agent_api_acceptance.md).
+
+Local inference remains a separate, replaceable path across the same transcript
+and playback boundaries. It is not a dependency or automatic fallback for cloud
+speech. No additional local model/deployment optimization is planned in this phase.
+The existing stdin interface remains available. Cloud audio adapters, microphone
+capture and playback are still pending; this decision does not claim 4.3 acceptance.

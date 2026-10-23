@@ -5,43 +5,15 @@ import json
 from pathlib import Path
 import sys
 from threading import Lock
-import tomllib
-
-from dotenv import dotenv_values
 
 from eai_robot.calibration.servo.results import JOINTS, JointCalibration, load, validate
 from eai_robot.control.planning.poses import POSES_PATH, load_poses
 from eai_robot.policy.model_io.contracts import ProviderError
-from eai_robot.policy.model_io.providers import ChatCompletionsProvider, ProviderConfig
-
-from eai_robot.policy.model_io.responses import ResponsesProvider
 
 from .demo import DemoProvider
+from .configuration import load_provider
 from .session import create_robot_session, is_stop, run_stdin
 from .skills import DryRunSkills
-
-
-def load_provider(path, env_file=None):
-    with Path(path).open("rb") as stream:
-        config = tomllib.load(stream)
-    if set(config) != {"provider"} or not isinstance(config["provider"], dict):
-        raise ValueError("Expected only a [provider] section")
-    settings = dict(config["provider"])
-    provider_class = {"chat_completions": ChatCompletionsProvider, "responses": ResponsesProvider}.get(settings.pop("adapter", None))
-    if provider_class is None:
-        raise ValueError("Unsupported provider adapter")
-    try:
-        spec = ProviderConfig(**settings)
-    except TypeError:
-        raise ValueError("Invalid provider fields; store credentials in the named environment variable") from None
-    values = None
-    if env_file is not None:
-        env_path = Path(env_file)
-        if not env_path.is_file():
-            raise ValueError("Explicit environment file does not exist")
-        # No global env mutation, discovery or variable interpolation.
-        values = dotenv_values(env_path, interpolate=False, encoding="utf-8")
-    return provider_class(spec, credential_values=values)
 
 
 def reference_poses(path, calibration_path=None):

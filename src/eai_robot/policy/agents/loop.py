@@ -276,7 +276,7 @@ class AgentSession:
                     with self._lock:
                         if not self._current(generation, cancel):
                             raise ToolInterrupted("cancelled")
-                        self._history.commit(text, reply.text)
+                        self._history.commit(text, reply.text, assistant_message=reply.message())
                     outcome = TurnResult("completed", reply.text)
                     return outcome
             raise ProviderError("round_budget")
