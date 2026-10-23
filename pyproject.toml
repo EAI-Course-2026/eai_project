@@ -21,6 +21,7 @@ dependencies = [
 
 [project.optional-dependencies]
 experiments = ["matplotlib>=3.9,<4"]
+speech = ["dashscope>=1.27.5,<2"]
 
 [project.scripts]
 eai-course = "eai_robot.cli:main"

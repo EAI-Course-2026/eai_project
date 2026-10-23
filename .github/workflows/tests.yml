@@ -39,6 +39,10 @@ jobs:
         run: .\scripts\setup_windows.cmd
       - run: uv run --no-sync python scripts/check_repository.py
       - run: node --check src/eai_robot/applications/desktop/assets/app.js
+      - run: node --check src/eai_robot/applications/desktop/assets/agent.js
+      - run: node --check src/eai_robot/applications/desktop/assets/agent-settings.js
+      - name: Cloud speech SDK import (no API or devices)
+        run: uv run --locked --extra speech python -c "from dashscope.audio.asr import Recognition; from dashscope.audio.tts_v2 import SpeechSynthesizer, AudioFormat; assert AudioFormat.PCM_16000HZ_MONO_16BIT"
       - run: uv build --wheel --all-packages
       - name: Set up Conda for compatibility smoke check
         uses: conda-incubator/setup-miniconda@be893c923ea9cf1cf7cd510fbdde27c7e18cbdcb # v4

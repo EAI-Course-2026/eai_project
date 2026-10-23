@@ -1,7 +1,8 @@
 # 推理归属、外部依赖与接口决定
 
 2026-10-19。此文确定模块边界；文本 ChatProvider、工具循环和演练 CLI 已实现，见[运行指南](agent_runtime.md)。
-下文 ASR/TTS/Omni、媒体与实物技能协议仍为演进目标；不能据目标表格推断全部已实现。
+2026-10-24 新增[上位机云语音聊天](speech_agent.md)，原生百炼 ASR/TTS 已有薄适配；
+下文通用媒体/Omni 与实物技能协议仍为演进目标，不能据目标表格推断全部已实现。
 研发方向见[两条开发主线](development_workstreams.md)，业务切片见[Agent 规划](agent_development_plan.md)。
 
 ## 已有推理基础在本仓库
@@ -13,9 +14,10 @@
 | VLA 网络客户端/服务器 | `policy/inference/transport.py` 的 `RemoteRuntime`、`policy_server` | 已有认证、有界 JSON/RGB、会话/序号/manifest 关联；loopback HTTP + SSH 隧道 |
 | 本地设备与动作门禁 | `policy/execution/runner.py`、`safety.py` | 保持在机械臂所在主机；推理服务不持有 Robot 或运动权限 |
 | 图像检测器 | `vision/perception/detector.py`、`registry.py`、`spec.py` | 已有 detector 协议、模型设备规格、工厂与异步检测；具体模型按注册能力提供 |
-| 语音识别 | 可替换外部文本提供方（本机实验仅为案例） | 本仓库目前仅通过 stdin 接收逐行转写；不导入外部项目的本机路径 |
+| 语音识别 | 云端百炼 ASR；外部逐行文本提供方 | 上位机可录音后上传并接收最终转写；原 stdin 仍可使用，不依赖本机实验目录 |
 | 文本 LLM Tools | `policy/model_io/`、`policy/agents/`、`applications/agent/` | 已实现可配置 HTTP、工具循环、逐行文本与演练技能；尚无实际供应商验收 |
-| VLM / Omni / TTS | 尚未实现完整接入 | 后续媒体适配器；不能把 VLA HTTP 当作聊天 API |
+| TTS | 云端百炼薄适配 | 上位机生成并播放 WAV；本地取消丢弃迟到音频 |
+| VLM / Omni | 尚未实现完整接入 | 后续媒体适配器；不能把 VLA HTTP 当作聊天 API |
 
 结论：保留仓库内的应用推理适配、数据契约与部署入口。计算可以外置；
 模型框架、权重仓库、外部进程、远端算力与第三方 API 分开管理。
@@ -53,7 +55,7 @@ applications/agent         已有文本/dry-run 装配；媒体采集/播放与�
 policy/model_io/providers.py → 供应商协议 / 本机模型 API / 自有聊天服务
 policy/inference/runtime.py → 锁定 LeRobot 模型与处理器
 policy/inference/transport.py → 同一 VLA runtime 的远程代理
-applications/agent/speech.py → 独立 ASR/TTS 协议适配（拟新增）
+applications/agent/speech.py → 独立云端 ASR/TTS 配置、校验与 SDK 工作进程
 ```
 
 供应商适配不能反向调用硬件。`policy/agents` 通过注入的技能协议获取工具结果，模型接口位于 `policy/model_io`，

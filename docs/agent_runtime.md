@@ -2,8 +2,9 @@
 
 2026-10-22。产品目标、硬件边界、评测见[项目定位](project_scope.md)，分层与 pi 参考见
 [三层架构](agent_layers.md)。模型接入复用官方 OpenAI SDK，支持 Chat Completions / Responses 的完整回复、SSE 与工具循环。
-标准图像内容块可通过 Python 接口传入，Chat Completions 也可传 input_audio。采集设备、
-ASR/TTS、实时 Omni、IK/跟踪工具和实物执行仍待接入。标准范围见[复用决策](agent_standard_contract.md)。
+标准图像内容块可通过 Python 接口传入，Chat Completions 也可传 input_audio。
+2026-10-24 新增[上位机云语音聊天](speech_agent.md)：浏览器按回合录音、百炼 ASR/TTS、标准工具与播放。
+腕部相机、实时 Omni、IK/跟踪工具和 Agent 实物执行仍待接入。标准范围见[复用决策](agent_standard_contract.md)。
 
 ## 三层代码
 
@@ -109,7 +110,8 @@ uv run --locked eai-course agent --provider-config configs/agent/provider.local.
 EOF 等待本轮结束，Ctrl-C 先取消再等待退出。提供方失败后不接受新的行来恢复旧计划。
 
 纯文本通道没有置信度、时间戳或 partial/final 标记，上游必须只发送最终文本。
-结构化识别事件、用户本地 ASR 选择、麦克风/TTS 管理仍是[语音架构](course/voice/ARCHITECTURE.md)的后续目标。
+结构化外部识别事件仍是[语音架构](course/voice/ARCHITECTURE.md)的后续目标。
+云端语音新增独立 profile 与上位机录音/播放，详见[语音聊天](speech_agent.md)；不替换原 stdin 接口。
 
 ## 对话、工具与能力
 
@@ -158,3 +160,10 @@ run_end 表示本轮编排结束；run_settled 表示本地编排与核心工具
 它与 demo 都不能代替真实供应商 LLM、视觉语音或实物验收。
 没有实现 pi 的完整交互/持久化恢复；取消后不恢复动作，待反馈对账的动作也不能自动重放。
 Python 内部迁移对照见[源码迁移](source_layout_migration.md)，CLI 入口保持兼容。
+
+## 上位机入口
+
+Agent 已嵌入机械臂上位机，文字与按回合语音共用本页的工具循环。
+页面「API 接入」配置独立的聊天、ASR、TTS，凭据仅存浏览器会话对应的服务端内存；
+不需要文件。界面模式、配置生命周期与当前边界见[上位机 Agent](speech_agent.md)。
+语音双工、相机与真实执行尚待接入。

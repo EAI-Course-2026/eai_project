@@ -134,3 +134,15 @@ dry-run tools only. `eai-course voice` keeps the deterministic command policy.
 The chat provider config does not select an ASR model, capture audio, or replace
 robot hardware settings. Structured recognition events and local speech-provider
 configuration above remain future work. See the [Agent runtime](../../agent_runtime.md).
+
+## Desktop cloud speech (2026-10-24)
+
+The existing arm desktop now embeds an Agent chat view with explicit microphone
+capture, cloud ASR, the existing text/tool harness and cloud TTS playback.
+Chat, ASR and TTS have independent browser-session API settings held in server RAM;
+file profiles remain optional operator/CLI compatibility. ASR/TTS use the official DashScope SDK;
+they do not depend on a local inference project or replace stdin providers.
+Only final transcripts enter the harness. This first version uploads a completed
+recording; it is not continuous listening or Omni. Tools remain dry-run.
+See the [startup and configuration guide](../../speech_agent.md) and
+[real API evidence](../../reports/2026-10-24-cloud-speech.md).
