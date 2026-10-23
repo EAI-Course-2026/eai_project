@@ -123,6 +123,12 @@ class DeskAgentTests(unittest.TestCase):
         state=json.load(urlopen(base+'/api/agent/state'))
         self.assertTrue(state['enabled']); self.assertEqual(state['mode'],'dry_run')
         self.assertNotIn('api_key',json.dumps(state))
+        for audio in (None, 123, {}):
+            bad = json.dumps({'audio':audio, 'generation':state['generation']}).encode()
+            with self.assertRaises(HTTPError) as caught:
+                urlopen(Request(base+'/api/agent/turn',data=bad,headers={'X-Arm-Desk':'1'}))
+            self.assertEqual(caught.exception.code,400)
+            self.assertEqual(json.load(caught.exception)['error'],'invalid_input')
         with self.assertRaises(HTTPError):
             urlopen(base+'/api/agent/audio/9999')
 

@@ -46,6 +46,13 @@ class SpeechTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.client(successful_sdk).synthesize(' ')
 
+    def test_unconfigured_stage_does_not_lock_the_configured_stage(self):
+        client = self.client(successful_sdk)
+        del client.profiles['tts']
+        with self.assertRaisesRegex(ProviderError, '^speech_not_configured$'):
+            client.synthesize('测试')
+        self.assertEqual(client.transcribe(wav_bytes())['text'], '模拟转写')
+
     def test_cancel_terminates_owned_blocking_sdk_and_prevents_late_result(self):
         client = self.client(hanging_sdk)
         cancelled = Event(); timer = Timer(.2, cancelled.set)

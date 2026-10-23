@@ -104,6 +104,8 @@ class CloudSpeech:
         cancel = cancel or Event()
         if self._closed.is_set() or cancel.is_set():
             raise ProviderError('cancelled')
+        if stage not in self.profiles:
+            raise ProviderError('speech_not_configured')
         if not self._slot.acquire(blocking=False):
             raise ProviderError('speech_busy')
         profile = self.profiles[stage]

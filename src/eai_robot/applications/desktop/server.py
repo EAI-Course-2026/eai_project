@@ -139,6 +139,8 @@ def make_handler(service, initial_port, agent=None):
                     else:
                         if set(request) - {'text', 'audio', 'speak', 'generation', 'runtime_id'} or type(request.get('generation')) is not int:
                             raise ValueError('invalid_input')
+                        if 'audio' in request and not isinstance(request['audio'], str):
+                            raise ValueError('invalid_input')
                         audio = base64.b64decode(request['audio'], validate=True) if 'audio' in request else None
                         arguments = dict(text=request.get('text'), audio=audio, speak=request.get('speak', True), expected_generation=request['generation'])
                         if record:
