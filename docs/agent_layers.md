@@ -3,25 +3,27 @@
 2026-10-19。参考用户提供的本地 pi 快照 `d2e7d8b7c1d31d3661f769d5caef7ba8d50c3e03`。
 只借鉴接口与职责划分，不把本机 checkout、Node 或 pi 包作为运行依赖，也不修改参考仓库。
 产品目标和评测以[项目定位](project_scope.md)为准。
+2026-10-22 修正：标准消息/工具、HTTP/SSE/分片累积复用 OpenAI SDK，
+新增 Responses 路径；当前取舍以[标准契约](agent_standard_contract.md)为准。
 
 ## 三层职责
 
 | pi 对照 | 本项目目录 | 负责 | 不负责 |
 |---|---|---|---|
-| pi-ai | `policy/model_io/` | 供应商中立消息/工具定义、请求/回复、文本流事件、协议编码、环境凭据 | 工具执行、会话业务、机械臂 |
+| pi-ai | `policy/model_io/` | OpenAI SDK 消息/工具类型、Chat/Responses 接入、流事件与环境凭据 | 工具执行、会话业务、机械臂 |
 | pi-agent-core | `policy/agents/` | 对话上下文、工具循环、参数检查、调用预算、取消/代次、进度与终态事件 | HTTP 字段、Key、机械臂 prompt/硬件能力 |
 | pi-coding-agent 的应用角色 | `applications/agent/` | 机械臂 prompt、能力描述、技能绑定、输入与 CLI、配置选择 | 自建模型协议、绕过控制器门禁 |
 
 继续保持六个一级能力目录。`policy/inference/` 仍专用于既有 VLA 模型与动作块，
-不与聊天消息/事件合并；`model_io` 是决策模型 I/O，不声称已统一所有模态或 VLA。
+不与聊天消息/事件合并；`model_io` 是决策模型 I/O，不声称已统一实时模态或 VLA。
 
 依赖方向：application → agents → model_io；application 也可以装配 model_io 适配器。
 model_io 不反向导入 agents；agents 不导入应用、HTTP 适配器、硬件或机器人控制模块。
-供应商格式只在 model_io 的适配器内出现。prompt 在应用包内，随 wheel 交付。
+标准 OpenAI 消息/工具字典直接贯穿核心；两种 API 的协议差异只在 model_io。prompt 在应用包内，随 wheel 交付。
 
 ## 本轮实现目标
 
-- 模型接口：规范化 Message/ToolDefinition，完整回复与 SSE 流共用最终回复契约；
+- 模型接口：复用 SDK Message/ToolDefinition 类型，Chat/Responses 完整回复与 SSE 流共用本地最终回复信封；
   工具参数流片段只用于组装，完整结束前不可派发。环境凭据由专用 resolver 读取，不复制秘密到配置。
 - 核心：有界的跨轮对话记忆、每次请求刷新应用上下文、统一事件、工具上下文与可取消进度；
   工具执行移出会话状态锁，停止能立即使代次失效。拒绝旧结果，先前任务不自动重放。

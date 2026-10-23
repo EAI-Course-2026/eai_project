@@ -1,54 +1,73 @@
-"""Injected tool definitions and hooks; no provider or robot-specific conventions."""
+"""Standard OpenAI function definitions bound to local execution policy."""
+from copy import deepcopy
 from dataclasses import asdict, dataclass
 import json
+import re
 from typing import Callable
+
+from jsonschema import Draft202012Validator
+from referencing import Registry
+from referencing.exceptions import NoSuchResource
 
 from eai_robot.policy.model_io.contracts import ToolCall, ToolDefinition
 from .contracts import ToolContext, ToolResult
 
 
+def _no_remote_ref(uri):
+    # JSON Schema references may use local $defs; no implicit network retrieval.
+    raise NoSuchResource(ref=uri)
+
+
 @dataclass(frozen=True)
 class Tool:
-    name: str
-    description: str
-    parameters: dict
+    definition: ToolDefinition
     handler: Callable[[dict, ToolContext], ToolResult]
-    # Valid interrupt calls delegate to the session cancellation callback.
+    # Execution metadata stays local; it is never a vendor schema extension.
     interrupt: bool = False
 
-    def validate(self, arguments):
-        props = self.parameters["properties"]
-        if (not isinstance(arguments, dict) or set(arguments) - set(props)
-                or not set(self.parameters.get("required", ())) <= set(arguments)):
-            return False
-        return all(isinstance(value, str) and 0 < len(value) <= 128
-                   and ("enum" not in props[key] or value in props[key]["enum"])
-                   for key, value in arguments.items())
+    @property
+    def name(self):
+        return self.definition["function"]["name"]
 
 
 class ToolRegistry:
     def __init__(self, tools: list[Tool]):
-        self._tools = {tool.name: tool for tool in tools}
-        if len(self._tools) != len(tools):
-            raise ValueError("Unique tools are required")
-        for tool in tools:
-            schema = tool.parameters
-            if (schema.get("type") != "object" or schema.get("additionalProperties") is not False
-                    or not isinstance(schema.get("properties"), dict)
-                    or not set(schema.get("required", ())) <= set(schema["properties"])
-                    or any(spec.get("type") != "string" for spec in schema["properties"].values())):
-                raise ValueError("Only closed object schemas with string properties are supported")
+        self._tools, self._validators = {}, {}
+        for original in tools:
+            tool = Tool(deepcopy(original.definition), original.handler, original.interrupt)
+            spec = tool.definition
+            function = spec.get("function", {})
+            name = function.get("name")
+            if (set(spec) != {"type", "function"} or spec.get("type") != "function"
+                    or not isinstance(name, str) or not re.fullmatch(r"[a-zA-Z0-9_-]{1,64}", name)
+                    or set(function) - {"name", "description", "parameters", "strict"}
+                    or not isinstance(function.get("description", ""), str)
+                    or ("strict" in function and type(function["strict"]) is not bool)):
+                raise ValueError("Expected a standard OpenAI function tool definition")
+            if name in self._tools:
+                raise ValueError("Unique tools are required")
+            schema = function.get("parameters", {"type": "object"})
+            json.dumps(schema, allow_nan=False)
+            Draft202012Validator.check_schema(schema)
+            if schema.get("type") != "object":
+                raise ValueError("Function parameters must be an object schema")
+            self._tools[name] = tool
+            self._validators[name] = Draft202012Validator(schema, registry=Registry(retrieve=_no_remote_ref))
 
     @property
     def definitions(self) -> tuple[ToolDefinition, ...]:
-        return tuple(ToolDefinition(t.name, t.description, json.loads(json.dumps(t.parameters)))
-                     for t in self._tools.values())
+        return tuple(deepcopy(t.definition) for t in self._tools.values())
 
     def prepare(self, call: ToolCall) -> Tool | ToolResult:
         tool = self._tools.get(call.name)
         if tool is None:
             return ToolResult(False, "rejected", error_code="unknown_tool")
-        if not tool.validate(call.arguments):
+        try:
+            json.dumps(call.arguments, allow_nan=False)
+            valid = isinstance(call.arguments, dict) and self._validators[call.name].is_valid(call.arguments)
+        except Exception:
+            valid = False
+        if not valid:
             return ToolResult(False, "rejected", error_code="invalid_arguments")
         return tool
 
@@ -57,10 +76,11 @@ class ToolRegistry:
         tool = self.prepare(call)
         if isinstance(tool, ToolResult):
             return tool
-        result = before(tool, dict(call.arguments), context) if before else None
+        arguments = deepcopy(call.arguments)
+        result = before(tool, arguments, context) if before else None
         context.check_active()
         if result is None:
-            result = tool.handler(dict(call.arguments), context)
+            result = tool.handler(deepcopy(call.arguments), context)
         context.check_active()
         if not isinstance(result, ToolResult):
             raise TypeError("Tool handlers/hooks must return ToolResult")

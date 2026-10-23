@@ -3,7 +3,21 @@ name = "eai-robot-lab"
 version = "0.1.0"
 description = "Shared SCS215 arm control, Cartesian kinematics and visual servo course project"
 requires-python = ">=3.12,<3.13"
-dependencies = ["lerobot_robot_scs215==0.1.0", "lerobot[core_scripts,feetech]==0.6.2", "pyserial>=3.5,<4", "numpy>=2,<2.3", "pynput>=1.8,<2", "torch>=2.7,<2.12", "torchvision>=0.22,<0.27"]
+dependencies = [
+    "lerobot_robot_scs215==0.1.0",
+    "lerobot[core_scripts,feetech]==0.6.2",
+    "pyserial>=3.5,<4",
+    "numpy>=2,<2.3",
+    "pynput>=1.8,<2",
+    "torch>=2.7,<2.12",
+    "torchvision>=0.22,<0.27",
+    "openai>=2.54,<3",
+    "jsonschema>=4.25,<5",
+    "pydantic>=2.12,<3",
+    "httpx>=0.28,<1",
+    "python-dotenv>=1.2,<2",
+    "tomli-w>=1.2,<2",
+]
 
 [project.optional-dependencies]
 experiments = ["matplotlib>=3.9,<4"]

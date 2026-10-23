@@ -87,7 +87,8 @@ detector.close()                              # 释放模型资源，不操作�
 
 ## 拟新增接口：按输出类型定义
 
-ChatProvider 已有文本与 SSE 子集实现；下列其余签名与媒体类型是后续实现约定。
+ChatProvider 通过官方 SDK 接入 Chat Completions 与 Responses，支持标准图像内容块（Chat 另含 input_audio）。
+完整兼容范围见[标准契约](agent_standard_contract.md)；采集、实时音频和下列 ASR/TTS 签名仍是后续约定。
 实际类和字段以源码及[运行指南](agent_runtime.md)为准；不创建只有签名的空 ASR/TTS provider。
 
 ```python
@@ -155,7 +156,7 @@ media_policy           允许传输的模态、目标服务与尺寸/时长上�
 
 describe/日志记录解析后的实际部署、设备（可未知）、模型和能力，避免把 `auto` 当作设备证据。
 供应商兼容某一 JSON 格式不代表支持全部工具、音频与流式协议；启动探针检查 required capabilities，
-未来能力探针缺失时应拒绝该会话配置；当前支持文本工具协议与显式 SSE，不作模型能力保证，不静默切换为另一服务或改变媒体传输范围。
+未来能力探针缺失时应拒绝该会话配置；当前有标准 Chat/Responses 工具协议、内容块与显式 SSE，不作模型能力保证，不静默切换为另一服务或改变媒体传输范围。
 现有 VLA CLI/manifest 与 detector ModelSpec 暂不改名；未来会话配置仅装配它们，不能复制并覆盖两份限额。
 
 ## 错误、生命周期与可替换性验收

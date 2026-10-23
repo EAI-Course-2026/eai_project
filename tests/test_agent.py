@@ -27,7 +27,7 @@ from eai_robot.applications.agent.skills import DryRunSkills
 
 
 def answer(text="done", calls=(), reason=None):
-    return {"choices": [{"message": {"role": "assistant", "content": text,
+    return {"id": "fixture", "object": "chat.completion", "created": 0, "model": "fixture", "choices": [{"index": 0, "message": {"role": "assistant", "content": text,
                           "tool_calls": [{"id": c.id, "type": "function", "function": {
                               "name": c.name, "arguments": json.dumps(c.arguments)}} for c in calls]},
                           "finish_reason": reason or ("tool_calls" if calls else "stop")}]}
@@ -71,8 +71,10 @@ def tool_context():
     return ToolContext("test", 0, time.monotonic() + 5, Event(), lambda: True, lambda _: None)
 
 
-def request(timeout=2):
-    return ChatRequest("r", "s", 0, (Message("user", "test"),), (), timeout)
+def request(timeout=10):
+    # Ordinary protocol fixtures include SDK cold import/SSL initialization.
+    # Deadline tests set explicit short provider/request budgets independently.
+    return ChatRequest("r", "s", 0, ({"role": "user", "content": "test"},), (), timeout)
 
 
 class AgentTests(unittest.TestCase):
@@ -179,7 +181,7 @@ class AgentTests(unittest.TestCase):
     def test_schema_copy_cannot_expand_allowlist(self):
         registry = self.skills().registry()
         definitions = registry.definitions
-        definitions[2].parameters["properties"]["pose_name"]["enum"].append("evil")
+        definitions[2]["function"]["parameters"]["properties"]["pose_name"]["enum"].append("evil")
         result = registry.invoke(ToolCall("x", "move_to_pose", {"pose_name": "evil"}), tool_context())
         self.assertEqual(result.error_code, "invalid_arguments")
 

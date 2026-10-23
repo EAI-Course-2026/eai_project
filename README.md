@@ -50,7 +50,35 @@ uv run --locked python scripts/check_env.py
 uv run --locked python -m unittest discover -s tests -q
 ```
 
-Windows PowerShell 可直接运行 `scripts/setup_windows.cmd`，完成相同的控制环境安装、环境检查与离线测试。现有 Conda 环境可以保留，团队可复现基线以两个 uv 锁文件为准。
+Windows PowerShell 可直接运行 `scripts/setup_windows.cmd`，完成相同的控制环境安装、环境检查与离线测试。
+
+### Conda 一键 Quick start（兼容入口）
+
+**优先使用上面的 uv 流程。** 合作者使用 Conda 时，在已初始化的 Conda 终端进入仓库根目录，执行：
+
+```sh
+python scripts/setup_conda.py
+```
+
+脚本创建 `eai-control`（Python 3.12），在其中安装固定 uv，再按原 `uv.lock` 安装项目、
+检查环境、运行离线测试和 Agent demo；不连接机械臂、相机或真实模型 API。
+Conda 管理 Python，项目包仍由 uv 的锁文件管理，无第二份 Conda 依赖清单。
+
+安装完成后可激活环境，直接使用普通命令：
+
+```sh
+conda activate eai-control
+python scripts/check_env.py
+eai-course agent --demo
+# 也可不激活：
+conda run --no-capture-output -n eai-control eai-course agent --demo
+```
+
+重复安装/拉取依赖变更后执行 `python scripts/setup_conda.py --reuse`；只复用项目专用环境。
+训练环境用 `python scripts/setup_conda.py --kind training`，默认只验软件；真实 GPU 检查显式加
+`--require-cuda`。Windows、已有环境迁移和故障处理见[Conda 说明](docs/environments.md#conda-quick-start)。
+
+### 环境与计算后端
 
 | 用途 | 项目 / 环境 | Windows 版 PyTorch | macOS 版 PyTorch |
 |---|---|---|---|
@@ -119,17 +147,19 @@ uv run --locked eai-course voice --list-commands
 
 ## 文本 Agent 与 API 配置
 
-Agent 分为 `policy/model_io/`（模型消息/鉴权/JSON/SSE）、`policy/agents/`（会话/工具核心）和
+Agent 分为 `policy/model_io/`（OpenAI SDK 消息/工具、Chat/Responses、鉴权）、`policy/agents/`（会话/工具核心）和
 `applications/agent/`（机器人能力、prompt 与输入装配），当前工具仅做 dry-run：
 
 ```sh
+uv run --locked eai-course agent-config list
+uv run --locked eai-course agent --list-tools
 uv run --locked eai-course agent --demo
-# 自选服务：配置完整 endpoint/model，用 credential_env 指向 Key 环境变量
+# 自选服务：配置 base_url/model，用 credential_env 指向 Key 环境变量
 uv run --locked eai-course agent --provider-config configs/agent/provider.local.toml --text "演练站立"
 ```
 
 配置示例、API Key 位置、逐行语音转写接入、实际支持与未验收范围见
-[Agent 运行指南](docs/agent_runtime.md)。离线 demo 是固定 fixture，不是外部模型推理证据。
+[Agent 运行指南](docs/agent_runtime.md)和[多服务 API 配置](docs/agent_providers.md)。离线 demo 是固定 fixture，不是外部模型推理证据。
 
 ## 日常协作
 

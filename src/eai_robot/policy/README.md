@@ -2,7 +2,7 @@
 
 | 功能组 | 分工 |
 |---|---|
-| `model_io/` | 模型消息/回复/流事件、HTTP JSON/SSE 适配与环境凭据；不依赖 Agent。 |
+| `model_io/` | OpenAI SDK 消息/工具、Chat/Responses、流事件与环境凭据；不依赖 Agent。 |
 | `agents/` | 会话历史/短时上下文、工具策略/进度、预算、取消和终态事件；不含机器人 prompt 或 HTTP。 |
 | `inference/` | runtime.py 模型运行器，artifacts.py 工件，transport.py 跨机器推理传输。 |
 | `execution/` | runner.py 设备所有权/动作执行，safety.py 门禁，teleoperation.py 示范采集。 |

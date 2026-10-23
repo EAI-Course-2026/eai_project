@@ -13,6 +13,7 @@ COMMANDS = {
     "aruco-experiment": "applications.visual_servo.experiment",
     "voice": "applications.teleoperation.voice",
     "agent": "applications.agent.cli",
+    "agent-config": "applications.agent.configure",
     "poses": "applications.teleoperation.poses",
     "record-pose": "applications.teleoperation.record_pose",
     "reindex": "applications.tools.reindex"

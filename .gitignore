@@ -59,3 +59,6 @@ configs/agent/*.local.json
 # Versioned Python data tools; raw datasets remain ignored.
 !/src/eai_robot/policy/data/
 !/src/eai_robot/policy/data/*.py
+
+# API profile secrets produced by agent-config (also covered by .env.*).
+configs/agent/*.local.env

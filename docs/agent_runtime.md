@@ -1,25 +1,28 @@
 # 三层 Agent 运行指南
 
-2026-10-19。产品目标、硬件边界、评测见[项目定位](project_scope.md)，分层与 pi 参考见
-[三层架构](agent_layers.md)。当前提供文本模型调用（完整 JSON 或 SSE）、工具循环、
-跨轮对话与 dry-run 技能。视觉/音频、ASR/TTS、Omni、IK/跟踪工具和实物执行仍待接入。
+2026-10-22。产品目标、硬件边界、评测见[项目定位](project_scope.md)，分层与 pi 参考见
+[三层架构](agent_layers.md)。模型接入复用官方 OpenAI SDK，支持 Chat Completions / Responses 的完整回复、SSE 与工具循环。
+标准图像内容块可通过 Python 接口传入，Chat Completions 也可传 input_audio。采集设备、
+ASR/TTS、实时 Omni、IK/跟踪工具和实物执行仍待接入。标准范围见[复用决策](agent_standard_contract.md)。
 
 ## 三层代码
 
 | 层 | 实现 | 边界 |
 |---|---|---|
-| 模型 I/O | `policy/model_io/contracts.py`、`providers.py`、`auth.py` | 规范化 Message/ToolDefinition/ChatRequest/Reply/ModelEvent、HTTP JSON/SSE、逐请求环境凭据 |
+| 模型 I/O | `policy/model_io/contracts.py`、`providers.py`、`auth.py` | SDK 消息/工具类型、Chat/Responses SDK 接入、逐请求环境凭据 |
 | Agent 核心 | `policy/agents/context.py`、`contracts.py`、`tools.py`、`loop.py` | 有界对话、短时应用上下文、工具策略/进度、预算、取消/代次、结构化事件 |
 | 机械臂应用 | `applications/agent/cli.py`、`session.py`、`skills.py`、`capabilities.py` | 输入/配置装配、应用 prompt、能力限制与演练技能 |
 
 prompt 位于 `applications/agent/prompts/system.txt`，随 wheel 安装。
 模型层不导入 Agent；核心不导入 HTTP、凭据、机器人或应用；应用注入具体实现。
+`Message` 和 `ToolDefinition` 是官方 SDK 类型别名，不存在第二套消息/工具字段。
 `policy/inference/` 继续承担既有 VLA 动作块推理，保持独立输出契约。
 本项目没有 pi 的运行依赖或本机 checkout 依赖。
 
 ## 离线演示与模型配置
 
 ```sh
+uv run --locked eai-course agent --list-tools  # 输出实际标准工具定义，不调用模型
 uv run --locked eai-course agent --demo
 ```
 
@@ -28,23 +31,26 @@ uv run --locked eai-course agent --demo
 `--poses FILE` 替换姿态，`--calibration FILE` 选择目标标定作离线换算，不读取个人串口配置。
 
 复制 `configs/agent/provider.example.toml` 为 `configs/agent/provider.local.toml`，
-或在任意用户目录建立配置，填写完整 endpoint/model：
+或在任意用户目录建立配置，填写 API base_url/model：
 
 ```toml
 [provider]
 adapter = "chat_completions"
 execution = "managed_api"
-endpoint = "https://YOUR_SERVICE_HOST/v1/chat/completions"
+base_url = "https://YOUR_SERVICE_HOST/v1"
 model = "YOUR_MODEL_ID"
 credential_env = "ROBOT_LLM_API_KEY"
 timeout_s = 30.0
 max_tokens = 512
-streaming = false
+streaming = true
+token_limit_parameter = "max_completion_tokens"
 ```
 
 **Key 的值放在 `ROBOT_LLM_API_KEY` 环境变量中，不放 TOML。**
 `credential_env` 可换为其他合法环境变量名；resolver 每次请求读取它，便于轮换。
-程序不自动读取 `.env`，不扫描其他项目/用户目录凭据。配置示例的 `example.invalid` 不是默认服务。
+程序不自动读取 `.env`；可通过 `--env-file FILE` 显式加载（进程环境优先、不插值）。
+多服务模板、生成脚本、离线检查与扩展参数见[多服务 API 配置](agent_providers.md)。
+不扫描其他项目/用户目录凭据。配置示例的 `example.invalid` 不是默认服务。
 以 zsh 为例，通过隐藏输入注入（不要把真实 Key 写入命令或聊天）：
 
 ```sh
@@ -60,12 +66,33 @@ unset ROBOT_LLM_API_KEY
 自有服务用 execution=self_hosted；网络只允许 HTTPS 或 SSH 转发/本机的 loopback HTTP。
 不跟随重定向，不自动重试动作或切换服务。供应商必须实际支持文本工具协议。
 
-需要 SSE 时显式设 `streaming=true`。文本增量作为 model_delta 事件输出；工具调用的参数分片
-仅在模型层组装，收到完整结束原因与 `[DONE]` 后才交给核心。断流、非法 JSON、超长或截断拒绝执行。
-非流式模式通过同一 ModelEvent 协议返回最终回复。当前不提供音视频流或模型能力探针，
-不保证任意兼容服务都支持所选能力，真实服务/模型需独立验收。
-协议参考[工具调用文档](https://docs.modelstudio.console.alibabacloud.com/en/model-studio/qwen-function-calling)，
-实际适配由本项目标准库 HTTP 实现，无供应商 SDK、模型或账户的默认绑定。
+选择 Responses API 时使用 `configs/agent/responses.example.toml`，设置 `adapter="responses"`。
+Responses-only 模型必须选此路径。`max_tokens` 是本地预算字段：Chat Completions 按
+`token_limit_parameter` 发为 max_completion_tokens（默认）或兼容服务要求的 max_tokens；
+Responses 发为 max_output_tokens。旧完整 endpoint 配置仍可迁移使用，不与 base_url 同时填写。
+模型参数可放到 `[provider.model_options]`，例如 Chat 的 reasoning_effort 或 Responses 的 reasoning；
+程序校验所选 API 的选项，不自动猜测或切换。
+
+SSE 显式设 `streaming=true`。SDK 负责 HTTP/SSE 和分片累积，文本增量作为 model_delta 输出；
+只有最终正常完成、参数 JSON 与本地 schema 合法的调用才交给工具。没有完整 finish/terminal
+结果的流拒绝执行。Responses 保留当前工具回合的完整 output/reasoning，再与 call_id 输出回传；
+采用 store=false。model_end 事件包含 SDK usage，缺失计数保持缺失，不估算成本。
+
+SDK retries=0，拒绝重定向；保留请求/响应大小和期限限制、单 I/O worker 与凭据脱敏。
+程序复用官方 SDK，不保证任意兼容服务支持任意模型参数或模态。真实服务与模型必须独立验收。
+详见[标准契约及兼容矩阵](agent_standard_contract.md)。
+
+Python 接口直接接受标准内容块，例如：
+
+```python
+session.run_turn([
+    {"type": "text", "text": "描述看到的目标，不要运动"},
+    {"type": "image_url", "image_url": {"url": supplied_image_data_url, "detail": "low"}},
+])
+```
+
+图像须由调用者显式提供；模块不读取本机摄像头或扫描文件。内容块也受预算限制。
+Responses 路径不支持音频输入，会明确返回 unsupported_modality，不静默转文字。
 
 ## 可替换语音输入与应用边界
 
@@ -99,7 +126,9 @@ RobotCapabilities 选择可用工具，并在正常执行前再次检查；不�
 核心只接受注入的工具。handler 形如 `handler(arguments, ToolContext) -> ToolResult`，
 context 提供 session、generation、deadline、cancel、check_active() 与 progress(data)。
 参数校验后执行 before_tool（可拒绝），执行后 after_tool 只作观测。
-首版参数 schema 仍只支持封闭对象中的字符串参数，不宣称完整 JSON Schema。
+工具声明直接使用 OpenAI 标准 function 字典，也接受 `openai.pydantic_function_tool` 的输出。
+本地由 jsonschema 校验整数/数值、布尔、数组、嵌套、nullable、组合与本地引用；不获取外部引用。
+strict 的服务端支持范围以所选模型/API 为准，本地不自动重写 schema 或放宽约束。
 长时控制技能应由应用服务拥有任务，启动后返回 accepted/task_id，由状态查询确认完成。
 有效 interrupt 工具直接调用应用注入的取消回调，优先于同一批普通动作；核心不硬编码 stop_motion。
 
@@ -127,4 +156,5 @@ run_end 表示本轮编排结束；run_settled 表示本地编排与核心工具
 
 离线测试使用真实 loopback HTTP 的 JSON/SSE 预设响应，验证分片、取消、上下文、能力和依赖边界。
 它与 demo 都不能代替真实供应商 LLM、视觉语音或实物验收。
+没有实现 pi 的完整交互/持久化恢复；取消后不恢复动作，待反馈对账的动作也不能自动重放。
 Python 内部迁移对照见[源码迁移](source_layout_migration.md)，CLI 入口保持兼容。

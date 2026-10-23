@@ -33,7 +33,7 @@ class SourceArchitectureTests(unittest.TestCase):
     def test_command_names_are_preserved(self):
         from eai_robot.cli import COMMANDS
         self.assertEqual(set(COMMANDS), {'mapping', 'fk', 'plan', 'keyboard', 'vision', 'aruco-experiment',
-                         'aruco-preview', 'visual-servo', 'voice', 'agent', 'poses', 'record-pose', 'reindex'})
+                         'aruco-preview', 'visual-servo', 'voice', 'agent', 'agent-config', 'poses', 'record-pose', 'reindex'})
 
     def test_runtime_results_and_pure_motion_do_not_load_workflows_or_devices(self):
         code = '''
