@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import re
+import subprocess
 from urllib.parse import unquote, urlsplit
 
 
@@ -13,7 +14,19 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def check() -> list[str]:
     errors: list[str] = []
+    if (ROOT / ".git").exists():
+        tracked = subprocess.check_output(
+            ["git", "ls-files", "-z", "--", "deliverables", "outputs"], cwd=ROOT
+        ).decode("utf-8").split("\0")
+        for name in filter(None, tracked):
+            allowed = name in {"deliverables/README.md", "outputs/README.md"} or re.fullmatch(
+                r"deliverables/assignment-[0-9]{2}/README\.md", name
+            )
+            if not allowed:
+                errors.append(f"Generated/hand-in payload must remain local, but is tracked: {name}")
     documents = [ROOT / name for name in ("README.md", "CONTRIBUTING.md", "AGENTS.md")]
+    documents += [ROOT / "deliverables/README.md", ROOT / "outputs/README.md"]
+    documents += list((ROOT / "deliverables").glob("*/README.md"))
     documents += list((ROOT / "docs").rglob("*.md"))
     documents += list((ROOT / "src").rglob("*.md"))
     documents += list((ROOT / "calibration").rglob("*.md"))
