@@ -18,8 +18,11 @@
 - [文档、运行输出与本机材料的边界](workspace.md)
 - [源码路径迁移对照](source_layout_migration.md)
 
-## Agent：当前文本与协议
+## Agent：当前交互与协议
 
+- [上位机 Agent 使用手册](desktop_agent.md)
+- [Agent 开发交接](agent_handoff.md)
+- [模型与百炼免费额度建议](agent_models.md)
 - [三层 Agent 运行指南](agent_runtime.md)
 - [多服务 API 配置](agent_providers.md)
 - [聊天 API 接入与验收](agent_api_acceptance.md)
@@ -101,8 +104,8 @@
 - [Week 4：预设姿态与动作序列](course/source/week4/task1/README.md)
 - [Week4 Task 2](course/source/week4/task2/README.md)
 
-## 审查中的后继能力
+## 集成状态
 
-PR #25 的页面配置、云端语音和 Agent 交接手册在独立评审中，以[该 PR 的中文说明](https://github.com/EAI-Course-2026/eai_project/pull/25)和实际分支为准。合并后把相应手册加入当前入口；未合并时不把它们列为 develop 可用能力。
+PR #25、#26 已合并至 develop，页面配置、按回合云端语音及目录治理指南已纳入上方当前入口。语音双工、腕部视觉输入和实物自主控制仍按使用手册列为待验收。日期报告与血缘 CSV 保留各自快照时刻的 PR 状态，不作为当前分支状态。
 
 本轮快照与逐项处置见[血缘审查](reports/2026-10-24-artifact-lineage.md)。新文档应选择明确职责并从本页或所属能力入口链接；退役时保留后继关系，避免每次交接再复制一套规则。

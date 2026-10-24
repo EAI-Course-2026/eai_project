@@ -123,16 +123,16 @@ uv run --locked --extra speech eai-course speech --config configs/agent/speech.l
 
 ### 选择正确源码
 
-以 PR 合并状态为准。本功能在 [PR #25](https://github.com/EAI-Course-2026/eai_project/pull/25)
-评审中时，`main` / `develop` 不一定包含本指南所述界面。在评审用独立 checkout 执行：
+PR #25 已合并至 develop；本发布候选包含同一实现。日常开发从最新 develop 新建任务分支，不再使用已完成的旧功能分支：
 
 ```sh
 git fetch origin
-git switch --track origin/codex/integration-cloud-speech
+git switch develop
+git pull --ff-only origin develop
+git switch -c codex/your-task
 ```
 
-已有同名本地分支则使用 `git switch codex/integration-cloud-speech`。不在有未提交工作的 checkout
-强行切换，不使用 reset/clean。PR 合并后从最新 develop 新建自己的任务分支，不继续堆到旧功能分支。
+使用默认 main 前核对发布 PR 是否已经合并。已有未提交工作时先保存，不强行切换，不使用 reset/clean。评审固定版本时使用对应 PR 的 head，不能把另一终端或另一个端口的服务当成此版本。
 环境与版本固定为 Python 3.12、uv 0.11.7；安装器见[环境指南](environments.md)。
 
 ### macOS / Linux 与 Windows
