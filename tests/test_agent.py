@@ -53,7 +53,7 @@ def service(responder):
             self.end_headers()
             try:
                 self.wfile.write(raw)
-            except (BrokenPipeError, ConnectionResetError):
+            except (BrokenPipeError, ConnectionAbortedError, ConnectionResetError):
                 pass
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     server.daemon_threads = True
