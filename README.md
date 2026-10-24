@@ -182,7 +182,7 @@ git switch -c codex/your-task
 # 开发、检查、提交后推送此分支，创建目标为 develop 的 PR
 ```
 
-当前仓库管理员为 `abraxas914`、`youzhaozhao`、`LiHuaZhenRen`，共同担任默认代码审查人；Windows/GPU 与实物验收责任按每个 PR 指定，尚无已确认的固定负责人。作者提供证据，另一位审查人批准，维护者合并。阶段集成用 `develop → main` PR；main 紧急修复合并后必须同步回 develop。不直接推送受保护分支，不强推共享历史。
+当前仓库管理员为 `abraxas914`、`youzhaozhao`、`LiHuaZhenRen`，共同担任默认代码审查人；Windows/GPU 与实物验收责任按每个 PR 指定，尚无已确认的固定负责人。作者提供证据；审查按需，维护者可在必需 CI 通过后自行合并，不要求 CODEOWNER 或另一人批准。阶段集成用 `develop → main` PR；main 紧急修复合并后必须同步回 develop。不直接推送受保护分支，不强推共享历史。
 
 托管检查包括 `Offline tests (macos-latest)`、`Offline tests (windows-latest)` 和 `Windows CUDA training software (no GPU)` 三项。前两项运行相同的完整测试、环境核验、文档链接检查、前端语法检查和两个软件包构建；CUDA 检查安装独立训练环境并核验训练入口，不实际使用 GPU。功能分支通过拉取请求触发检查；推送至 main 或 develop 后还会再次检查。
 
