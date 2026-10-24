@@ -2,6 +2,8 @@
 
 2026-10-24。先验证聊天与工具循环，再接云端 ASR/TTS。配置能加载、离线协议测试通过、
 真实服务通过和实物任务完成是四种证据。预设名称不能替代真实模型验收。
+当前基线已接入云端 ASR/TTS，见[上位机 Agent](desktop_agent.md)。本页是显式文件配置的 CLI 批量验收，
+日常网页配置不依赖文件。真实请求前按[模型与免费额度建议](agent_models.md)确认免费余量和用完即停设置。
 
 ## 操作入口
 
@@ -94,7 +96,7 @@ Chat Completions 与 Responses 是不同协议，需各自验收；原生私有�
 当前回合的工具 assistant/结果正常回传，已完成回合的工具队列不会带入新回合。
 取消或失败回合不进入历史。独立 reasoning_content 不作为文本流输出；
 供应商若将思考内容混在 content 中，本层不会猜测并删除标签，需要按该模型配置分离输出
-（如支持的 MiniMax 模型使用 reasoning_split），再运行探针；不能直接拿它作为未来 TTS 输入。
+（如支持的 MiniMax 模型使用 reasoning_split），再运行探针；不能直接拿它作为 TTS 输入。
 Responses 的 opaque 输出仍仅用于当前工具回合，不持久化或重放为新动作。
 
 官方依据：[OpenAI 工具结果回传](https://developers.openai.com/api/docs/guides/function-calling)、

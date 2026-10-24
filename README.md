@@ -22,7 +22,8 @@
 见[主线与分支安排](docs/development_workstreams.md)。
 
 仓库已经包含 VLA 本地运行器、模型工件管理和自有服务的跨机推理接口；权重与数据不入 Git。
-外部 ASR 以逐行文本对接；文本 LLM 的 API 工具循环与 dry-run 已实现，视觉与 Omni 会话尚待接入。
+外部 ASR 仍可逐行文本对接；上位机新增云端 ASR/TTS 聊天区，复用文本 LLM 工具循环与 dry-run。
+腕部视觉与 Omni 会话尚待接入。
 框架依赖、模型资产、外部进程、自有服务、第三方 API 分别管理，接口与模块归属见
 [推理边界决定](docs/inference_boundaries.md)。
 
@@ -162,7 +163,15 @@ uv run --locked eai-course agent --provider-config configs/agent/provider.local.
 [Agent 运行指南](docs/agent_runtime.md)和[多服务 API 配置](docs/agent_providers.md)。离线 demo 是固定 fixture，不是外部模型推理证据。
 配置后使用 `eai-course agent-config probe --provider-config FILE --env-file FILE` 实际核验
 JSON/SSE、多轮对话与只读工具闭环，见[API 验收](docs/agent_api_acceptance.md)。
-语音主线优先云端 ASR/TTS，端侧作为独立可替换路径保留；当前尚未内置音频服务适配。
+语音主线优先云端 ASR/TTS，端侧作为独立可替换路径保留；当前已接入独立配置的百炼云语音薄适配。
+
+上位机左侧「Agent」支持文字与按回合语音输入、云端 ASR/TTS、工具状态和停止。
+运行 `uv run --locked --extra speech python scripts/arm_desk.py`，在页面「API 接入」分别配置
+聊天、识别和合成服务；密钥仅存当前会话服务端内存，不需要编辑文件。详见
+[上位机 Agent 使用手册](docs/desktop_agent.md)、[模型与百炼免费额度建议](docs/agent_models.md)
+和[开发交接手册](docs/agent_handoff.md)。
+语音双工待接入，机器人技能仍仅演练；真实服务证据见
+[云语音报告](docs/reports/2026-10-24-cloud-speech.md)。
 
 ## 日常协作
 

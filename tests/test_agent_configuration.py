@@ -150,6 +150,19 @@ class ConfigurationTests(unittest.TestCase):
                 assistant = next(m for m in requests[1]['messages'] if m['role']=='assistant')
                 self.assertEqual(assistant['reasoning_content'], 'opaque-vendor-reasoning')
 
+    def test_final_reasoning_metadata_survives_the_next_user_turn(self):
+        body = answer('Done')
+        body['choices'][0]['message']['reasoning_content'] = 'opaque-final-reasoning'
+        with service(lambda _: (200, body)) as (url, requests, _):
+            provider = ChatCompletionsProvider(ProviderConfig(url, 'fixture', 'self_hosted'))
+            session = AgentSession(provider, ToolRegistry([]))
+            self.addCleanup(session.close)
+            self.assertEqual(session.run_turn('First turn').status, 'completed')
+            self.assertEqual(session.run_turn('Second turn').status, 'completed')
+            previous = next(m for m in requests[1]['messages'] if m['role'] == 'assistant')
+            self.assertEqual(previous['reasoning_content'], 'opaque-final-reasoning')
+            self.assertNotIn('tool_calls', previous)
+
     def test_agent_cli_uses_explicit_dotenv_without_echoing_key(self):
         def responder(data):
             return 200, answer("Fixture")

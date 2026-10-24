@@ -151,7 +151,8 @@ class AgentSession:
         except ToolInterrupted:
             raise
 
-    def run_turn(self, text: str | list[ChatCompletionContentPartParam], *, ready: Event | None = None) -> TurnResult:
+    def run_turn(self, text: str | list[ChatCompletionContentPartParam], *, ready: Event | None = None,
+                 cancellation: Event | None = None) -> TurnResult:
         try:
             if isinstance(text, str):
                 valid = bool(text.strip()) and len(text) <= 8192
@@ -177,7 +178,7 @@ class AgentSession:
                     return TurnResult("rejected", error_code="closed")
                 if self._active_tools or self._pending_settlement is not None:
                     return TurnResult("rejected", error_code="tool_still_running")
-                cancel = self._cancel = Event()
+                cancel = self._cancel = cancellation if cancellation is not None else Event()
                 self.generation += 1
                 generation = self.generation
                 run_id = self._run_id = uuid.uuid4().hex

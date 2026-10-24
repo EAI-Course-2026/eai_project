@@ -1,0 +1,17 @@
+# Cloud ASR/TTS only. Chat uses a separate [provider] profile.
+# Copy to bailian-speech.local.toml, replace YOUR_WORKSPACE_ID in both URLs.
+# Pass --speech-env-file explicitly; never put keys in this file.
+[asr]
+provider = "dashscope"
+websocket_url = "wss://YOUR_WORKSPACE_ID.cn-beijing.maas.aliyuncs.com/api-ws/v1/inference"
+model = "qwen-audio-3.1-asr-flash-message"
+credential_env = "DASHSCOPE_API_KEY"
+timeout_s = 30.0
+
+[tts]
+provider = "dashscope"
+websocket_url = "wss://YOUR_WORKSPACE_ID.cn-beijing.maas.aliyuncs.com/api-ws/v1/inference"
+model = "qwen-audio-3.1-tts-flash"
+voice = "longanhuan_v3.1"
+credential_env = "DASHSCOPE_API_KEY"
+timeout_s = 30.0
