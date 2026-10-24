@@ -1,0 +1,11 @@
+# Example only. Use a service that actually implements Chat Completions tools.
+[provider]
+adapter = "chat_completions"
+execution = "local_process"
+base_url = "http://127.0.0.1:8000/v1"
+model = "YOUR_LOCAL_MODEL_ID"
+timeout_s = 30.0
+max_tokens = 512
+streaming = true
+token_limit_parameter = "max_tokens"
+# Set credential_env if this service requires authentication.

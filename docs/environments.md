@@ -125,30 +125,110 @@ Use a new output directory for a new run. This example disables model uploads,
 W&B reporting and evaluation, and does not invoke robot control. Select
 `environments\training\.venv\Scripts\python.exe` in your editor for training.
 
-## Existing Conda installations
+## Conda quick start
 
-Conda may stay installed, and existing Conda environments may be retained for
-comparison. The team does not maintain a second independent Conda dependency
-list: the two uv lockfiles define this baseline.
+uv remains the primary workflow. The Conda alternative is a thin installer,
+`scripts/setup_conda.py`, not another dependency resolver or an `environment.yml`
+maintained in parallel. Conda supplies Python; pinned uv **0.11.7** installs the
+same project and lockfile into the explicitly selected Conda prefix.
 
-Prefer a fresh PowerShell terminal with no Conda environment activated. If your
-terminal automatically activates Conda, run `conda deactivate` until the old
-environment is no longer active, then use the commands above. Do not install
-project packages with `conda install` or bare `pip` into either uv `.venv`.
+Open an initialized Conda terminal (Anaconda Prompt or a shell where `conda` and
+`python` work), enter the repository root, and run this on macOS or Windows:
 
-If you keep a Conda shell, still use `uv sync --locked` / `uv run --locked`
-for the chosen project. Do not use `--active`, `--system` or set
-`UV_PROJECT_ENVIRONMENT` to a Conda path. Verify the interpreter explicitly:
-
-```powershell
-uv run --locked python -c "import sys; print(sys.executable)"
-uv run --locked --project environments/training python -c "import sys; print(sys.executable)"
+```sh
+python scripts/setup_conda.py
 ```
 
-The first path must belong to root `.venv`; the second to the training `.venv`.
-An old Conda environment reporting LeRobot 0.6.2 does not establish that it
-contains this fork or these locked dependencies. See uv's
-[project environment rules](https://docs.astral.sh/uv/concepts/projects/config/#project-environment-path).
+This creates `eai-control` with Python 3.12 and pip from conda-forge, installs
+pinned uv there, runs `uv sync --locked --inexact` against the root project,
+checks dependencies and fork provenance, runs the offline suite, and finishes
+with the fixed Agent demo. It does not open a motor bus, camera, microphone or
+model API. Git and network access are needed for initial downloads.
+
+The script uses a subprocess-scoped `UV_PROJECT_ENVIRONMENT` and an explicit
+Python path. It does not export this variable into your shell or change the
+repository `.venv`. `--inexact` preserves bootstrap packages such as Conda's
+pip and uv while installing required project versions from the lock. Extra
+packages are retained; a dependency check rejects conflicts. This is not a
+byte-for-byte Conda environment lock, nor a guarantee that arbitrary existing
+ML environments are compatible.
+
+### Everyday Conda commands
+
+```sh
+conda activate eai-control
+python scripts/check_env.py
+python -m unittest discover -s tests -q
+eai-course agent --demo
+eai-course agent-config list
+```
+
+Alternatively, without activation:
+
+```sh
+conda run --no-capture-output -n eai-control eai-course agent --demo
+conda run --no-capture-output -n eai-control python scripts/arm_desk.py
+```
+
+The desktop command starts the local panel; connecting/enabling hardware still
+requires the existing operator flow. API configuration and explicit dotenv
+loading are identical; replace the `uv run --locked` prefix in the
+[provider guide](agent_providers.md) with `conda run --no-capture-output -n
+ eai-control`, or use the activated environment directly. For example:
+
+```sh
+conda run --no-capture-output -n eai-control eai-course agent-config init --preset qwen --model YOUR_MODEL_ID --output configs/agent/qwen.local.toml
+```
+
+Do not run bare `uv run` expecting it to target Conda: normal uv commands still
+use the repository `.venv`. Select the Conda interpreter in your editor and
+verify `python -c "import sys; print(sys.executable)"` after activation.
+
+### Updates, existing environments, and training
+
+The default refuses to modify an existing environment, base/root, or a uv
+`.venv`. Rerun with explicit reuse after pulling project/lock changes:
+
+```sh
+python scripts/setup_conda.py --reuse
+```
+
+For a pre-existing **dedicated project** environment:
+
+```sh
+python scripts/setup_conda.py --name my-eai-control --reuse
+```
+
+It must be a non-base Conda environment with Python 3.12. Reuse may replace
+installed project dependency versions; use a fresh environment for unrelated
+notebooks or experiments. Do not add a competing Conda/PyPI PyTorch or LeRobot
+installation afterward. Do not globally point `UV_PROJECT_ENVIRONMENT` at Conda
+or use `uv sync --active`; let the installer scope target selection explicitly.
+
+Training uses a separate name and the existing training lock:
+
+```sh
+python scripts/setup_conda.py --kind training
+conda run --no-capture-output -n eai-training python scripts/policy.py doctor
+conda run --no-capture-output -n eai-training lerobot-train --help
+```
+
+This does not install a second application copy or run root Agent tests in the
+training environment. To verify a real NVIDIA GPU, explicitly add
+`--require-cuda` (and `--reuse` for an existing training environment). No training
+job or motion is started. Never reuse the same Conda environment for control
+and training. Their Windows CPU/CUDA wheel choices still come from the original
+locks, with no manually exported requirements or duplicate index configuration.
+
+`--skip-tests` skips the full **control** suite for a quick software smoke check;
+it retains the dependency/environment check and offline demo. The normal quick
+start runs the complete suite. A failed setup leaves its environment available
+for diagnosis; fix the cause and explicitly reuse it, or choose a fresh name.
+
+The adapter follows uv's [project environment path](https://docs.astral.sh/uv/concepts/projects/config/#project-environment-path)
+and Conda's [run interface](https://docs.conda.io/projects/conda/en/latest/commands/run.html).
+Bootstrap Python packages are selected by conda-forge; Python project dependency
+versions and sources remain governed by the two committed uv locks.
 
 ## Windows serial ports, keyboard and preview
 
@@ -192,7 +272,7 @@ offline imports/help do not require those permissions.
 | Symptom | Check |
 | --- | --- |
 | uv version rejected | Install 0.11.7; do not regenerate locks with a different uv version as a setup workaround |
-| `torch.version.cuda` is `None` on Windows | You selected the control/Conda interpreter; use the training project and re-sync its lock |
+| `torch.version.cuda` is `None` on Windows | You selected the control interpreter; use the training uv project or eai-training Conda environment and re-sync its lock |
 | CUDA wheel installed but CUDA unavailable | Check NVIDIA GPU/driver, interpreter and `nvidia-smi`; repeat `--require-cuda` |
 | CUDA kernel/architecture error | Check GPU model/capability and the reported wheel architectures; select compatible wheels through a reviewed configuration/lock change |
 | Tk missing or preview cannot open | Verify Tk with the selected interpreter and use a desktop session; console camera detection remains available |

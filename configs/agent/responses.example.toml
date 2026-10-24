@@ -1,0 +1,15 @@
+# Official Responses API, for models/services supporting this API.
+[provider]
+adapter = "responses"
+execution = "managed_api"
+base_url = "https://example.invalid/v1"
+model = "YOUR_MODEL_ID"
+credential_env = "ROBOT_LLM_API_KEY"
+timeout_s = 30.0
+max_tokens = 512
+streaming = true
+# This adapter maps max_tokens (local budget) to the API's max_output_tokens.
+# store=false and reasoning.encrypted_content are used for stateless tool turns.
+
+# [provider.model_options.reasoning]
+# effort = "low"

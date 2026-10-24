@@ -104,7 +104,7 @@ function render(state) {
   const usable=serviceAvailable&&connected&&!busy;
   $('connection-badge').classList.toggle('connected',connected&&serviceAvailable);
   $('connection-badge').lastChild.textContent=!serviceAvailable?' 服务失联':connected?' 已连接':' 未连接';
-  $('hero-state').textContent=!serviceAvailable?'服务失联 · 当前状态未确认':!connected?'等待连接机械臂':enabled?'控制已启用 · 从当前姿态操作':'设备在线 · 只读，尚未启用控制';
+  $('hero-state').textContent=activeView==='agent'?'语音与文字对话 · 无需连接设备即可演练':!serviceAvailable?'服务失联 · 当前状态未确认':!connected?'等待连接机械臂':enabled?'控制已启用 · 从当前姿态操作':'设备在线 · 只读，尚未启用控制';
   $('status-text').textContent=actionError||state.error||state.status;
   $('status-text').parentElement.classList.toggle('error',Boolean(actionError||state.error));
   $('motion-label').textContent=busy?(state.stopping?'正在停止':'任务执行中'):enabled?'控制已启用':state.torque_on?'扭矩未确认关闭':'只读待机';
@@ -282,8 +282,11 @@ window.addEventListener('pagehide',()=>{
 document.querySelectorAll('[data-view]').forEach(button=>button.addEventListener('click',()=>{
   cancelDirection(true);keyboardArmed=false;updateKeyboard();
   activeView=button.dataset.view;
-  ['control','cartesian','calibration'].forEach(view=>$(view+'-view').hidden=view!==activeView);
-  $('page-name').textContent=$('page-title').textContent={control:'关节控制',cartesian:'末端控制',calibration:'校准与示教'}[activeView];
+  document.body.classList.toggle('agent-mode',activeView==='agent');
+  document.querySelector('.connection-panel').hidden=activeView==='agent';
+  document.querySelector('.workflow').hidden=activeView==='agent';
+  ['control','cartesian','calibration','agent'].forEach(view=>$(view+'-view').hidden=view!==activeView);
+  $('page-name').textContent=$('page-title').textContent={control:'关节控制',cartesian:'末端控制',calibration:'校准与示教',agent:'Agent'}[activeView];
   document.querySelectorAll('[data-view]').forEach(tab=>{const active=tab===button;tab.classList.toggle('active',active);if(active)tab.setAttribute('aria-current','page');else tab.removeAttribute('aria-current');});
 }));
 let activeView='control';

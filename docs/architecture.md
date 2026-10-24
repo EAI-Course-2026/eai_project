@@ -2,7 +2,7 @@
 
 动作模仿、外部 LLM 工具调用与视觉语音交互的下一阶段设计见
 [多模态 Agent 开发规划](agent_development_plan.md)。该方案保持六个一级能力目录，
-区分决策方法与云端／端侧部署位置；其中新增模块尚未实现。
+区分决策方法与云端／端侧部署位置；文本 API 工具循环与 dry-run 已实现，见[运行指南](agent_runtime.md)。
 
 下一阶段的 VLA 模型部署、观测/动作契约与推理执行方案见
 [VLA 部署规划](vla_deployment.md)和[接续 handoff](handoffs/vla_next_session.md)。
@@ -13,12 +13,20 @@ SCS215 适配维护在独立仓库 `EAI-Course-2026/eai_project`，以可安装�
 `lerobot_robot_scs215` 放在 `plugins/lerobot_robot_scs215/`。直接脚本、网页默认后端、
 SO-101 机器人构造器和标准 LeRobot CLI 共用这个插件中的电机总线。
 
+## 项目目标与三层边界
+
+[项目定位](project_scope.md)确定自然语言任务交互、硬件能力边界与任务质量评测。
+Agent 已参照 pi 分为 `policy/model_io`、`policy/agents`、`applications/agent`：模型 I/O、通用核心、机器人应用。
+模型层统一消息/JSON/SSE/鉴权；核心管理会话、工具、事件和取消；应用声明能力并注入 prompt/技能。
+详细依赖、生命周期和本轮 pi 快照见[三层说明](agent_layers.md)。
+
 ## 开发方向与推理归属
 
 后续工作按[模型与规则控制、学习感知与决策](development_workstreams.md)两条主线推进，
 保留共同 develop 与六个一级能力目录。精度、设备所有权和停止是共同契约。
 仓库已有 `policy/inference` 的本地 VLA 与自有远端 HTTP 服务、`vision/perception` 的检测器接口。
-拟新增 `policy/agents` 负责工具决策，`applications/agent` 负责媒体与技能会话；尚无完整运行实现。
+现有 `policy/model_io` 负责文本 API、`policy/agents` 负责通用工具循环，`applications/agent` 装配机器人能力、prompt、输入与演练技能。
+视觉/语音媒体、Omni 与实物技能会话仍待接入，不能把 dry-run 当作已统一硬件执行。
 本地进程、自有远端、第三方托管 API 与外部权重/框架分别管理；
 具体接口、错误和配置维度以[推理边界决定](inference_boundaries.md)为准。
 

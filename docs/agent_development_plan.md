@@ -1,13 +1,25 @@
 # 多模态 Agent 与动作模仿开发规划
 
-2026-10-19，已确定开发方案，新增 Agent 运行模块尚未实现。目标是把已有语音、感知、运动控制与学习策略串成可扩展的机械臂交互系统。
+2026-10-19，已确定开发方案，文本 Agent 目录、可配置 HTTP 与 dry-run 工具循环已实现；后续视觉/音频与实物任务仍未实现。目标是把已有语音、感知、运动控制与学习策略串成可扩展的机械臂交互系统。
 本轮只规划仓库与验收，不调用付费模型，不采集或上传音视频，不连接设备。
+
+2026-10-24 优先级更新：先补齐聊天 API 的协议、模型差异与真实服务验收，再实现云端 ASR/TTS。
+当日集成进度更新：PR #24、#25 已合并至 develop，聊天验收 CLI 与上位机云 ASR/TTS 支持页面内存配置；
+当前状态以[使用手册](desktop_agent.md)、[开发交接](agent_handoff.md)和[免费额度建议](agent_models.md)为准。
+本页后续视觉、双工、实物和通用媒体协议仍是设计目标，不因基础音频接通即视为完成。
+端侧推理保留为完全独立的平行路径，本阶段不优化其模型、部署或设备适配，也不自动回退到端侧。
+新增[聊天 API 验收入口](agent_api_acceptance.md)，复用现有 SDK 和 harness；真实服务仍需凭据运行验收。
+后续交互质量围绕机器人任务测量：停止响应、观测年龄、澄清次数、任务成功率、失败后恢复与调用成本。
+“优于现有编码助手交互”是产品目标，不能由流式聊天或离线测试推出已实现。
 
 依据：[任务书：视觉感知、理解与多关节控制](https://sa87gcdhzg.feishu.cn/wiki/E67LwdzANimYxckiuNhcyBuvn9b)，读取版本 revision 1876；
 以及用户补充的 4.2 Tools、4.3 视觉语音 Agent 要求。
-当前基线为 develop `1cb68c9`，已包含现场工作 `e79bd58` 的伺服反馈修正。
+最初规划基线为 develop `1cb68c9`，已包含现场工作 `e79bd58` 的伺服反馈修正。
 两条研发主线与分支处理见[开发主线](development_workstreams.md)；
 已有推理、各种外部依赖与拟新增接口以[推理边界决定](inference_boundaries.md)为准。
+
+
+阅读规则：本页是开发规划，工具表和伪代码是设计目标；实际已暴露的工具、支持协议及命令以[运行指南](agent_runtime.md)、[标准契约](agent_standard_contract.md)和[API 验收](agent_api_acceptance.md)为准。后续带日期的历史描述保留其时间范围，不能覆盖这些当前入口。
 
 ## 1. 架构决定：能力、决策方法、推理位置分开描述
 
@@ -54,14 +66,14 @@ VLA → 已有 policy 执行器（动作块契约继续独立）
 
 | 能力 | 可复用代码 | 当前边界 / 还要做什么 |
 |---|---|---|
-| voice 规则命令 | `applications/teleoperation/intent.py`、`dispatcher.py`、`voice.py` | 本仓库收文本；ASR 在独立实验；尚无本仓库麦克风/双向语音会话 |
+| voice 规则命令 | `applications/teleoperation/intent.py`、`dispatcher.py`、`voice.py` | 本仓库收可替换提供方的文本；独立实验仅为案例；尚无本仓库麦克风/双向语音会话 |
 | 命名姿态 | `control/planning/poses.py`、`demo.py`；`control/execution/arm.py` | 可作为技能；缺失姿态仍拒绝；不能把任意模型文本当姿态文件 |
 | 末端 IK | `control/kinematics/`、`control/planning/cartesian.py` | 复用路径预检、单位和坐标系；位置 IK 不保证朝向或避碰 |
 | 视觉检测与跟踪 | `vision/perception/`、`detection/`、`tracking/` | 模型检测基础存在；文本描述找物体与稳定 object_id 尚需绑定实现 |
 | 视觉伺服 | `applications/visual_servo/`、`control/visual_servo/` | ArUco 回中已有真机证据；任意物体与完整停靠不可一概标为通过 |
 | VLA / 模仿学习策略 | `policy/inference/`、`execution/`、`data/` | 已有推理与执行门禁；没有匹配本机任务的自主实物验收 |
 | 人体动作理解与模仿 | 无完整业务链 | 新增 VLM 请求、结构化关节候选、计划审查与对照实验 |
-| LLM 工具调用 | 无完整业务链 | 新增外部 API 适配、工具 schema、循环、执行绑定及留证 |
+| LLM 工具调用 | 已有文本 HTTP、schema、循环和演练技能 | 真实供应商验收、视觉/音频与实物技能仍待接入 |
 
 当前相机共享方案位于 `applications/visual_servo/shared_camera.py`，应先适配复用；
 不要让 Agent 和视觉伺服分别打开同一摄像头。
@@ -69,18 +81,18 @@ VLA → 已有 policy 执行器（动作块契约继续独立）
 
 ## 3. 确定的仓库增量
 
-保持六个一级能力目录。以下都是拟新增文件；按阶段落地，不预建空包。
+保持六个一级能力目录。模型 I/O、核心 context/contracts/tools/loop 与应用 prompt/cli/session/skills/demo/capabilities 已落地；
+其余文件仍按阶段增加，不预建空包。实际范围见[运行指南](agent_runtime.md)。
 
 ```text
 src/eai_robot/
   policy/
+    model_io/                 模型消息、JSON/SSE 适配与环境鉴权（已实现）
     agents/                   新增：任务决策，依赖注入，不拥有设备
       contracts.py            消息、工具请求/结果、任务句柄、会话版本
       tools.py                白名单 schema、参数校验、注入的 handler 协议
-      providers.py            外部模型 API 适配与能力声明；先实现一家
       loop.py                 tool call → 执行 → tool result → 继续推理
       imitation.py            动作描述与六关节候选的解析/验证
-      prompts/                system、模仿基线/改进版、few-shot 包资源
     inference/                保留：VLA 模型、处理器、工件及传输
     execution/                保留：策略执行门禁；不直接复用为对话循环
     data/                     保留：训练与评估数据
@@ -97,7 +109,7 @@ configs/agent/                可提交的非机密配置示例
 tests/test_agent_*.py         只在对应功能实现时新增离线行为与故障回归
 ```
 
-prompt 随 `policy/agents/prompts/` 作为包资源加载，实现时验证 wheel 内资源齐全。
+prompt 已归入 `applications/agent/prompts/`；三层职责与实际路径以[三层架构](agent_layers.md)为准。
 
 依赖方向：`applications/agent` → `policy/agents`、`control`、`vision`、设备接口。
 `policy/agents` 不导入 `applications`，工具执行通过 handler 注入；
@@ -212,8 +224,12 @@ prompt 是行为指导，真实限制由代码实施。模型不能调用 enable
 用户打断播报、取消模型请求、停止机械臂是不同操作，停止命令同时取消相关运动任务。
 
 ASR、VLM/LLM、TTS 可分别部署在端侧或云端；配置需记录实际解析的位置与后端。
+当前实施主线为独立配置的云端 ASR、聊天/VLM API、云端 TTS；允许三者选择不同服务和 Key。
+端侧与云端共用输入/输出契约，但不互相导入模型实现、依赖另一项目目录或做隐式 fallback。
+实时 Omni 是另一种会话协议，不能仅修改聊天 base_url 就宣称支持；待分阶段链路验收后再推进。
 本机 GPU 服务与云 API 都是远端调用，但服务所有权、模型工件和媒体传输范围不同，应分别标记。
-云端接入前明确所用服务及音视频传输范围；Key 仅来自环境变量或忽略的本机配置。
+云端接入前明确服务及音视频传输范围；网页 Key 默认仅在会话服务端内存，
+显式 CLI 兼容入口才使用环境变量或忽略的本机配置。
 
 ## 8. 按依赖推进的开发切片
 

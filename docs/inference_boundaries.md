@@ -1,6 +1,10 @@
 # 推理归属、外部依赖与接口决定
 
-2026-10-19。此文确定后续模块边界；明确标为“拟新增”的协议还没有运行实现。
+2026-10-19。此文确定模块边界；文本 ChatProvider、工具循环和演练 CLI 已实现，见[运行指南](agent_runtime.md)。
+2026-10-24：聊天 API 接入/验收优先的基线已集成，新增[上位机 Agent](desktop_agent.md)，
+页面内分别配置聊天、ASR/TTS；原生百炼语音已有薄适配。端侧作为解耦平行路径保留，
+不新增端侧优化或自动安装；各阶段服务和凭据不能互相代替。
+下文通用媒体/Omni 与实物技能协议仍为演进目标，不能据目标表格推断全部已实现。
 研发方向见[两条开发主线](development_workstreams.md)，业务切片见[Agent 规划](agent_development_plan.md)。
 
 ## 已有推理基础在本仓库
@@ -12,8 +16,10 @@
 | VLA 网络客户端/服务器 | `policy/inference/transport.py` 的 `RemoteRuntime`、`policy_server` | 已有认证、有界 JSON/RGB、会话/序号/manifest 关联；loopback HTTP + SSH 隧道 |
 | 本地设备与动作门禁 | `policy/execution/runner.py`、`safety.py` | 保持在机械臂所在主机；推理服务不持有 Robot 或运动权限 |
 | 图像检测器 | `vision/perception/detector.py`、`registry.py`、`spec.py` | 已有 detector 协议、模型设备规格、工厂与异步检测；具体模型按注册能力提供 |
-| 语音识别 | 外部 `edge_inference_lab` 实验 | 本仓库目前仅通过 stdin 接收逐行转写；不导入外部项目的本机路径 |
-| LLM / VLM Tools / Omni / TTS | 尚未实现完整接入 | 拟新增 provider 与媒体适配器；不能把 VLA HTTP 当作聊天 API |
+| 语音识别 | 云端百炼 ASR；外部逐行文本提供方 | 上位机可录音后上传并接收最终转写；原 stdin 仍可使用，不依赖本机实验目录 |
+| 文本 LLM Tools | `policy/model_io/`、`policy/agents/`、`applications/agent/` | 已实现可配置 HTTP、工具循环、逐行文本与演练技能；百炼 qwen-plus 已有真实工具回传证据；其他模型单独验收 |
+| TTS | 云端百炼薄适配 | 上位机生成并播放 WAV；本地取消丢弃迟到音频 |
+| VLM / Omni | 尚未实现完整接入 | 后续媒体适配器；不能把 VLA HTTP 当作聊天 API |
 
 结论：保留仓库内的应用推理适配、数据契约与部署入口。计算可以外置；
 模型框架、权重仓库、外部进程、远端算力与第三方 API 分开管理。
@@ -39,20 +45,22 @@
 
 ## 模块归属与依赖方向
 
+本轮实现进一步区分模型 I/O、通用 Agent 核心、机械臂应用，见[三层架构](agent_layers.md)。
+
 ```text
-applications/agent         会话装配、媒体采集/播放、技能 handler 注入（拟新增）
-        ├→ policy/agents   消息/工具契约、决策循环、聊天 provider（拟新增）
+applications/agent         已有文本/dry-run 装配；媒体采集/播放与硬件会话待接入
+        ├→ policy/agents   已有工具契约、上下文与决策循环；模型消息/provider 在 model_io
         ├→ vision          检测器、跟踪器、图像观测（已有）
         ├→ control         姿态/IK/视觉控制律、既有执行能力（已有）
         └→ policy          VLA runtime、执行门禁与数据（已有）
 
-policy/agents/providers.py → 供应商 SDK / 本机模型 API / 自有聊天服务
+policy/model_io/providers.py → 供应商协议 / 本机模型 API / 自有聊天服务
 policy/inference/runtime.py → 锁定 LeRobot 模型与处理器
 policy/inference/transport.py → 同一 VLA runtime 的远程代理
-applications/agent/speech.py → 独立 ASR/TTS 协议适配（拟新增）
+applications/agent/speech.py → 独立云端 ASR/TTS 配置、校验与 SDK 工作进程
 ```
 
-供应商适配不能反向调用硬件。`policy/agents` 通过注入的技能协议获取工具结果，
+供应商适配不能反向调用硬件。`policy/agents` 通过注入的技能协议获取工具结果，模型接口位于 `policy/model_io`，
 不导入 `applications`；`vision`、`control` 也不能反向导入应用。
 设备生命周期与相机单一所有权在应用层，纯推理只接收数据。
 ASR/TTS 首版在应用层适配，出现多应用复用需求后再评审抽取，不提前新建一级 speech 包。
@@ -83,11 +91,14 @@ detector.close()                              # 释放模型资源，不操作�
 
 ## 拟新增接口：按输出类型定义
 
-下列签名是实现约定，类型在对应功能 PR 中落地。此 PR 不创建可导入但不可运行的空 provider。
+ChatProvider 通过官方 SDK 接入 Chat Completions 与 Responses，支持标准图像内容块（Chat 另含 input_audio）。
+完整兼容范围见[标准契约](agent_standard_contract.md)；采集、实时音频和下列 ASR/TTS 签名仍是后续约定。
+实际类和字段以源码及[运行指南](agent_runtime.md)为准；不创建只有签名的空 ASR/TTS provider。
 
 ```python
 class ChatProvider(Protocol):
     def describe(self) -> ProviderInfo: ...
+    def stream(self, request: ChatRequest, *, cancel: Event) -> Iterator[ModelEvent]: ...
     def complete(self, request: ChatRequest, *, cancel: Event) -> ChatReply: ...
     def close(self) -> None: ...
 
@@ -107,7 +118,7 @@ class SkillService(Protocol):
     def stop_motion(self, session_id: str) -> ToolResult: ...
 ```
 
-首版 ChatProvider 为有超时的同步方法，应用放独立推理线程。`cancel` 用于取消等待并丢弃迟到响应；
+ChatProvider 支持完整回复与 SSE 流，传输位于模型层；核心消费统一流事件。`cancel` 用于取消等待并丢弃迟到响应；
 供应商支持时终止请求，不能保证撤销服务端计算/计费。它不代替本地 `stop_motion`。
 流式 Omni 后续采用单独 `OmniSession.send/receive/cancel_turn/close` 事件协议；
 不把流式音频和工具片段直接套进一次性 `complete` 返回值。
@@ -130,7 +141,8 @@ class SkillService(Protocol):
 
 ## 配置决定：分别表达协议、位置与来源
 
-拟采用以下字段，不引入当前尚不能读取的可运行配置示例：
+当前文本配置示例位于 `configs/agent/`；下列跨模态字段是完整演进目标，
+当前只支持其中运行指南列出的子集，不接受未知配置字段：
 
 ```text
 stage                  asr | chat | tts | detector | action_policy
@@ -148,7 +160,7 @@ media_policy           允许传输的模态、目标服务与尺寸/时长上�
 
 describe/日志记录解析后的实际部署、设备（可未知）、模型和能力，避免把 `auto` 当作设备证据。
 供应商兼容某一 JSON 格式不代表支持全部工具、音频与流式协议；启动探针检查 required capabilities，
-缺失直接拒绝该会话配置，不静默切换为另一服务或改变媒体传输范围。
+未来能力探针缺失时应拒绝该会话配置；当前有标准 Chat/Responses 工具协议、内容块与显式 SSE，不作模型能力保证，不静默切换为另一服务或改变媒体传输范围。
 现有 VLA CLI/manifest 与 detector ModelSpec 暂不改名；未来会话配置仅装配它们，不能复制并覆盖两份限额。
 
 ## 错误、生命周期与可替换性验收
