@@ -15,6 +15,9 @@
 两条研发主线与分支处理见[开发主线](development_workstreams.md)；
 已有推理、各种外部依赖与拟新增接口以[推理边界决定](inference_boundaries.md)为准。
 
+
+阅读规则：本页是开发规划，工具表和伪代码是设计目标；实际已暴露的工具、支持协议及命令以[运行指南](agent_runtime.md)、[标准契约](agent_standard_contract.md)和[API 验收](agent_api_acceptance.md)为准。后续带日期的历史描述保留其时间范围，不能覆盖这些当前入口。
+
 ## 1. 架构决定：能力、决策方法、推理位置分开描述
 
 此前的 voice 属于同一条交互链：识别文本进入规则解析器，再选择动作。

@@ -181,6 +181,9 @@ git switch -c codex/your-task
 
 ## 文件导航
 
+文档按当前入口、规划和历史证据分层，先读[文档导航](docs/README.md)。
+`docs/` 保存团队知识；[outputs](outputs/README.md) 只承接运行输出，验收后按[工作区规则](docs/workspace.md)归档。
+
 源码各子目录的职责、兼容边界和新增能力的放置规则见
 [`src/README.md`](src/README.md)。一级收敛为六个能力目录，第二级按实际功能分组；不同设备执行路径仍保留各自门禁。
 
@@ -188,6 +191,8 @@ ACT、SmolVLA、π0.5 的模型加载、跨机器推理、本地执行门禁与�
 [推理基础设施指南](docs/policy/README.md)及[后续工作交接](docs/policy/next_session.md)。
 SmolVLA 已完成 Mac MPS 的真实离线加载与动作块输出；GPU、本机模型适配和自主实物任务
 仍待验收，不能由基础模型输出或软件 CI 替代。
+
+**作业成品统一放在 `deliverables/`。** 第三次作业已提交的成品位于 `deliverables/assignment-03/2026-10-02-r01/`，报告、视频、固定源码和提交 ZIP 放在一起；旧版本放该作业的 `archive/`。目录指南提交 Git，作业正文、附件和 ZIP 保留本机。见[作业目录](deliverables/README.md)与[工作区规则](docs/workspace.md)。
 
 | 路径 | 用途 |
 |---|---|
@@ -204,10 +209,13 @@ SmolVLA 已完成 Mac MPS 的真实离线加载与动作块输出；GPU、本机
 | `calibration/`、`configs/` | 共享标定、历史回执和本机配置模板 |
 | `tests/`、`scripts/` | 离线回归、环境核验和操作入口 |
 | `docs/reports/` | 按日期记录交付、证据、问题与验收范围 |
+| `deliverables/` | 按作业、日期与修订号存放提交成品，正文与附件不上传 Git |
+| `local_artifacts/` | 本机验收证据、历史快照、诊断和有生命周期的临时工作区 |
+| `outputs/` | 程序生成的运行输出；需要长期保留的结果整理到成品或证据目录 |
 
 - [协作与分支生命周期](CONTRIBUTING.md) · [代理工作约定](AGENTS.md)
 - [架构](docs/architecture.md) · [硬件](docs/hardware.md) · [Windows/CUDA/Conda](docs/environments.md)
-- [VLA 部署阶段方案](docs/vla_deployment.md) · [后续工作交接](docs/handoffs/vla_next_session.md)
+- [VLA 当前接续条件](docs/policy/next_session.md) · [历史部署方案](docs/vla_deployment.md)
 - [多模态 Agent 开发规划](docs/agent_development_plan.md) · [策略推理基建](docs/policy/README.md) · [语音命令调度](docs/course/voice/README.md)
 - [课程基线](docs/course/README.md) · [35 文件迁移清单](docs/course/COVERAGE.md)
 - [2026-10-02 功能报告](docs/reports/2026-10-02.md) · [2026-10-03 仓库与 CI 修复报告](docs/reports/2026-10-03.md)
