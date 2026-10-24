@@ -81,6 +81,7 @@
 - [Agent 标准协议与官方 SDK 修正](reports/2026-10-22-agent-standard-sdk.md)
 - [Conda 薄适配与 Quick start](reports/2026-10-22-conda-adapter.md)
 - [2026-10-24 文档与运行输出血缘审查](reports/2026-10-24-artifact-lineage.md)
+- [Windows 上位机 Agent 麦克风与停止人工验收](reports/2026-10-24-windows-agent-microphone.md)
 
 ### archive
 
