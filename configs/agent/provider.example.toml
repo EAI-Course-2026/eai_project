@@ -1,0 +1,18 @@
+# Standard OpenAI SDK base URL; no vendor/model is selected automatically.
+# Copy to provider.local.toml and inject the named credential environment variable.
+[provider]
+adapter = "chat_completions"
+execution = "managed_api"
+base_url = "https://example.invalid/v1"
+model = "YOUR_MODEL_ID"
+credential_env = "ROBOT_LLM_API_KEY"
+timeout_s = 30.0
+max_tokens = 512
+streaming = true
+# Set to "max_tokens" explicitly for compatible services requiring the legacy field.
+token_limit_parameter = "max_completion_tokens"
+
+# Optional standard parameters; only set values supported by the selected model.
+# [provider.model_options]
+# reasoning_effort = "low"
+# parallel_tool_calls = false

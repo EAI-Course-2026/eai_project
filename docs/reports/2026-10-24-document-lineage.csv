@@ -1,0 +1,72 @@
+snapshot_path,role,integration_at_audit,first_commit_followed,last_commit,incoming_markdown_links,identical_private_copies,decision
+docs/agent_api_acceptance.md,能力指南/实验基线,develop 有旧版，PR #25 有后继修订,101569aca7a7910360c74542d2ad226fdcd8dfe6,d087cb1bf7f67f68068a198f958eb71bb76ffa6a,7,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/agent_development_plan.md,规划/待验收,develop 有旧版，PR #25 有后继修订,901502d4daac3aaa1f0801878797b88b960b7ea9,d087cb1bf7f67f68068a198f958eb71bb76ffa6a,6,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/agent_handoff.md,能力指南/实验基线,PR #25 待审,0eb96da717d2c597a40b0e8b5c2e93695335a361,8040d7ac849b81f1bd571c6c0780ff0e428e2832,6,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/agent_layers.md,架构/契约,develop 有旧版，PR #25 有后继修订,1f2eb38decf987e8cbbcbfc921066999da1b3277,0eb96da717d2c597a40b0e8b5c2e93695335a361,9,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/agent_models.md,能力指南/实验基线,PR #25 待审,8040d7ac849b81f1bd571c6c0780ff0e428e2832,8040d7ac849b81f1bd571c6c0780ff0e428e2832,6,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/agent_providers.md,能力指南/实验基线,develop,f64fe432037357135120a0fc231816b0a2dca452,101569aca7a7910360c74542d2ad226fdcd8dfe6,8,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/agent_runtime.md,能力指南/实验基线,develop 有旧版，PR #25 有后继修订,ab814567e052715920f8c2c9421df425a755eb17,70bf6d191b55ea5f81db9632b3176ea075f10e29,13,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/agent_standard_contract.md,架构/契约,develop 有旧版，PR #25 有后继修订,4f664b3398a0d09811e43419db9119720fa2ff5c,d087cb1bf7f67f68068a198f958eb71bb76ffa6a,6,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/architecture.md,架构/契约,develop,9f1001ba81ad2da72142e87b99e4a42be83589b0,1f2eb38decf987e8cbbcbfc921066999da1b3277,4,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/assets/agent-desktop.jpg,能力指南/实验基线,PR #25 待审,8040d7ac849b81f1bd571c6c0780ff0e428e2832,8040d7ac849b81f1bd571c6c0780ff0e428e2832,1,1,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/course/CALIBRATION.md,来源映射/历史验收,develop,0baeedba508548ae3c91f4bf767ba466250d0cf2,f29b51b160c32d876c8b12cbc9b60b011335d150,3,1,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/course/COVERAGE.md,来源映射/历史验收,develop,d8caf95e100436ad0ffedc9b237ff37a57e42fa5,e54ebf7aaa7377a8a1b9d0de49175fe8cf672bdf,2,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/course/MIGRATION.md,来源映射/历史验收,develop,3f84bd7952900003538ceeb92147ea2bd806b64b,e54ebf7aaa7377a8a1b9d0de49175fe8cf672bdf,0,0,补导航；缺少入链不是废弃依据
+docs/course/README.md,能力指南/实验基线,develop,3f84bd7952900003538ceeb92147ea2bd806b64b,ab814567e052715920f8c2c9421df425a755eb17,6,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/course/aruco_visual_servo.md,能力指南/实验基线,develop,8e44c77eadf342f9825a9d8d808a1d7257e4c557,e54ebf7aaa7377a8a1b9d0de49175fe8cf672bdf,5,1,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/course/aruco_visual_servo_history.md,历史实现说明,develop,e54ebf7aaa7377a8a1b9d0de49175fe8cf672bdf,e54ebf7aaa7377a8a1b9d0de49175fe8cf672bdf,1,1,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/course/source/HANDOFF.md,原始来源/许可,develop,3f84bd7952900003538ceeb92147ea2bd806b64b,3f84bd7952900003538ceeb92147ea2bd806b64b,5,1,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/course/source/LeRobot-LICENSE.txt,原始来源/许可,develop,3f84bd7952900003538ceeb92147ea2bd806b64b,3f84bd7952900003538ceeb92147ea2bd806b64b,0,5,补导航；缺少入链不是废弃依据
+docs/course/source/README.md,原始来源/许可,develop,3f84bd7952900003538ceeb92147ea2bd806b64b,3f84bd7952900003538ceeb92147ea2bd806b64b,1,1,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/course/source/calibration/README.md,原始来源/许可,develop,3f84bd7952900003538ceeb92147ea2bd806b64b,f29b51b160c32d876c8b12cbc9b60b011335d150,2,1,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/course/source/vision/README.md,原始来源/许可,develop,3f84bd7952900003538ceeb92147ea2bd806b64b,3f84bd7952900003538ceeb92147ea2bd806b64b,1,1,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/course/source/vision/REPORT.md,原始来源/许可,develop,3f84bd7952900003538ceeb92147ea2bd806b64b,3f84bd7952900003538ceeb92147ea2bd806b64b,1,1,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/course/source/voice/README.md,原始来源/许可,develop,3f84bd7952900003538ceeb92147ea2bd806b64b,3f84bd7952900003538ceeb92147ea2bd806b64b,1,1,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/course/source/week4/README.md,原始来源/许可,develop,3f84bd7952900003538ceeb92147ea2bd806b64b,3f84bd7952900003538ceeb92147ea2bd806b64b,1,1,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/course/source/week4/task1/README.md,原始来源/许可,develop,3f84bd7952900003538ceeb92147ea2bd806b64b,3f84bd7952900003538ceeb92147ea2bd806b64b,1,1,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/course/source/week4/task2/README.md,原始来源/许可,develop,3f84bd7952900003538ceeb92147ea2bd806b64b,3f84bd7952900003538ceeb92147ea2bd806b64b,2,1,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/course/visual_servo_homework.md,能力指南/实验基线,develop,e79bd58e480b258db8aa3f00da3479ba63091f21,e79bd58e480b258db8aa3f00da3479ba63091f21,0,0,补导航；缺少入链不是废弃依据
+docs/course/voice/ARCHITECTURE.md,架构/契约,develop 有旧版，PR #25 有后继修订,ab814567e052715920f8c2c9421df425a755eb17,70bf6d191b55ea5f81db9632b3176ea075f10e29,4,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/course/voice/README.md,能力指南/实验基线,develop,7442cab13c7bdfc465e01b72844e212c9a19dfaf,ab814567e052715920f8c2c9421df425a755eb17,2,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/desktop_agent.md,能力指南/实验基线,PR #25 待审,d65c8d783c25434d4c8cca0df0b218f3010e6edd,8040d7ac849b81f1bd571c6c0780ff0e428e2832,10,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/development_workstreams.md,规划/待验收,develop,901502d4daac3aaa1f0801878797b88b960b7ea9,901502d4daac3aaa1f0801878797b88b960b7ea9,10,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/environments.md,能力指南/实验基线,develop,d8caf95e100436ad0ffedc9b237ff37a57e42fa5,55eade2313a01d3c263bcc19183aefcb7ac2a464,6,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/experiments/joint_response.md,能力指南/实验基线,develop,e54ebf7aaa7377a8a1b9d0de49175fe8cf672bdf,e54ebf7aaa7377a8a1b9d0de49175fe8cf672bdf,0,0,补导航；缺少入链不是废弃依据
+docs/experiments/object_servo_decisions.md,规划/待验收,develop,058d2a363f6f570abf234c0feefc42d7e56b5aea,058d2a363f6f570abf234c0feefc42d7e56b5aea,2,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/experiments/perception_infrastructure.md,架构/契约,develop,058d2a363f6f570abf234c0feefc42d7e56b5aea,058d2a363f6f570abf234c0feefc42d7e56b5aea,3,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/experiments/pid_response.md,能力指南/实验基线,develop,eaac67ecd3f3dabc122ffd4d4322c3da2f2bcfcc,bba0b2231603304f0abb05692eda85baa63f733b,0,1,补导航；缺少入链不是废弃依据
+docs/experiments/scs215_arm.md,能力指南/实验基线,develop,9f1001ba81ad2da72142e87b99e4a42be83589b0,3f84bd7952900003538ceeb92147ea2bd806b64b,1,1,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/experiments/scs215_demos.md,能力指南/实验基线,develop,9f1001ba81ad2da72142e87b99e4a42be83589b0,bba0b2231603304f0abb05692eda85baa63f733b,1,1,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/experiments/scs215_desk.md,能力指南/实验基线,develop,9f1001ba81ad2da72142e87b99e4a42be83589b0,97daa094aad36b09aec53340d6b3f61cd31eec24,3,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/experiments/scs215_safe_candidate.md,能力指南/实验基线,develop,9f1001ba81ad2da72142e87b99e4a42be83589b0,f29b51b160c32d876c8b12cbc9b60b011335d150,1,1,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/experiments/servo_basics.md,能力指南/实验基线,develop,eaac67ecd3f3dabc122ffd4d4322c3da2f2bcfcc,eaac67ecd3f3dabc122ffd4d4322c3da2f2bcfcc,0,2,补导航；缺少入链不是废弃依据
+docs/experiments/visual_servo_any_object.md,能力指南/实验基线,develop,058d2a363f6f570abf234c0feefc42d7e56b5aea,058d2a363f6f570abf234c0feefc42d7e56b5aea,2,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/experiments/visual_servo_fixed_rule.md,能力指南/实验基线,develop,058d2a363f6f570abf234c0feefc42d7e56b5aea,e79bd58e480b258db8aa3f00da3479ba63091f21,2,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/experiments/visual_servo_precision.md,规划/待验收,develop,e54ebf7aaa7377a8a1b9d0de49175fe8cf672bdf,e54ebf7aaa7377a8a1b9d0de49175fe8cf672bdf,4,1,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/handoffs/vla_next_session.md,交接/方案（已归档）,develop,afe3f72086a73e82d5cb666b7940ca2c8115aad6,e54ebf7aaa7377a8a1b9d0de49175fe8cf672bdf,3,0,原文归档至 docs/archive/2026-10-03-vla-handoff.md；原路径保留当前入口
+docs/hardware.md,能力指南/实验基线,develop,eaac67ecd3f3dabc122ffd4d4322c3da2f2bcfcc,0baeedba508548ae3c91f4bf767ba466250d0cf2,1,1,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/inference_boundaries.md,架构/契约,develop 有旧版，PR #25 有后继修订,901502d4daac3aaa1f0801878797b88b960b7ea9,70bf6d191b55ea5f81db9632b3176ea075f10e29,11,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/lerobot_plugin.md,能力指南/实验基线,develop,592fb47f466864afc78912531e93649b38a628df,5fa3d1cd474498604adfa30234b13ee2a38c39e3,4,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/lerobot_plugin_validation.md,来源映射/历史验收,develop,592fb47f466864afc78912531e93649b38a628df,1a65929a3b2c549e5eeff457dc9730dfc2957799,2,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/milestones.md,规划/待验收,develop,eaac67ecd3f3dabc122ffd4d4322c3da2f2bcfcc,ab814567e052715920f8c2c9421df425a755eb17,5,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/policy/README.md,能力指南/实验基线,develop,8a66afdc1a7be8b68253d278fbc8dd41a44993d0,ab814567e052715920f8c2c9421df425a755eb17,5,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/policy/next_session.md,交接/方案（已归档）,develop,8a66afdc1a7be8b68253d278fbc8dd41a44993d0,901502d4daac3aaa1f0801878797b88b960b7ea9,2,0,原文归档至 docs/archive/2026-10-03-policy-infrastructure.md；原路径保留当前入口
+docs/project_scope.md,架构/契约,develop,1f2eb38decf987e8cbbcbfc921066999da1b3277,1f2eb38decf987e8cbbcbfc921066999da1b3277,5,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/reports/2026-10-02.md,日期证据/配图,develop,5fa3d1cd474498604adfa30234b13ee2a38c39e3,03655d7e02324909b311a881914be69a36f74586,5,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/reports/2026-10-03.md,日期证据/配图,develop,03655d7e02324909b311a881914be69a36f74586,03655d7e02324909b311a881914be69a36f74586,3,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/reports/2026-10-17-aruco-hardware-first-step.md,日期证据/配图,develop,e54ebf7aaa7377a8a1b9d0de49175fe8cf672bdf,e54ebf7aaa7377a8a1b9d0de49175fe8cf672bdf,1,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/reports/2026-10-17-source-boundaries.md,日期证据/配图,develop,97daa094aad36b09aec53340d6b3f61cd31eec24,97daa094aad36b09aec53340d6b3f61cd31eec24,0,0,补导航；缺少入链不是废弃依据
+docs/reports/2026-10-17-visual-servo.md,日期证据/配图,develop,e54ebf7aaa7377a8a1b9d0de49175fe8cf672bdf,e54ebf7aaa7377a8a1b9d0de49175fe8cf672bdf,0,0,补导航；缺少入链不是废弃依据
+docs/reports/2026-10-18-visual-servo-round1.md,日期证据/配图,develop,e54ebf7aaa7377a8a1b9d0de49175fe8cf672bdf,e54ebf7aaa7377a8a1b9d0de49175fe8cf672bdf,4,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/reports/2026-10-19-agent-boundaries.md,日期证据/配图,develop,901502d4daac3aaa1f0801878797b88b960b7ea9,901502d4daac3aaa1f0801878797b88b960b7ea9,1,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/reports/2026-10-19-agent-layers.md,日期证据/配图,develop,1f2eb38decf987e8cbbcbfc921066999da1b3277,1f2eb38decf987e8cbbcbfc921066999da1b3277,1,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/reports/2026-10-19-agent-runtime.md,日期证据/配图,develop,ab814567e052715920f8c2c9421df425a755eb17,ab814567e052715920f8c2c9421df425a755eb17,1,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/reports/2026-10-19-servo-feedback-guards.md,日期证据/配图,develop,e79bd58e480b258db8aa3f00da3479ba63091f21,e79bd58e480b258db8aa3f00da3479ba63091f21,4,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/reports/2026-10-22-agent-provider-configuration.md,日期证据/配图,develop,f64fe432037357135120a0fc231816b0a2dca452,921801f3999f013d4efb3d6ca0098a70bb254bb5,1,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/reports/2026-10-22-agent-standard-sdk.md,日期证据/配图,develop,4f664b3398a0d09811e43419db9119720fa2ff5c,f64fe432037357135120a0fc231816b0a2dca452,1,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/reports/2026-10-22-conda-adapter.md,日期证据/配图,develop,55eade2313a01d3c263bcc19183aefcb7ac2a464,55eade2313a01d3c263bcc19183aefcb7ac2a464,0,0,补导航；缺少入链不是废弃依据
+docs/reports/2026-10-24-cloud-speech.md,日期证据/配图,PR #25 待审,d65c8d783c25434d4c8cca0df0b218f3010e6edd,70bf6d191b55ea5f81db9632b3176ea075f10e29,6,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/reports/2026-10-24-worktree-cleanup.md,日期证据/配图,PR #25 待审,0eb96da717d2c597a40b0e8b5c2e93695335a361,0eb96da717d2c597a40b0e8b5c2e93695335a361,1,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/reports/assets/2026-10-02-cartesian.jpg,日期证据/配图,develop,5fa3d1cd474498604adfa30234b13ee2a38c39e3,5fa3d1cd474498604adfa30234b13ee2a38c39e3,1,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/source_layout_migration.md,来源映射/历史验收,develop,e54ebf7aaa7377a8a1b9d0de49175fe8cf672bdf,4f664b3398a0d09811e43419db9119720fa2ff5c,6,0,保留；职责不同，字节相同的本机历史副本不反向覆盖当前文件
+docs/vla_deployment.md,交接/方案（已归档）,develop,afe3f72086a73e82d5cb666b7940ca2c8115aad6,e54ebf7aaa7377a8a1b9d0de49175fe8cf672bdf,3,0,原文归档至 docs/archive/2026-10-03-vla-deployment.md；原路径保留当前入口

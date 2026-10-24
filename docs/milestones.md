@@ -39,3 +39,6 @@
 
 研发分支与能力边界见[主线安排](development_workstreams.md)、[接口决定](inference_boundaries.md)
 和[Agent 计划](agent_development_plan.md)。以上待办不表示新运行模块已实现。
+
+2026-10-19 Agent 实现进展：文本 API 工具循环、五个 dry-run 工具和逐行文本输入已落地，
+见[运行指南](agent_runtime.md)。真实外部模型 API、视觉/语音端到端与实物技能验收仍未完成。

@@ -7,6 +7,13 @@
 
 **长期保留 `main` 和 `develop`。** main 是可复现的集成基线，也是默认分支；develop 承接日常集成。两者均通过 PR、代码审查和三项托管检查更新。临时功能分支从 develop 创建。macOS、Windows 和 CUDA 共用源码，以独立配置和锁文件区分环境，不需要长期平台分支。完整规则见 [CONTRIBUTING](CONTRIBUTING.md)。
 
+## 项目目标
+
+长期目标是通过自然语言（含语音）向机械臂提出控制任务，由系统理解、观测、选择技能、
+执行并验证结果。硬件的行程、负载、保持误差和视野决定能力边界；任务质量通过固定任务集持续测量。
+项目是感知、模型路由、harness 和控制的共同优化过程，训练按失败证据选择投入。
+见[定位与评测](docs/project_scope.md)、[三层架构与 pi 参考](docs/agent_layers.md)。
+
 ## 接下来的开发方向
 
 研发收敛为两条主线：**模型与规则控制**（先完善视觉伺服、反馈与 FK/IK）和
@@ -15,7 +22,8 @@
 见[主线与分支安排](docs/development_workstreams.md)。
 
 仓库已经包含 VLA 本地运行器、模型工件管理和自有服务的跨机推理接口；权重与数据不入 Git。
-外部 ASR 目前以逐行文本对接，LLM/VLM 托管 API 与 Omni 会话尚待实现。
+外部 ASR 仍可逐行文本对接；上位机新增云端 ASR/TTS 聊天区，复用文本 LLM 工具循环与 dry-run。
+腕部视觉与 Omni 会话尚待接入。
 框架依赖、模型资产、外部进程、自有服务、第三方 API 分别管理，接口与模块归属见
 [推理边界决定](docs/inference_boundaries.md)。
 
@@ -27,7 +35,7 @@
 | 终端键盘末端控制 | 操作者已确认可移动；显示请求 TCP、编码器 FK 与关节误差 | 实际轴向、距离、模型零点的测量 |
 | 上位机 FK/IK、单步/连续 XYZ、路径预览 | 离线回归与模拟页面验证 | 新版 GUI 末端实物验收；无碰撞规划，仅约束位置 |
 | LeRobot 标定、遥操作、录制 | 插件发现、标准命令行模拟、本地 RGB 数据片段；插件实物只读验证 | 真机械臂与摄像头同步录制、回放 |
-| 语音命令调度（白名单 + 演练模式） | 7 条固定命令的解析、姿态计划、`stop` 抢占与 27 项离线回归；默认演练模式不打开串口 | 真机逐条命令验收、夹爪姿态记录、真实识别文本覆盖率 |
+| 语音命令调度（可替换识别端 + 演练模式） | 7 条固定命令的解析、姿态计划、`stop` 抢占与 27 项离线回归；标准输入可接任意转写生产端；默认演练模式不打开串口 | 真机逐条命令验收、夹爪姿态记录、其他识别提供方接入与真实文本覆盖率 |
 | ArUco 中央区域伺服 | 2026-10-18末端相机真机10次纠偏、27步反馈确认，已录制demo | 已有短程前伸日志；完整停靠、精密四角点及任意物体真机跟随待验收 |
 | Windows / CUDA 环境 | Mac/Windows 离线 CI；Windows CUDA 软件安装与训练入口检查 | Windows 实物访问、真实 GPU 运算、训练与策略评估 |
 
@@ -43,7 +51,35 @@ uv run --locked python scripts/check_env.py
 uv run --locked python -m unittest discover -s tests -q
 ```
 
-Windows PowerShell 可直接运行 `scripts/setup_windows.cmd`，完成相同的控制环境安装、环境检查与离线测试。现有 Conda 环境可以保留，团队可复现基线以两个 uv 锁文件为准。
+Windows PowerShell 可直接运行 `scripts/setup_windows.cmd`，完成相同的控制环境安装、环境检查与离线测试。
+
+### Conda 一键 Quick start（兼容入口）
+
+**优先使用上面的 uv 流程。** 合作者使用 Conda 时，在已初始化的 Conda 终端进入仓库根目录，执行：
+
+```sh
+python scripts/setup_conda.py
+```
+
+脚本创建 `eai-control`（Python 3.12），在其中安装固定 uv，再按原 `uv.lock` 安装项目、
+检查环境、运行离线测试和 Agent demo；不连接机械臂、相机或真实模型 API。
+Conda 管理 Python，项目包仍由 uv 的锁文件管理，无第二份 Conda 依赖清单。
+
+安装完成后可激活环境，直接使用普通命令：
+
+```sh
+conda activate eai-control
+python scripts/check_env.py
+eai-course agent --demo
+# 也可不激活：
+conda run --no-capture-output -n eai-control eai-course agent --demo
+```
+
+重复安装/拉取依赖变更后执行 `python scripts/setup_conda.py --reuse`；只复用项目专用环境。
+训练环境用 `python scripts/setup_conda.py --kind training`，默认只验软件；真实 GPU 检查显式加
+`--require-cuda`。Windows、已有环境迁移和故障处理见[Conda 说明](docs/environments.md#conda-quick-start)。
+
+### 环境与计算后端
 
 | 用途 | 项目 / 环境 | Windows 版 PyTorch | macOS 版 PyTorch |
 |---|---|---|---|
@@ -110,6 +146,33 @@ uv run --locked eai-course voice --list-commands
 识别文本通过标准输入逐行传入（每行是一条识别结果）；真机运动需要 `--enable` 并由操作者明确确认，
 详见[语音命令调度](docs/course/voice/README.md)。
 
+## 文本 Agent 与 API 配置
+
+Agent 分为 `policy/model_io/`（OpenAI SDK 消息/工具、Chat/Responses、鉴权）、`policy/agents/`（会话/工具核心）和
+`applications/agent/`（机器人能力、prompt 与输入装配），当前工具仅做 dry-run：
+
+```sh
+uv run --locked eai-course agent-config list
+uv run --locked eai-course agent --list-tools
+uv run --locked eai-course agent --demo
+# 自选服务：配置 base_url/model，用 credential_env 指向 Key 环境变量
+uv run --locked eai-course agent --provider-config configs/agent/provider.local.toml --text "演练站立"
+```
+
+配置示例、API Key 位置、逐行语音转写接入、实际支持与未验收范围见
+[Agent 运行指南](docs/agent_runtime.md)和[多服务 API 配置](docs/agent_providers.md)。离线 demo 是固定 fixture，不是外部模型推理证据。
+配置后使用 `eai-course agent-config probe --provider-config FILE --env-file FILE` 实际核验
+JSON/SSE、多轮对话与只读工具闭环，见[API 验收](docs/agent_api_acceptance.md)。
+语音主线优先云端 ASR/TTS，端侧作为独立可替换路径保留；当前已接入独立配置的百炼云语音薄适配。
+
+上位机左侧「Agent」支持文字与按回合语音输入、云端 ASR/TTS、工具状态和停止。
+运行 `uv run --locked --extra speech python scripts/arm_desk.py`，在页面「API 接入」分别配置
+聊天、识别和合成服务；密钥仅存当前会话服务端内存，不需要编辑文件。详见
+[上位机 Agent 使用手册](docs/desktop_agent.md)、[模型与百炼免费额度建议](docs/agent_models.md)
+和[开发交接手册](docs/agent_handoff.md)。
+语音双工待接入，机器人技能仍仅演练；真实服务证据见
+[云语音报告](docs/reports/2026-10-24-cloud-speech.md)。
+
 ## 日常协作
 
 ```sh
@@ -127,6 +190,9 @@ git switch -c codex/your-task
 
 ## 文件导航
 
+文档按当前入口、规划和历史证据分层，先读[文档导航](docs/README.md)。
+`docs/` 保存团队知识；[outputs](outputs/README.md) 只承接运行输出，验收后按[工作区规则](docs/workspace.md)归档。
+
 源码各子目录的职责、兼容边界和新增能力的放置规则见
 [`src/README.md`](src/README.md)。一级收敛为六个能力目录，第二级按实际功能分组；不同设备执行路径仍保留各自门禁。
 
@@ -134,6 +200,8 @@ ACT、SmolVLA、π0.5 的模型加载、跨机器推理、本地执行门禁与�
 [推理基础设施指南](docs/policy/README.md)及[后续工作交接](docs/policy/next_session.md)。
 SmolVLA 已完成 Mac MPS 的真实离线加载与动作块输出；GPU、本机模型适配和自主实物任务
 仍待验收，不能由基础模型输出或软件 CI 替代。
+
+**作业成品统一放在 `deliverables/`。** 第三次作业已提交的成品位于 `deliverables/assignment-03/2026-10-02-r01/`，报告、视频、固定源码和提交 ZIP 放在一起；旧版本放该作业的 `archive/`。目录指南提交 Git，作业正文、附件和 ZIP 保留本机。见[作业目录](deliverables/README.md)与[工作区规则](docs/workspace.md)。
 
 | 路径 | 用途 |
 |---|---|
@@ -150,15 +218,19 @@ SmolVLA 已完成 Mac MPS 的真实离线加载与动作块输出；GPU、本机
 | `calibration/`、`configs/` | 共享标定、历史回执和本机配置模板 |
 | `tests/`、`scripts/` | 离线回归、环境核验和操作入口 |
 | `docs/reports/` | 按日期记录交付、证据、问题与验收范围 |
+| `deliverables/` | 按作业、日期与修订号存放提交成品，正文与附件不上传 Git |
+| `local_artifacts/` | 本机验收证据、历史快照、诊断和有生命周期的临时工作区 |
+| `outputs/` | 程序生成的运行输出；需要长期保留的结果整理到成品或证据目录 |
 
 - [协作与分支生命周期](CONTRIBUTING.md) · [代理工作约定](AGENTS.md)
 - [架构](docs/architecture.md) · [硬件](docs/hardware.md) · [Windows/CUDA/Conda](docs/environments.md)
-- [VLA 部署阶段方案](docs/vla_deployment.md) · [后续工作交接](docs/handoffs/vla_next_session.md)
+- [VLA 当前接续条件](docs/policy/next_session.md) · [历史部署方案](docs/vla_deployment.md)
 - [多模态 Agent 开发规划](docs/agent_development_plan.md) · [策略推理基建](docs/policy/README.md) · [语音命令调度](docs/course/voice/README.md)
 - [课程基线](docs/course/README.md) · [35 文件迁移清单](docs/course/COVERAGE.md)
 - [2026-10-02 功能报告](docs/reports/2026-10-02.md) · [2026-10-03 仓库与 CI 修复报告](docs/reports/2026-10-03.md)
 
-历史课程资料保留在 `docs/course/source/`，其中的旧安装命令不再作为当前入口。语音识别端已在本机
-`edge_inference_lab` 实验中验证；本仓库只接收识别文本并进行白名单命令调度。判断标准与真机
-验收前置见[语音命令调度](docs/course/voice/README.md)。项目整体开源许可证尚待团队选择；第三方资料
+历史课程资料保留在 `docs/course/source/`，其中的旧安装命令不再作为当前入口。语音识别服务
+由用户按设备和偏好选择；本仓库通过通用文本输入边界接收转写并进行白名单命令调度。
+`edge_inference_lab` 是一个已验证示例，不是仓库依赖。当前能力与后续提供方接口设计见
+[语音命令调度](docs/course/voice/README.md)和[语音架构说明](docs/course/voice/ARCHITECTURE.md)。项目整体开源许可证尚待团队选择；第三方资料
 已有声明保持原样，上游贡献需另行准备许可和可复现实物证据。

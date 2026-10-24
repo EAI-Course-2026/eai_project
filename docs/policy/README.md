@@ -1,12 +1,8 @@
 # ACT、SmolVLA、π0.5 推理基建
 
-2026-10-03。应用层实现位于 `src/eai_robot/policy/`，所有入口使用
-`python scripts/policy.py`。导入、诊断、下载、离线推理和服务器都不连接硬件。
-SO101 连接不等于模型、相机或任务已验收；验收及阻塞见
-[本次交接](next_session.md)。历史状态修订（2026-10-19）：PR #10、#11 已合并至 develop；
-原始交接中的“未合并”描述保留为当时记录，不能用作当前分支状态。
-本仓库已有本地运行器和自有远端服务，通用聊天/语音 API 尚未接入；
-边界与后续接口见[推理边界决定](../inference_boundaries.md)。
+应用层实现位于 `src/eai_robot/policy/`，入口为 `python scripts/policy.py`。本页维护当前命令和能力边界；导入、诊断、下载、离线推理和服务器不连接硬件。
+
+接手前补齐的任务、设备与数据条件见[接续条件](next_session.md)。2026-10-03 的测量及当时 PR 状态保存在[历史交接](../archive/2026-10-03-policy-infrastructure.md)，不据此宣称新版本通过 GPU 或实物验收。Agent 的独立路线见[两条主线](../development_workstreams.md)和[推理边界](../inference_boundaries.md)。
 
 ## 当前可用范围
 

@@ -6,7 +6,8 @@ __pycache__/
 .env.*
 !.env.example
 data/
-outputs/
+/outputs/*
+!/outputs/README.md
 checkpoints/
 .cache/
 .pytest_cache/
@@ -37,7 +38,14 @@ dist/
 !/calibration/vision/camera_intrinsics.json
 !/calibration/vision/hand_eye_result.json
 
-# Coursework hand-in stays on this computer, including its report, video, and dependencies.
+# Hand-in payloads stay local. Commit only the directory guides.
+!/deliverables/
+/deliverables/*
+!/deliverables/README.md
+!/deliverables/assignment-[0-9][0-9]/
+/deliverables/assignment-[0-9][0-9]/*
+!/deliverables/assignment-[0-9][0-9]/README.md
+# Legacy hand-in paths stay ignored during migration.
 /assignment2_handin/
 /scripts/package_assignment2.py
 
@@ -45,6 +53,8 @@ dist/
 configs/*.local.toml
 configs/*.local.json
 configs/policy/*.local.json
+configs/agent/*.local.toml
+configs/agent/*.local.json
 
 # Preserved host-specific diagnostics
 /local_artifacts/
@@ -57,3 +67,6 @@ configs/policy/*.local.json
 # Versioned Python data tools; raw datasets remain ignored.
 !/src/eai_robot/policy/data/
 !/src/eai_robot/policy/data/*.py
+
+# API profile secrets produced by agent-config (also covered by .env.*).
+configs/agent/*.local.env
