@@ -402,7 +402,7 @@ uv build --wheel --all-packages
 `test_agent_configuration.py` 覆盖预设、厂商扩展和跨轮 reasoning；其他 agent/layers 测试验证 JSON/SSE 与核心。
 `test_source_architecture.py` 约束层间依赖和命令入口。不要为了过测删掉运动租期、反馈或取消回归。
 
-本轮代码基线本地 592 项离线测试通过，环境/结构/三个 JS 语法与 wheel 构建通过。
+当前集成分支本地 607 项离线测试通过，环境/结构/三个 JS 语法与两个 wheel 构建通过。
 [PR #25](https://github.com/EAI-Course-2026/eai_project/pull/25) 的检查以**最终 head SHA**为准；
 文档或代码新提交后必须重新看当前检查，不能沿用旧绿色。三项必需 CI 为 macOS/Windows offline 和 Windows CUDA 软件检查。
 真实服务报告、离线 fixture、浏览器麦克风和实物记录必须分别声明。
