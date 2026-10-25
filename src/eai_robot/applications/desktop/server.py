@@ -84,6 +84,11 @@ def make_handler(service, initial_port, agent=None):
                 if path == '/api/agent/catalog':
                     from .agent_config import catalog
                     return self._send(200, json.dumps(catalog(), ensure_ascii=False).encode())
+                if path == '/api/agent/frame.jpg':
+                    frame, _ = agent.hardware_frame() if hasattr(agent, 'hardware_frame') else (None, 0)
+                    if frame is not None:
+                        return self._send(200, frame, 'image/jpeg')
+                    return self._send(404, b'{"error":"frame_unavailable"}')
                 if path.startswith('/api/agent/audio/') and runtime:
                     try:
                         parts = path.split('/')
@@ -108,7 +113,9 @@ def make_handler(service, initial_port, agent=None):
             self._send(404, b'{"error":"not found"}')
 
         def do_POST(self):
-            if self.path not in {'/api/action', '/api/agent/turn', '/api/agent/stop', '/api/agent/config', '/api/agent/clear'}:
+            if self.path not in {'/api/action', '/api/agent/turn', '/api/agent/stop',
+                                 '/api/agent/config', '/api/agent/clear',
+                                 '/api/agent/preview', '/api/agent/release'}:
                 return self._send(404, b'{"error":"not found"}')
             origin = self.headers.get('Origin')
             expected = f'http://{self.headers.get("Host", "")}'
@@ -134,6 +141,16 @@ def make_handler(service, initial_port, agent=None):
                         return self._send(200, json.dumps({'api_settings': result}, ensure_ascii=False).encode())
                     elif self.path.endswith('/clear') and record:
                         record.clear()
+                    elif self.path.endswith('/preview'):
+                        if set(request) != {'enabled'} or type(request['enabled']) is not bool:
+                            raise ValueError('invalid_input')
+                        result = agent.preview(request['enabled'])
+                        return self._send(200, json.dumps(result, ensure_ascii=False).encode())
+                    elif self.path.endswith('/release'):
+                        if set(request) != {'confirmation'}:
+                            raise ValueError('invalid_input')
+                        result = agent.release(request.get('confirmation'))
+                        return self._send(200, json.dumps(result, ensure_ascii=False).encode())
                     elif self.path.endswith('/stop'):
                         runtime.stop()
                     else:
@@ -150,6 +167,9 @@ def make_handler(service, initial_port, agent=None):
                     return self._send(202, b'{"accepted":true}')
                 if request.get('action') == 'stop' and agent is not None:
                     agent.stop()
+                if (hasattr(agent, 'hardware_snapshot') and agent.hardware_snapshot()
+                        and request.get('action') != 'stop'):
+                    raise ValueError('hardware_agent_mode_enabled')
                 service.submit(request.get('action'), request.get('payload'))
                 return self._send(202, b'{"accepted":true}')
             except (ValueError, RuntimeError) as exc:
@@ -172,13 +192,44 @@ def main(argv=None):
     parser.add_argument('--agent-env-file', type=Path)
     parser.add_argument('--speech-config', type=Path, help='Independent cloud ASR/TTS TOML')
     parser.add_argument('--speech-env-file', type=Path)
+    parser.add_argument('--visual-hardware-profile', type=Path,
+                        help='Enable the browser Agent hardware backend with this validated profile')
+    parser.add_argument('--camera-index', type=int)
+    parser.add_argument('--shared-frame', type=Path,
+                        help='Read fresh frames from a separate persistent preview process')
+    parser.add_argument('--hardware-max-runtime', type=float, default=30.0)
+    parser.add_argument('--enable-visual-motion', action='store_true')
+    parser.add_argument('--acknowledge')
     args = parser.parse_args(argv)
     initial_port = args.device_port if args.device_port is not None else load_config()['serial']['port']
     service = ArmDeskService(args.calibration, args.home_file)
     agent = None
     try:
         from .agent_config import AgentHub, seed_from_files
+        hardware_skills = None
+        hardware_requested = any((args.visual_hardware_profile is not None,
+                                  args.camera_index is not None,
+                                  args.shared_frame is not None,
+                                  args.enable_visual_motion,
+                                  args.acknowledge is not None))
+        if hardware_requested:
+            from eai_robot.applications.agent.hardware_visual import (
+                ArucoCenterHardwareBackend, HARDWARE_ACKNOWLEDGEMENT,
+                HardwareVisualSkills,
+            )
+            if (not args.enable_visual_motion or args.visual_hardware_profile is None
+                    or args.device_port is None or args.camera_index is None
+                    or args.acknowledge != HARDWARE_ACKNOWLEDGEMENT):
+                parser.error('网页真机 Agent 需要 profile、device-port、camera-index、'
+                             '--enable-visual-motion 和正确的 --acknowledge')
+            backend = ArucoCenterHardwareBackend(
+                args.visual_hardware_profile, port=args.device_port,
+                camera_index=args.camera_index, max_runtime_s=args.hardware_max_runtime,
+                shared_frame=args.shared_frame)
+            hardware_skills = HardwareVisualSkills(backend)
         def stop_connected_robot():
+            if hardware_skills:
+                hardware_skills.backend.stop()
             if service.snapshot()['connected']:
                 service.submit('stop')
         if not args.agent_config and args.agent_env_file:
@@ -186,11 +237,15 @@ def main(argv=None):
         if not args.speech_config and args.speech_env_file:
             parser.error('--speech-env-file requires --speech-config')
         initial = seed_from_files(args.agent_config, args.agent_env_file, args.speech_config, args.speech_env_file)
-        agent = AgentHub(on_stop=stop_connected_robot, initial=initial)
+        agent = AgentHub(on_stop=stop_connected_robot, initial=initial,
+                         hardware_skills=hardware_skills)
         server = ThreadingHTTPServer(('127.0.0.1', args.http_port), make_handler(service, initial_port, agent))
         server.daemon_threads = True
         url = f'http://127.0.0.1:{server.server_port}/'
         print(f'上位机已启动：{url}', flush=True)
+        if hardware_skills:
+            source = '共享相机帧' if args.shared_frame else '直接相机'
+            print(f'网页 Agent 真机模式已启用（{source}）；网页预览默认关闭，按需开启。', flush=True)
         if not args.no_open:
             webbrowser.open(url)
         try:
@@ -201,7 +256,9 @@ def main(argv=None):
             server.shutdown()
             server.server_close()
     finally:
-        if agent:
-            agent.close()
-        service.close()
+        try:
+            if agent:
+                agent.close()
+        finally:
+            service.close()
     return 0

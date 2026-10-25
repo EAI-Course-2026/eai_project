@@ -83,6 +83,10 @@
                 <button id="agent-settings-open" class="api-access-button" type="button">API 接入 <span aria-hidden="true">↗</span></button>
               </header>
               <div class="agent-stage">
+                <section id="agent-hardware" class="agent-hardware" hidden aria-label="真机视觉状态">
+                  <div class="agent-camera-wrap"><img id="agent-camera" alt="腕部相机实时画面"><span id="agent-camera-empty">点击“打开相机”查看腕部画面</span></div>
+                  <div class="agent-hardware-info"><div><strong>真机视觉 Agent</strong><p id="agent-hardware-status">相机关闭 · 追踪空闲 · 扭矩关闭</p></div><div class="agent-hardware-actions"><button id="agent-preview" type="button">打开相机</button><button id="agent-release" type="button" disabled>托住后释放扭矩</button></div></div>
+                </section>
                 <div id="agent-welcome" class="agent-welcome"><span class="agent-welcome-symbol" aria-hidden="true">✦</span><h1>今天想让机械臂做什么？</h1><p>描述任务，查看工具调用与结果。</p></div>
                 <div id="agent-messages" class="agent-messages" role="log" aria-label="对话记录"></div>
                 <div id="agent-tools" class="agent-tools" aria-label="工具状态"></div>
@@ -93,7 +97,7 @@
                     <div class="agent-composer-bottom"><button type="button" id="agent-mic" class="agent-mic-button" disabled><span aria-hidden="true">◉</span> 开始说话</button><span id="agent-status" role="status">正在准备…</span><div class="agent-composer-actions"><label class="agent-speak"><input type="checkbox" id="agent-speak" checked>语音回复</label><button type="button" id="agent-stop" class="agent-stop-button" title="停止本轮对话、播报与动作" aria-label="停止本轮">■</button><button id="agent-send" class="agent-send-button" aria-label="发送" disabled>↑</button></div></div>
                   </form>
                   <audio id="agent-audio" controls hidden></audio>
-                  <p class="agent-disclosure"><span class="agent-dryrun-dot"></span>演练模式：工具不会驱动真实机械臂。语音仅在你开启后采集。</p>
+                  <p id="agent-disclosure" class="agent-disclosure"><span class="agent-dryrun-dot"></span>演练模式：工具不会驱动真实机械臂。语音仅在你开启后采集。</p>
                 </div>
                 <div id="agent-suggestions" class="agent-suggestions"><button type="button" data-agent-prompt="先查看机械臂状态，告诉我现在能做什么。"><span>◎</span><strong>了解当前状态</strong><small>查看能力与执行条件</small></button><button type="button" data-agent-prompt="有哪些可用姿态？只列出名称，不要移动。"><span>◇</span><strong>探索可用姿态</strong><small>先看选项，再决定下一步</small></button><button type="button" data-agent-prompt="请演练站立姿态，再查询任务是否完成。"><span>↗</span><strong>演练一个任务</strong><small>观察工具选择和结果反馈</small></button></div>
               </div>

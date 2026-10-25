@@ -20,6 +20,51 @@ def settings(url='https://example.invalid/v1', key='PRIVATE_SESSION_KEY'):
 
 
 class WebConfigurationTests(unittest.TestCase):
+    def test_hardware_state_preview_frame_and_confirmed_release_are_web_accessible(self):
+        class Backend:
+            def __init__(self):
+                self.previewing = False
+                self.released = 0
+            def snapshot(self):
+                return {'mode':'aruco_center_hardware','connected':False,
+                        'tracking':'idle','hardware_sent':False,
+                        'motion_command_count':0,'motion_confirmed_count':0,
+                        'torque_enabled':False,'requires_operator_release':False,
+                        'error_code':None,'hold_reason':None,
+                        'camera_preview':self.previewing,'frame_sequence':1,
+                        'frame_source':'shared'}
+            def frame(self):
+                return b'fake-jpeg', 1
+            def start_preview(self):
+                self.previewing=True;return self.snapshot()
+            def stop_preview(self, *args, **kwargs):
+                self.previewing=False;return self.snapshot()
+            def release(self):
+                self.released+=1;return self.snapshot()
+        backend=Backend();skills=SimpleNamespace(backend=backend,release=backend.release)
+        hub=AgentHub(hardware_skills=skills);self.addCleanup(hub.close)
+        desk=SimpleNamespace(snapshot=lambda:{},submit=lambda *args:None)
+        server=ThreadingHTTPServer(('127.0.0.1',0),make_handler(desk,'FAKE',hub))
+        Thread(target=server.serve_forever,daemon=True).start()
+        self.addCleanup(server.server_close);self.addCleanup(server.shutdown)
+        opener=build_opener(HTTPCookieProcessor(CookieJar()))
+        base=f'http://127.0.0.1:{server.server_port}'
+        state=json.load(opener.open(base+'/api/agent/state'))
+        self.assertEqual(state['mode'],'aruco_center_hardware')
+        self.assertEqual(state['hardware']['frame_source'],'shared')
+        self.assertEqual(state['hardware']['motion_confirmed_count'],0)
+        request=Request(base+'/api/agent/preview',data=b'{"enabled":true}',
+                        headers={'X-Arm-Desk':'1','Content-Type':'application/json'})
+        self.assertTrue(json.load(opener.open(request))['camera_preview'])
+        self.assertEqual(opener.open(base+'/api/agent/frame.jpg').read(),b'fake-jpeg')
+        bad=Request(base+'/api/agent/release',data=b'{"confirmation":"wrong"}',
+                    headers={'X-Arm-Desk':'1','Content-Type':'application/json'})
+        with self.assertRaises(HTTPError):opener.open(bad)
+        good=Request(base+'/api/agent/release',data=b'{"confirmation":"RELEASE TORQUE"}',
+                     headers={'X-Arm-Desk':'1','Content-Type':'application/json'})
+        self.assertEqual(opener.open(good).status,200)
+        self.assertEqual(backend.released,1)
+
     def test_configuration_is_offline_secret_never_returned_and_invalid_update_is_atomic(self):
         record=AgentRecord();self.addCleanup(record.close)
         with patch('httpx.Client.send',side_effect=AssertionError('Configuration must not request API')):

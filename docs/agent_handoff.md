@@ -14,13 +14,16 @@
 | 更多聊天模型的真实验收 CLI | PR #24 已合并并同步到本分支，提供 agent-config probe | [API 验收手册](agent_api_acceptance.md) |
 | 页面内 Chat Completions / Responses | 复用既有适配器；各模型能力要单独验收 | `policy/model_io/` |
 | 持续识别、自然打断、语音双工 | 未实现，页面入口禁用并标注待接入 | 本页第 9 节 |
-| 腕部相机进入 Agent | 未接入；标准图像消息能力不等于已接上相机 | `policy/model_io/` 与视觉应用 |
-| 物体检测/跟踪、IK 作为 Agent tools | 未注册到当前 Agent | 第 8 节；底层能力可分别存在 |
-| Agent 实物执行 | 不开放，所有运动工具 dry-run | `RobotCapabilities` 与 `DryRunSkills` |
+| 腕部相机进入 Agent | ArUco 0 共享帧路径已真机验收；通用图像/Omni 尚未接入 | `hardware_visual.py` 与视觉应用 |
+| 物体检测/跟踪作为 Agent tools | fixture dry-run 与显式授权的 ArUco 回中均已接入 | 第 6、8 节 |
+| IK 作为 Agent tool | 未注册到当前 Agent | 第 8 节；底层规划能力已存在 |
+| Agent 实物执行 | 默认关闭；仅固定 profile、动作开关和确认短语共同启用 ArUco 回中 | `RobotCapabilities` 与 `HardwareVisualSkills` |
 | 公网服务与租户鉴权 | 未部署，服务仅绑定 loopback | 第 10 节 |
 
 在 PR 合并前复现要使用对应任务分支；不要把 main、develop、PR head、正在运行的旧进程混为一个版本。
-本轮没有安装本地 Conda，没有打开串口/相机，也没有电机动作或真实麦克风验收。
+PR #25 的原始集成轮次没有打开串口/相机，也没有电机动作或真实麦克风验收。
+视觉工具外部模型调用与 2026-10-25 上位机语音真机验收已经另行完成，证据见
+[dry-run 报告](reports/2026-10-24-agent-visual-tools.md)和[真机报告](reports/2026-10-25-web-hardware-agent.md)。
 详细分支与 worktree 清理回执见[整理记录](reports/2026-10-24-worktree-cleanup.md)。
 
 ## 2. 产品语义和工程边界
@@ -52,7 +55,7 @@
 1. `desktop/server.py`：HTTP 路由、默认启动和生命周期。
 2. `desktop/agent_config.py`：`AgentHub`、`AgentRecord`，服务配置与 runtime 的原子替换。
 3. `desktop/agent.py`：`DeskAgent`，文字/语音共用的回合协调。
-4. `agent/session.py`、`agent/capabilities.py`、`agent/skills.py`：应用装配、能力、五个工具。
+4. `agent/session.py`、`agent/capabilities.py`、`agent/skills.py`：应用装配、能力、八个 dry-run 工具。
 5. `policy/agents/loop.py`、`tools.py`、`context.py`：执行、校验、记忆和取消。
 6. `policy/model_io/providers.py`、`responses.py`、`auth.py`：官方 SDK 适配与凭据。
 7. `agent/speech.py`、`agent/_dashscope_speech.py`：受控语音调用与 SDK 子进程。
@@ -206,22 +209,27 @@ Responses 扁平 schema 的转换只发生在其模型适配器。
 
 | 工具 | 参数 | 当前返回 | 与作业关系 |
 |---|---|---|---|
-| get_robot_state | 空对象 | dry_run、未连接、无关节反馈、tracking unavailable | 有该接口，但不能宣称读到真实关节角 |
+| get_robot_state | 空对象 | dry_run、未连接、无关节反馈、tracking idle/running | 有该接口，但不能宣称读到真实关节角 |
 | list_poses | 空对象 | 校验过标定绑定的命名姿态列表 | 为模型提供受控选项 |
 | move_to_pose | pose_name，枚举 | task_id、归一化目标、hardware_sent=false | 仅计划，不移动机器人 |
+| detect_object | description | 仅 ArUco fixture；found/object_id/frame/bbox/五秒有效期 | 验证“先检测”契约，不打开相机 |
+| start_tracking | object_id | 模拟 tracking task；跨会话、过期或 busy 时拒绝 | 本地任务而非 LLM 电机输出 |
 | get_task_status | task_id | 本进程模拟任务；未知 ID 拒绝 | accepted 与完成状态的查询路径 |
+| stop_tracking | 空对象 | 将活动追踪任务置 cancelled；可重复调用 | 验证独立追踪停止路径 |
 | stop_motion | 空对象，interrupt 工具 | 取消演练；工具本身不卸扭矩 | 本地停止优先，GUI另有控制器停止回调 |
 
-`detect_object`、`start_tracking`、`stop_tracking` 和 IK 还没有注册到该白名单。
-不要把已有视觉伺服 CLI 直接描述为 Agent 可调用接口，更不能造一个总返回 found=true 的检测工具过验收。
-当前 `RobotCapabilities` 明确禁止 physical_execution，模型无法用 prompt 修改它。
+普通启动时上述三个视觉工具只实现已知 ArUco fixture 的 dry-run 状态机；不支持的描述返回
+`unsupported_description`。显式真机启动改用 `HardwareVisualSkills`，只暴露固定 ArUco 0
+检测、回中、查询和停止，并要求完整本地门禁。IK 仍未注册。
+默认 `RobotCapabilities` 禁止 physical_execution；只有启动参数构造的硬件能力快照可开启该固定范围，
+模型或 prompt 不能修改它。
 
 prompt 唯一源码为 `applications/agent/prompts/system.txt`，随 wheel 发布；当前核心规则是：
 
-> 先读取状态，需要姿态时查询可用姿态。不要编造工具、姿态或机器人反馈。
+> 先读取状态；需要视觉追踪时先 detect_object，只把返回的未过期 object_id 交给 start_tracking。
 > 工具 accepted 不代表运动完成；按工具结果或任务查询报告状态。
-> 当前应用只提供 dry-run：所有姿态动作都是模拟计划，绝不能说真实机械臂已移动。
-> 用户要求停止时调用 stop_motion，不再执行本轮其他动作。
+> 当前应用只提供 dry-run，绝不能说真实机械臂、相机或视觉伺服已经执行。
+> 只停止追踪调用 stop_tracking；停止全部运动调用 stop_motion。
 
 回答默认短自然语言以便播报；历史文本不能代替新观测，工具数据不能改写上层规则。
 改 prompt 需评测任务成功率、工具选择、拒绝和停止行为，不能只看回复听起来顺畅。
@@ -293,7 +301,8 @@ registry = ToolRegistry([Tool(spec, read_fixture)])
 接入实际应用还需更新能力声明、默认工具装配、prompt/说明和测试；不能只在 UI 添加按钮。
 不在模型工具中开放任意 Python、shell、串口路径、寄存器写入或模型可自由选择的网络地址。
 
-接视觉伺服时按以下契约设计并单独实现（**设计目标，当前不存在**）：
+dry-run 与固定 ArUco 硬件适配层已按以下契约实现会话目标和追踪任务。扩展到其他目标、IK 或
+控制器时仍须单独实现和验收；fixture 不能作为真实能力证据：
 
 | 工具目标 | 调用前检查 | 返回与任务语义 |
 |---|---|---|
@@ -390,7 +399,7 @@ uv build --wheel --all-packages
 `test_agent_configuration.py` 覆盖预设、厂商扩展和跨轮 reasoning；其他 agent/layers 测试验证 JSON/SSE 与核心。
 `test_source_architecture.py` 约束层间依赖和命令入口。不要为了过测删掉运动租期、反馈或取消回归。
 
-本轮代码基线本地 576 项离线测试通过，环境/结构/三个 JS 语法与 wheel 构建通过。
+本轮代码基线本地 592 项离线测试通过，环境/结构/三个 JS 语法与 wheel 构建通过。
 [PR #25](https://github.com/EAI-Course-2026/eai_project/pull/25) 的检查以**最终 head SHA**为准；
 文档或代码新提交后必须重新看当前检查，不能沿用旧绿色。三项必需 CI 为 macOS/Windows offline 和 Windows CUDA 软件检查。
 真实服务报告、离线 fixture、浏览器麦克风和实物记录必须分别声明。

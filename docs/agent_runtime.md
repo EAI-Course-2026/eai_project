@@ -4,7 +4,10 @@
 [三层架构](agent_layers.md)。模型接入复用官方 OpenAI SDK，支持 Chat Completions / Responses 的完整回复、SSE 与工具循环。
 标准图像内容块可通过 Python 接口传入，Chat Completions 也可传 input_audio。
 2026-10-24 新增[上位机 Agent](desktop_agent.md)：页面内配置 API，文字与按回合语音共用工具循环。
-腕部相机、实时 Omni、IK/跟踪工具和 Agent 实物执行仍待接入。标准范围见[复用决策](agent_standard_contract.md)。
+固定 ArUco fixture 的检测/追踪工具已接入 dry-run；另有现场显式授权的 ArUco ID 0 中央区域
+真机适配层，并于 2026-10-25 完成上位机语音端到端实物验收。任意物体、自动前进、精密四角点、IK 真机工具和
+实时 Omni 仍未接入。标准范围见[复用决策](agent_standard_contract.md)和
+[真机验收指南](agent_hardware_acceptance.md)。
 
 ## 三层代码
 
@@ -25,9 +28,12 @@ prompt 位于 `applications/agent/prompts/system.txt`，随 wheel 安装。
 ```sh
 uv run --locked eai-course agent --list-tools  # 输出实际标准工具定义，不调用模型
 uv run --locked eai-course agent --demo
+uv run --locked eai-course agent --visual-demo
 ```
 
 固定 fixture 调用 get_robot_state、list_poses、move_to_pose(stand)、get_task_status，明确不调用模型。
+视觉 fixture 依次调用 get_robot_state、detect_object、start_tracking、get_task_status、stop_tracking；
+它不加载 OpenCV、不打开相机或串口，也不能替代外部 LLM API 验收。
 当前所有姿态动作均是 dry-run，真实反馈为 null；默认参考姿态使用自身标定绑定校验。
 `--poses FILE` 替换姿态，`--calibration FILE` 选择目标标定作离线换算，不读取个人串口配置。
 
@@ -106,7 +112,8 @@ uv run --locked eai-course agent --provider-config configs/agent/provider.local.
 上游可为本机模型、云服务客户端或其他设备桥接；`edge_inference_lab` 只作历史案例。
 本仓库不导入/启动它，也不依赖特定路径。聊天配置只选择聊天服务，ASR 凭据与机器人硬件配置独立。
 `voice --stdin` 保留确定性白名单命令；`agent --stdin` 让模型选择应用注册的工具。
-停止词复用原解析器，直接触发本地 cancel；忙时的新普通输入返回 busy，不排队重放。
+独立停止口令（如“急停”“停止当前任务”）直接触发本地 cancel；含“停止追踪”的复合任务
+仍交给模型选择 `stop_tracking`，避免在执行前误取消。忙时的新普通输入返回 busy，不排队重放。
 EOF 等待本轮结束，Ctrl-C 先取消再等待退出。提供方失败后不接受新的行来恢复旧计划。
 
 纯文本通道没有置信度、时间戳或 partial/final 标记，上游必须只发送最终文本。
@@ -123,10 +130,22 @@ EOF 等待本轮结束，Ctrl-C 先取消再等待退出。提供方失败后不
 [`agent-config probe`](agent_api_acceptance.md) 可验证具体模型的跨轮对话、JSON/SSE 与工具闭环。
 应用能力快照每次模型请求刷新并检查本机时间/有效期；实际设备反馈仍需重新获取。
 
-五个应用工具保持 dry-run：get_robot_state、list_poses、move_to_pose、get_task_status、stop_motion。
+默认八个应用工具保持 dry-run：get_robot_state、list_poses、move_to_pose、detect_object、
+start_tracking、get_task_status、stop_tracking、stop_motion。
 RobotCapabilities 选择可用工具，并在正常执行前再次检查；不支持的工具不向模型声明。
 能力声明与实测反馈分开：负载、真实工作空间、精度未知，不从 LLM 文本推导，也不能开启 physical_execution。
 姿态计划 targets 是 0..1 归一化值，不是角度，hardware_sent 始终 false；保留最近 128 个模拟任务供查询。
+detect_object 只接受明确的 ArUco marker 别名，返回会话内不透明 object_id；该 ID 五秒后失效。
+start_tracking 不接相机或伺服，只创建可查询、可停止的模拟任务；不支持的描述、跨会话 ID、
+过期 ID 和并发追踪均明确拒绝。
+外部 LLM 的真实工具调用记录见[2026-10-24 验收报告](reports/2026-10-24-agent-visual-tools.md)；
+选做的最简项目 Skill 位于 [`.cursor/skills/aruco-visual-tracking/SKILL.md`](../.cursor/skills/aruco-visual-tracking/SKILL.md)。
+
+真机模式只暴露 get_robot_state、detect_object、start_tracking、get_task_status、stop_tracking、
+stop_motion 六个工具，并复用既有 `aruco_center_mvp.toml` 中央区域伺服。它要求命令行同时给出
+动作开关、固定确认口令、串口、相机编号和交互式终端；导入模块和创建后端不会打开设备。
+detect_object 只开相机，start_tracking 才能开串口并启用扭矩。停止后保持扭矩，现场人员必须
+托住机械臂并在本地终端确认，才执行释放。完整命令与通过标准见[真机验收指南](agent_hardware_acceptance.md)。
 
 核心只接受注入的工具。handler 形如 `handler(arguments, ToolContext) -> ToolResult`，
 context 提供 session、generation、deadline、cancel、check_active() 与 progress(data)。
@@ -169,4 +188,4 @@ Python 内部迁移对照见[源码迁移](source_layout_migration.md)，CLI 入
 Agent 已嵌入机械臂上位机，文字与按回合语音共用本页的工具循环。
 页面「API 接入」配置独立的聊天、ASR、TTS，凭据仅存浏览器会话对应的服务端内存；
 不需要文件。界面模式、配置生命周期与当前边界见[上位机 Agent](desktop_agent.md)。
-语音双工、相机与真实执行尚待接入。
+持续语音双工仍待接入；共享相机与显式授权的 ArUco 真机执行见[上位机手册](desktop_agent.md)。

@@ -312,7 +312,7 @@ class AgentCLIContractTests(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc.stderr)
         data = json.loads(proc.stdout)
         self.assertFalse(data["hardware_connected"])
-        self.assertEqual(len(data["tools"]), 5)
+        self.assertEqual(len(data["tools"]), 8)
         for spec in data["tools"]:
             self.assertEqual(set(spec), {"type", "function"})
             Draft202012Validator.check_schema(spec["function"]["parameters"])

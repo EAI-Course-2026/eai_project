@@ -53,6 +53,23 @@ class SharedPreviewTests(unittest.TestCase):
             self.assertEqual(path.read_bytes(), published)
             self.assertFalse(camera.is_connected)
 
+    def test_reader_retries_a_brief_windows_writer_lock(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)/'latest.frame'
+            self.publish(path)
+            original_read = Path.read_bytes
+            attempts = []
+            def read(source):
+                attempts.append(1)
+                if len(attempts) == 1:
+                    raise PermissionError('synthetic sharing violation')
+                return original_read(source)
+            camera = SharedPreviewCamera(path)
+            with patch.object(Path, 'read_bytes', autospec=True, side_effect=read):
+                camera.connect()
+            self.assertTrue(camera.is_connected)
+            self.assertEqual(len(attempts), 2)
+
     def test_stale_frames_rejected_before_control(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)/'latest.frame'

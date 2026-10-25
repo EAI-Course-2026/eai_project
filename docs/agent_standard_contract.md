@@ -38,7 +38,7 @@ spec = {
         "strict": True,
     },
 }
-# Tool(spec, actual_tracking_handler) — 示例，不表示当前已实现该技能。
+# 当前同名工具绑定 dry-run handler；actual_tracking_handler 仍是未来真实技能示例。
 ```
 
 `strict` 的服务端约束使用 OpenAI 支持的 JSON Schema 子集；本地 Draft 2020-12 校验能力更广，

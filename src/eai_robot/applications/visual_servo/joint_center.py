@@ -24,6 +24,10 @@ class TargetLostError(RuntimeError):
     pass
 
 
+class RuntimeLimitReached(RuntimeError):
+    """The operator-selected runtime cap expired while motion was holding."""
+
+
 class MotionResponseTimeout(RuntimeError):
     """Response lease expired after restoring the prior hold goal."""
 
@@ -55,11 +59,14 @@ def counts_per_degree_or_fallback(mapper) -> np.ndarray:
     return np.full(len(ARM_JOINT_NAMES), FALLBACK_COUNTS_PER_DEGREE)
 
 
-def wait_for_target(runtime,detector,preview,stop,required_frames=5,on_wait=None):
+def wait_for_target(runtime,detector,preview,stop,required_frames=5,on_wait=None,
+                    deadline=None):
     """Hold existing goals and refresh preview until consecutive fresh detections."""
     seen=0
     next_sample=0.0
     while not stop.stop_requested.is_set():
+        if deadline is not None and time.monotonic() >= deadline:
+            raise RuntimeLimitReached('Runtime limit reached while waiting for target')
         if on_wait is not None and time.monotonic() >= next_sample:
             on_wait()
             next_sample=time.monotonic()+.25
@@ -80,6 +87,24 @@ def wait_for_target(runtime,detector,preview,stop,required_frames=5,on_wait=None
         if seen>=required_frames:
             return frame,detected
     raise RuntimeError('User stop while waiting for target')
+
+
+def target_has_probe_margin(frame_shape, detection):
+    """Whether the complete target has room for a bounded calibration probe.
+
+    ArUco detections expose an equivalent-circle radius. Convert that back to
+    the half-width of the detected square and add ten percent of the shorter
+    image dimension for motion. This replaces the arbitrary central-half gate:
+    off-centre targets are valid while edge-clipped targets remain unsafe.
+    """
+    height, width = frame_shape[:2]
+    half_marker = max(0.0, float(detection.radius)) * np.sqrt(np.pi) / 2.0
+    motion_margin = min(height, width) * 0.10
+    margin = half_marker + motion_margin
+    return bool(
+        margin <= float(detection.center_x) <= width - margin
+        and margin <= float(detection.center_y) <= height - margin
+    )
 
 
 def verify_existing_hold(robot):
@@ -108,8 +133,11 @@ class BoundedJointMotion:
     Both the centering loop and the fixed-rule approach use this class so that
     one implementation owns the checks that must never diverge: calibration,
     workspace and joint budgets, a fresh detection immediately before each
-    command, torque/status readback, goal readback, camera-loss and target-loss
-    holds, real-versus-partial response and the one-second arrival lease.
+    command, torque/status readback, goal readback, real-versus-partial response
+    and the one-second arrival lease. Detection is deliberately paused while a
+    bounded step is moving because wrist-camera motion blur is not evidence that
+    the target left the workspace. Callers must reacquire after the measured
+    hold and before they authorize another step.
     """
 
     def __init__(self, runtime, detector, mapper, args, initial_q, origin,
@@ -237,6 +265,9 @@ class BoundedJointMotion:
         detected, _ = detector.detect(frame)
         if detected is None:
             raise TargetLostError('Target lost before command')
+        if preview:
+            preview.show(frame, detected,
+                         'BOUNDED STEP READY - VISION PAUSED WHILE MOVING')
         for name in ARM_JOINT_NAMES:
             if (runtime.robot.bus.read('Torque_Enable', name, num_retry=2) != 1
                     or runtime.robot.bus.read('Status', name, num_retry=2) != 0):
@@ -249,6 +280,15 @@ class BoundedJointMotion:
         for name, value in changed.items():
             if runtime.robot.bus.read('Goal_Position', name, normalize=False, num_retry=2) != value:
                 raise RuntimeError(f'Goal readback mismatch: {name}')
+        observer = getattr(runtime, 'on_motion_command', None)
+        if observer is not None:
+            try:
+                observer(dict(changed))
+            except Exception as exc:
+                # Observability must never interrupt a command after its goal
+                # has already been written. The encoder guard below remains
+                # authoritative for the physical outcome.
+                record('motion_observer_error', stage='command', reason=str(exc))
         deadline = time.monotonic() + 1.0
         stable_anchor = before
         stable_since = time.monotonic()
@@ -265,37 +305,10 @@ class BoundedJointMotion:
             if reason is not None:
                 raise RuntimeError(
                     f"实测位姿越界（measured pose outside permitted bounds）：{reason}")
-            try:
-                frame = runtime.read_frame()
-            except (PreviewFrameUnavailable, TimeoutError):
-                record('motion_sample', actual=actual, goal=changed,
-                       camera_available=False)
-                holds = {name: actual[name] for name in changed}
-                runtime.robot.bus.sync_write('Goal_Position', holds, normalize=False, num_retry=2)
-                for name, value in holds.items():
-                    if runtime.robot.bus.read('Goal_Position', name, normalize=False, num_retry=2) != value:
-                        raise RuntimeError('Camera-loss hold readback mismatch')
-                record('camera_lost_hold', actual=actual, hold_goals=holds)
-                self.record_motor_state('after_camera_lost_hold')
-                raise
-            detected, _ = detector.detect(frame)
             record('motion_sample', actual=actual, goal=changed,
-                   camera_available=True, target_visible=detected is not None,
-                   centre=None if detected is None else
-                   [float(detected.center_x), float(detected.center_y)])
-            if preview:
-                preview.show(frame, detected, 'VERIFYING ENCODER MOTION')
+                   target_check='deferred_until_settled')
             if stop.stop_requested.is_set():
                 raise StopRequestedError('stop requested')
-            if detected is None:
-                holds = {name: actual[name] for name in changed}
-                runtime.robot.bus.sync_write('Goal_Position', holds, normalize=False, num_retry=2)
-                for name, value in holds.items():
-                    if runtime.robot.bus.read('Goal_Position', name, normalize=False, num_retry=2) != value:
-                        raise RuntimeError('Target-loss hold readback mismatch')
-                record('target_lost_hold', actual=actual, hold_goals=holds)
-                self.record_motor_state('after_target_lost_hold')
-                raise TargetLostError('Target lost during motion')
             now = time.monotonic()
             if any(abs(actual[name] - stable_anchor[name]) > 1 for name in changed):
                 stable_since = now
@@ -316,6 +329,12 @@ class BoundedJointMotion:
                 runtime.command_position = runtime.fk.forward_kinematics(runtime.command_q)[:3, 3]
                 record('motion', before=before, goal=changed, actual=actual)
                 self.record_motor_state('after_settled_hold')
+                observer = getattr(runtime, 'on_motion_confirmed', None)
+                if observer is not None:
+                    try:
+                        observer(dict(changed), dict(actual))
+                    except Exception as exc:
+                        record('motion_observer_error', stage='confirmed', reason=str(exc))
                 return actual
             if time.monotonic() >= deadline:
                 # Preserve the previous load-bearing position error. Rebasing
@@ -363,6 +382,7 @@ def run_joint_center(runtime, detector, args, stop, preview):
     options=joint_step_options(base_counts,wrist_counts)
     print(f'\nImage-to-joint centering; base={options[0]}, wrist={options[1]}, arrival tolerance=3 counts. Log: {path}')
     started = time.monotonic()
+    deadline = started + args.max_runtime_s if args.max_runtime_s > 0 else None
     runtime.hold_reason = 'USER STOP'
 
     def record(event, **data):
@@ -381,13 +401,16 @@ def run_joint_center(runtime, detector, args, stop, preview):
         try:
             frame = runtime.read_frame()
         except (PreviewFrameUnavailable,TimeoutError):
-            frame,_=wait_for_target(runtime,detector,preview,stop)
+            frame,_=wait_for_target(runtime,detector,preview,stop,deadline=deadline)
         observed, _ = detector.detect(frame)
         if observed is None:
-            frame,observed=wait_for_target(runtime,detector,preview,stop)
+            frame,observed=wait_for_target(runtime,detector,preview,stop,deadline=deadline)
         h, w = frame.shape[:2]
-        if not getattr(args,'resume_response',None) and not (w*.25 <= observed.center_x <= w*.75 and h*.25 <= observed.center_y <= h*.75):
-            raise RuntimeError('Place marker in central half of preview before probing')
+        if (not getattr(args,'resume_response',None)
+                and not target_has_probe_margin(frame.shape, observed)):
+            raise RuntimeError(
+                'Marker is too close to the image edge for a calibration probe; '
+                'keep the complete marker visible with a small motion margin')
         if getattr(args, 'resume_response', None):
             jacobian = np.asarray(json.loads(args.resume_response.read_text())['jacobian'],dtype=float)
             if jacobian.shape != (2,2) or not np.all(np.isfinite(jacobian)):
@@ -445,7 +468,7 @@ def run_joint_center(runtime, detector, args, stop, preview):
             except (PreviewFrameUnavailable,TimeoutError):
                 record('camera_wait')
                 stable=0
-                wait_for_target(runtime,detector,preview,stop)
+                wait_for_target(runtime,detector,preview,stop,deadline=deadline)
                 record('camera_recovered')
                 worsening=0
                 continue
@@ -453,7 +476,7 @@ def run_joint_center(runtime, detector, args, stop, preview):
             if detected is None:
                 record('target_lost')
                 stable=0
-                wait_for_target(runtime,detector,preview,stop)
+                wait_for_target(runtime,detector,preview,stop,deadline=deadline)
                 record('target_reacquired')
                 worsening=0
                 continue
@@ -486,13 +509,15 @@ def run_joint_center(runtime, detector, args, stop, preview):
                 actual = move(target_for(step))
             except (TargetLostError,PreviewFrameUnavailable,TimeoutError):
                 stable=0
-                wait_for_target(runtime,detector,preview,stop)
+                wait_for_target(runtime,detector,preview,stop,deadline=deadline)
                 record('target_reacquired')
                 worsening=0
                 continue
             moved_since_lock=True
             time.sleep(0.15)
-            _,after = wait_for_target(runtime,detector,preview,stop,required_frames=args.feature_samples)
+            _,after = wait_for_target(runtime,detector,preview,stop,
+                                      required_frames=args.feature_samples,
+                                      deadline=deadline)
             after_error = np.array([frame.shape[1]/2, frame.shape[0]/2]) - after.center
             delta = np.array([actual[n] - before[n] for n in JOINTS], dtype=float)
             record('response', error_before=error.tolist(), error_after=after_error.tolist(),

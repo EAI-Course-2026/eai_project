@@ -155,6 +155,7 @@ class PreviewWindow:
             ) from exc
         self._root.title(WINDOW_NAME)
         self._root.protocol("WM_DELETE_WINDOW", self._request_close)
+        self._root.bind("<KeyPress>", self._on_key)
         self._label = tk.Label(self._root)
         self._label.pack()
         self._photo = None
@@ -163,6 +164,16 @@ class PreviewWindow:
     def _request_close(self) -> None:
         self._stop_state.stop_requested.set()
         self._root.withdraw()
+
+    def _on_key(self, event) -> None:
+        key = str(getattr(event, "keysym", "")).lower()
+        if key == "r":
+            self._stop_state.resume_requested.set()
+        elif key in {"escape", "q"}:
+            self._stop_state.stop_requested.set()
+        elif key == "space":
+            self._stop_state.emergency_requested.set()
+            self._stop_state.stop_requested.set()
 
     def show(
         self,
@@ -379,11 +390,16 @@ class VisionArmRuntime:
         if self.torque_enabled and self.robot.bus.is_connected:
             try:
                 self.robot.bus.disable_torque(list(ARM_JOINT_NAMES), num_retry=5)
+                still_enabled = [name for name in ARM_JOINT_NAMES if
+                                 self.robot.bus.read(
+                                     "Torque_Enable", name, normalize=False, num_retry=5) != 0]
+                if still_enabled:
+                    raise RuntimeError("torque disable readback failed: " + ", ".join(still_enabled))
                 print("Torque disabled on SCS215 arm joints ID 1-5.")
+                self.torque_enabled = False
             except Exception as exc:
                 print(f"WARNING: could not disable torque: {exc}", file=sys.stderr)
                 print("Disconnect servo power immediately.", file=sys.stderr)
-            self.torque_enabled = False
         if self.robot.bus.is_connected:
             self.robot.bus.disconnect(disable_torque=False)
         if self.camera.is_connected:
@@ -395,7 +411,7 @@ class VisionArmRuntime:
         return self.mapper
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="ArUco/black-ball image-based closed-loop control for the SCS215 arm."
     )
@@ -502,14 +518,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--detection-timeout-s", type=float, default=8.0)
     profile_parser = argparse.ArgumentParser(add_help=False)
     profile_parser.add_argument("--profile", type=Path)
-    selection, _ = profile_parser.parse_known_args()
+    selection, _ = profile_parser.parse_known_args(argv)
     if selection.profile is not None:
         from eai_robot.applications.visual_servo.profiles import load_profile
         try:
             parser.set_defaults(**load_profile(selection.profile))
         except (ValueError, OSError) as exc:
             parser.error(str(exc))
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     # The fixed rule is defined on an ArUco marker, so an omitted target follows
     # the selected mode instead of forcing the operator to repeat themselves.
     if args.target is None:

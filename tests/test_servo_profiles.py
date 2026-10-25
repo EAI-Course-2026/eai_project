@@ -20,6 +20,34 @@ class ServoProfileTest(unittest.TestCase):
         self.assertFalse(args.execute)
         self.assertFalse(args.adopt_hold)
 
+    def test_parse_args_accepts_explicit_argv_for_agent_adapter(self):
+        from eai_robot.applications.visual_servo.ball import parse_args
+        profile=ROOT/'configs/visual_servo/aruco_center_mvp.toml'
+        args=parse_args(['--profile',str(profile),'--camera-index','0','--port','FAKE',
+                         '--max-runtime-s','60','--execute'])
+        self.assertTrue(args.execute)
+        self.assertTrue(args.joint_center)
+        self.assertEqual(args.port,'FAKE')
+        self.assertEqual(args.max_runtime_s,60)
+
+    def test_shutdown_reports_torque_released_only_after_zero_readback(self):
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+        from eai_robot.applications.visual_servo.ball import VisionArmRuntime
+
+        for disable_error, expected in ((None, False), (OSError("failed"), True)):
+            with self.subTest(disable_error=disable_error):
+                runtime = object.__new__(VisionArmRuntime)
+                bus = Mock(is_connected=True)
+                bus.disable_torque.side_effect = disable_error
+                bus.read.return_value = 0
+                runtime.robot = SimpleNamespace(bus=bus)
+                runtime.camera = Mock(is_connected=False)
+                runtime.torque_enabled = True
+                runtime.shutdown()
+                self.assertIs(runtime.torque_enabled, expected)
+                bus.disconnect.assert_called_once_with(disable_torque=False)
+
     def test_profiles_cannot_inject_authority_device_or_nonfinite_values(self):
         with tempfile.TemporaryDirectory() as directory:
             path=Path(directory)/'profile.toml'

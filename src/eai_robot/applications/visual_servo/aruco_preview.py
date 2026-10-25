@@ -11,10 +11,29 @@ import cv2
 import numpy as np
 
 from eai_robot.config import default_camera_index
+from eai_robot.vision.detection.ball import BallDetection
 from eai_robot.vision.detection.aruco import ArucoMarkerDetector
 
 
 WINDOW_NAME = "EAI ArUco preview - Q/Esc to close"
+
+
+def publish_shared_frame(path: Path, payload: bytes, timeout_s: float = 0.25) -> None:
+    """Atomically publish one frame, tolerating a brief Windows reader lock."""
+    temporary = path.with_suffix(".tmp")
+    temporary.write_bytes(payload)
+    deadline = time.monotonic() + timeout_s
+    while True:
+        try:
+            temporary.replace(path)
+            return
+        except PermissionError as exc:
+            if time.monotonic() >= deadline:
+                temporary.unlink(missing_ok=True)
+                raise RuntimeError(
+                    "Could not publish shared camera frame while a reader held the file"
+                ) from exc
+            time.sleep(0.005)
 
 
 def parse_args() -> argparse.Namespace:
@@ -61,6 +80,15 @@ def main() -> int:
           "Camera-only preview. No robot connection or motion. Press Q or Esc to close.")
     if args.stream_file is not None:
         args.stream_file.parent.mkdir(parents=True, exist_ok=True)
+    preview = stop = None
+    if not args.headless:
+        # Tk/Pillow works with the project's opencv-python-headless build. The
+        # preview stays in this foreground process while controllers consume
+        # the separately published JPEG frames.
+        from eai_robot.applications.visual_servo.ball import PreviewWindow, StopState
+        stop = StopState()
+        preview = PreviewWindow(stop)
+        stop.armed.set()
     try:
         while True:
             captured_at = time.monotonic()
@@ -71,45 +99,29 @@ def main() -> int:
                 encoded, jpeg = cv2.imencode(".jpg", frame_bgr, [cv2.IMWRITE_JPEG_QUALITY, 95])
                 if not encoded:
                     raise RuntimeError("could not publish preview frame")
-                temporary = args.stream_file.with_suffix(".tmp")
-                temporary.write_bytes(struct.pack("!d", captured_at) + jpeg.tobytes())
-                temporary.replace(args.stream_file)
+                publish_shared_frame(
+                    args.stream_file, struct.pack("!d", captured_at) + jpeg.tobytes())
             if args.headless:
                 continue
             frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
             observation = detector.detect(frame_rgb)
+            detected = None
             if observation is not None:
-                polygon = np.rint(observation.corners_px).astype(np.int32).reshape(-1, 1, 2)
-                cv2.polylines(frame_bgr, [polygon], True, (0, 220, 0), 2)
-                center = tuple(np.rint(observation.center_px).astype(int))
-                cv2.drawMarker(frame_bgr, center, (0, 255, 255), cv2.MARKER_CROSS, 18, 2)
-                cv2.putText(
-                    frame_bgr,
-                    f"ArUco ID {observation.marker_id}",
-                    (12, 28),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.7,
-                    (0, 220, 0),
-                    2,
-                )
+                polygon = observation.corners_px.astype(np.float32)
+                area = abs(float(cv2.contourArea(polygon)))
+                detected = BallDetection(
+                    float(observation.center_px[0]), float(observation.center_px[1]),
+                    float(np.sqrt(area / np.pi)), area, 1.0, 1.0)
+                status = f"ARUCO ID {observation.marker_id} | SHARED CAMERA ACTIVE"
             else:
-                cv2.putText(
-                    frame_bgr,
-                    "Configured marker not visible",
-                    (12, 28),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.7,
-                    (0, 0, 255),
-                    2,
-                )
-            cv2.imshow(WINDOW_NAME, frame_bgr)
-            key = cv2.waitKey(1) & 0xFF
-            if key in (27, ord("q"), ord("Q")):
+                status = "WAITING FOR CONFIGURED ARUCO | SHARED CAMERA ACTIVE"
+            preview.show(frame_rgb, detected, status)
+            if stop.stop_requested.is_set():
                 break
     finally:
         camera.release()
-        if not args.headless:
-            cv2.destroyAllWindows()
+        if preview is not None:
+            preview.close()
     return 0
 
 

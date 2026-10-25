@@ -7,6 +7,7 @@ import numpy as np
 from eai_robot.applications.visual_servo.hold_preview import (
     overlay_label, wait_while_holding,
 )
+from eai_robot.applications.visual_servo.ball import PreviewWindow, StopState
 
 
 class HoldPreviewTest(unittest.TestCase):
@@ -56,6 +57,20 @@ class HoldPreviewTest(unittest.TestCase):
             self.assertEqual(wait_while_holding(runtime,detector,SimpleNamespace(show=show),stop,
                                               stream=io.StringIO(),poll=lambda *a:([],[],[])),'emergency')
 
+    def test_windows_console_does_not_use_socket_only_select(self):
+        runtime,detector,stop=self.setup_runtime()
+        shown=[]
+        def show(*args):
+            shown.append(1)
+        with patch('eai_robot.applications.visual_servo.hold_preview._use_windows_console',
+                   return_value=True), patch(
+                       'eai_robot.applications.visual_servo.hold_preview._read_windows_console_line',
+                       side_effect=[None, 'r']):
+            result=wait_while_holding(runtime,detector,SimpleNamespace(show=show),stop,
+                                      stream=io.StringIO(),poll=None)
+        self.assertEqual(result,'r')
+        self.assertEqual(len(shown),2)
+
 
 class OverlayLabelTest(unittest.TestCase):
     """OpenCV overlay labels must stay ASCII."""
@@ -78,3 +93,15 @@ class OverlayLabelTest(unittest.TestCase):
     def test_a_reason_without_a_gloss_is_passed_through(self):
         self.assertEqual(overlay_label('控制已暂停 CONTROL PAUSED'),
                          'CONTROL PAUSED')
+
+
+class PreviewWindowKeyTest(unittest.TestCase):
+    def test_tk_keys_only_update_the_owned_stop_state(self):
+        stop = StopState()
+        preview = object.__new__(PreviewWindow)
+        preview._stop_state = stop
+        preview._on_key(SimpleNamespace(keysym='r'))
+        self.assertTrue(stop.resume_requested.is_set())
+        preview._on_key(SimpleNamespace(keysym='space'))
+        self.assertTrue(stop.emergency_requested.is_set())
+        self.assertTrue(stop.stop_requested.is_set())
