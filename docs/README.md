@@ -84,6 +84,7 @@
 - [2026-10-24 文档与运行输出血缘审查](reports/2026-10-24-artifact-lineage.md)
 - [2026-10-24 Agent 视觉工具与外部 LLM 验收](reports/2026-10-24-agent-visual-tools.md)
 - [2026-10-24 Agent ArUco 真机适配层软件记录](reports/2026-10-24-agent-hardware-adapter.md)
+- [Windows 上位机 Agent 麦克风与停止人工验收](reports/2026-10-24-windows-agent-microphone.md)
 - [2026-10-25 网页真机 Agent 模式](reports/2026-10-25-web-hardware-agent.md)
 
 ### archive

@@ -159,8 +159,10 @@ uv run --locked --extra speech eai-course speech --config configs/agent/speech.l
 另有 `tts --text TEXT --output FILE.wav` 与 `asr --audio FILE.wav`，显式选择文件才上传。
 已有 Conda 环境的操作见下文；依赖仍由同一锁文件管理，不要求使用 uv 的合作者安装 Conda。
 
-真实测试记录见[云语音报告](reports/2026-10-24-cloud-speech.md)。合成语音通过不代表麦克风噪声、
-相机理解、真实双工或实物任务验收。音频和本机完整日志不提交。
+真实测试记录见[云语音报告](reports/2026-10-24-cloud-speech.md)和
+[Windows 麦克风与停止人工验收](reports/2026-10-24-windows-agent-microphone.md)。单次真实麦克风链路通过
+不代表噪声/回声覆盖、相机理解、真实双工或实物任务验收；固定 ArUco 真机范围另见
+[网页真机 Agent 报告](reports/2026-10-25-web-hardware-agent.md)。音频和本机完整日志不提交。
 
 
 ## 新协作者从零接入
