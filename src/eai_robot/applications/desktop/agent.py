@@ -9,8 +9,9 @@ from eai_robot.policy.model_io.contracts import ProviderError
 
 
 class DeskAgent:
-    def __init__(self, session=None, speech=None, on_stop=None):
+    def __init__(self, session=None, speech=None, on_stop=None, *, mode='dry_run', hardware_state=None):
         self.session, self.speech, self.on_stop = session, speech, on_stop
+        self.mode, self.hardware_state = mode, hardware_state
         self.runtime_id = uuid.uuid4().hex
         self._lock, self._cancel = RLock(), Event()
         self._thread, self._closed, self._busy = None, False, False
@@ -23,10 +24,12 @@ class DeskAgent:
     def snapshot(self):
         with self._lock:
             stages = getattr(self.speech, 'profiles', {'asr': None, 'tts': None}) if self.speech else {}
+            hardware = self.hardware_state() if self.hardware_state else None
             return {'enabled': self.session is not None, 'speech_enabled': self.speech is not None,
                     'runtime_id': self.runtime_id,
                     'asr_enabled': 'asr' in stages, 'tts_enabled': 'tts' in stages,
-                    'mode': 'dry_run', 'busy': self._busy, 'status': self._status,
+                    'mode': self.mode, 'hardware': hardware,
+                    'busy': self._busy, 'status': self._status,
                     'error_code': self._error, 'generation': self._generation,
                     'notice': self._notice,
                     'messages': deepcopy(self._messages[-20:]), 'tools': deepcopy(self._tools[-12:])}

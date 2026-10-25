@@ -1,11 +1,12 @@
 'use strict';
 (() => {
   const el = id => document.getElementById('agent-' + id);
-  let state = {}, recording = null, preparingMic = false, lastAudio = '', initialized = false, signature = '', localError = '', pending = false, epoch = 0, pollTimer = null, polling = false;
+  let state = {}, recording = null, preparingMic = false, lastAudio = '', initialized = false, signature = '', localError = '', pending = false, epoch = 0, pollTimer = null, polling = false, lastFrame = -1;
   const phases = {idle:'准备好了', recognizing:'正在识别语音…', thinking:'正在思考…', tool:'正在调用工具…', synthesizing:'正在合成语音…', stopping:'正在停止…'};
   async function post(path, body) {
     const response = await fetch('/api/agent/' + path, {method:'POST', headers:{'Content-Type':'application/json','X-Arm-Desk':'1'}, body:JSON.stringify(body)});
     if (!response.ok) throw new Error((await response.json()).error || 'request_failed');
+    return response.json();
   }
   function controls() {
     const busy = pending || state.busy || preparingMic;
@@ -80,6 +81,16 @@
   });
   function localStop() { epoch++; stopPlayback(); finishRecording(false); }
   el('stop').addEventListener('click', async () => { localStop(); try { await post('stop',{}); } catch(error) { localError = '停止请求失败：' + error.message; } controls(); });
+  el('camera').addEventListener('load',()=>el('camera').classList.add('ready'));
+  el('preview').addEventListener('click',async()=>{
+    const enabled=!Boolean(state.hardware?.camera_preview);
+    try{await post('preview',{enabled});localError='';}catch(error){localError='相机操作失败：'+error.message;}controls();
+  });
+  el('release').addEventListener('click',async()=>{
+    const confirmation=window.prompt('请先用手托住机械臂，然后输入 RELEASE TORQUE');
+    if(confirmation===null)return;
+    try{await post('release',{confirmation});localError='';}catch(error){localError='释放失败：'+error.message;}controls();
+  });
   document.getElementById('stop-btn').addEventListener('click',localStop);
   window.addEventListener('pagehide',()=>{const active=state.busy||pending||recording||preparingMic;localStop();if(active)fetch('/api/agent/stop',{method:'POST',keepalive:true,headers:{'Content-Type':'application/json','X-Arm-Desk':'1'},body:'{}'}).catch(()=>{});});
   document.addEventListener('visibilitychange',()=>{if(document.hidden) finishRecording(false);});
@@ -97,6 +108,18 @@
       if(previousRuntime && previousRuntime!==state.runtime_id) {localStop();initialized=false;lastAudio='';}
       if(previousGeneration!==undefined && previousGeneration!==state.generation) {stopPlayback();if(state.notice)localStop();}
       el('model-label').textContent=state.api_settings?.chat?.model||'选择模型';
+      const hardwareMode=state.mode==='aruco_center_hardware', hardware=state.hardware||{};
+      el('hardware').hidden=!hardwareMode;
+      el('disclosure').innerHTML=hardwareMode?'<span class="agent-dryrun-dot"></span>真机模式：LLM 通过受限工具调用视觉追踪；停止后需托住机械臂并释放扭矩。':'<span class="agent-dryrun-dot"></span>演练模式：工具不会驱动真实机械臂。语音仅在你开启后采集。';
+      if(hardwareMode){
+        el('preview').textContent=hardware.camera_preview?'关闭相机':'打开相机';
+        el('preview').disabled=Boolean(hardware.torque_enabled)||['starting','calibrating','moving','running','stopping'].includes(hardware.tracking);
+        el('release').disabled=!hardware.torque_enabled;
+        const frameSource=hardware.frame_source==='shared'?'共享相机':'直接相机';
+        const sent=Number(hardware.motion_command_count||0), confirmed=Number(hardware.motion_confirmed_count||0);
+        el('hardware-status').textContent=frameSource+' · '+(hardware.camera_preview?'网页预览中':'网页预览关闭')+' · 追踪 '+(hardware.tracking||'idle')+' · 运动命令 '+sent+' · 编码器确认 '+confirmed+' · 扭矩 '+(hardware.torque_enabled?'保持':'关闭');
+        if(hardware.frame_sequence!==lastFrame&&hardware.frame_sequence>0){lastFrame=hardware.frame_sequence;el('camera').src='/api/agent/frame.jpg?v='+lastFrame;}
+      }
       el('welcome').hidden=Boolean(state.messages?.length);
       el('suggestions').hidden=Boolean(state.messages?.length);
       controls();

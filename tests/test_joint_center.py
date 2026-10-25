@@ -4,6 +4,35 @@ from eai_robot.control.visual_servo.empirical import choose_step, motion_confirm
 
 
 class JointCenterTest(unittest.TestCase):
+    def test_target_wait_honours_runtime_deadline(self):
+        import threading
+        from types import SimpleNamespace
+        from unittest.mock import Mock, patch
+        import eai_robot.applications.visual_servo.joint_center as module
+
+        runtime = SimpleNamespace(read_frame=Mock(
+            side_effect=module.PreviewFrameUnavailable('no fresh frame')))
+        detector = SimpleNamespace(detect=Mock())
+        stop = SimpleNamespace(stop_requested=threading.Event())
+        clock = iter((0.0, 0.5, 1.0))
+        with patch.object(module.time, 'monotonic', side_effect=lambda: next(clock)), \
+             patch.object(module.time, 'sleep'):
+            with self.assertRaisesRegex(module.RuntimeLimitReached,
+                                        'Runtime limit reached'):
+                module.wait_for_target(runtime, detector, None, stop,
+                                       deadline=0.75)
+        detector.detect.assert_not_called()
+
+    def test_probe_start_uses_marker_edge_margin_not_central_half(self):
+        from eai_robot.applications.visual_servo.joint_center import target_has_probe_margin
+        from eai_robot.vision.detection.ball import BallDetection
+        target = lambda x, y: BallDetection(x, y, 20, 1200, 1, 1)
+        # This is outside the old central half but leaves the complete marker
+        # and a ten-percent probe margin inside a 640x480 frame.
+        self.assertTrue(target_has_probe_margin((480, 640, 3), target(100, 100)))
+        self.assertFalse(target_has_probe_margin((480, 640, 3), target(55, 100)))
+        self.assertFalse(target_has_probe_margin((480, 640, 3), target(100, 425)))
+
     def test_wrist_never_inherits_small_base_steps(self):
         options=joint_step_options(15,12)
         self.assertEqual(options,([-15,-10,0,10,15],[-12,0,12]))
@@ -119,9 +148,13 @@ class JointCenterRuntimeTest(unittest.TestCase):
         return writes, records
 
     def test_target_motion_does_not_reverse_learned_motor_direction(self):
+        import json
         writes, records = self.exercise_runtime(target_motion=True)
         self.assertIn('"model_updated": false',records)
-        self.assertGreater(writes[-1]['shoulder_pan'],writes[-2]['shoulder_pan'])
+        commands = [json.loads(line) for line in records.splitlines()
+                    if json.loads(line)['event'] == 'command']
+        self.assertGreater(commands[-1]['goal']['shoulder_pan'],
+                           commands[-1]['before']['shoulder_pan'])
 
     def test_stale_frame_prevents_motor_write(self):
         writes, records = self.exercise_runtime(stale=True)
@@ -165,9 +198,9 @@ class JointCenterRuntimeTest(unittest.TestCase):
         self.assertNotIn('calibration', records)
 
 class ForwardMotionEvidenceTest(unittest.TestCase):
-    def test_loss_records_partial_pair_response_without_changing_hold_behavior(self):
+    def test_detection_is_paused_during_bounded_motion(self):
         from types import SimpleNamespace
-        from unittest.mock import patch
+        from unittest.mock import Mock, patch
         import threading
         import eai_robot.applications.visual_servo.joint_center as module
         names = module.ARM_JOINT_NAMES
@@ -180,8 +213,7 @@ class ForwardMotionEvidenceTest(unittest.TestCase):
             writes.append(dict(values))
             goals.update(values)
             if len(writes) == 1:
-                state['shoulder_lift'] += 19
-                state['wrist_flex'] -= 8
+                state.update(values)
 
         def read(register, name, **kwargs):
             return {'Goal_Position': goals[name], 'Torque_Enable': 1,
@@ -189,29 +221,36 @@ class ForwardMotionEvidenceTest(unittest.TestCase):
 
         runtime = SimpleNamespace(
             robot=SimpleNamespace(bus=SimpleNamespace(sync_write=write, read=read)),
-            read_frame=lambda: np.zeros((2, 2, 3)))
-        detections = iter([object(), None])
-        detector = SimpleNamespace(detect=lambda frame: (next(detections), None))
+            read_frame=Mock(return_value=np.zeros((2, 2, 3))),
+            fk=SimpleNamespace(forward_kinematics=lambda q: np.eye(4)))
+        detector = SimpleNamespace(detect=Mock(return_value=(object(), None)))
         guard = module.BoundedJointMotion(
             runtime, detector, object(), SimpleNamespace(), np.zeros(5),
             np.zeros(3), lambda event, **data: events.append(dict(event=event, **data)),
             None, SimpleNamespace(stop_requested=threading.Event()),
-            joints=names, position_of=lambda q: np.zeros(3))
-        target = dict(before, shoulder_lift=360, elbow_flex=583, wrist_flex=340)
+            joints=('wrist_flex',), position_of=lambda q: np.zeros(3))
+        target = dict(before, wrist_flex=370)
+        clock = [0.0]
         with patch.object(guard, 'reject_reason', return_value=None), \
-             patch.object(module, 'read_raw_motors', side_effect=lambda *a: dict(state)):
-            with self.assertRaises(module.TargetLostError):
-                guard.move(target)
+             patch.object(module, 'read_raw_motors', side_effect=lambda *a: dict(state)), \
+             patch.object(module, 'arm_degrees_from_raw', return_value=np.zeros(5)), \
+             patch.object(module.time, 'monotonic',
+                          side_effect=lambda: clock.__setitem__(0, clock[0] + .11) or clock[0]):
+            actual = guard.move(target)
+        self.assertEqual(actual['wrist_flex'], 370)
         self.assertEqual(len(writes), 2)
-        self.assertEqual(writes[0], {n: target[n] for n in
-                                    ('shoulder_lift', 'elbow_flex', 'wrist_flex')})
-        self.assertEqual(writes[1], {n: state[n] for n in writes[0]})
-        sample = next(e for e in events if e['event'] == 'motion_sample')
-        self.assertFalse(sample['target_visible'])
-        self.assertEqual(sample['actual']['elbow_flex'], before['elbow_flex'])
+        self.assertEqual(writes[0], {'wrist_flex': 370})
+        self.assertEqual(writes[1], {'wrist_flex': 370})
+        runtime.read_frame.assert_called_once_with()
+        detector.detect.assert_called_once()
+        samples = [e for e in events if e['event'] == 'motion_sample']
+        self.assertTrue(samples)
+        self.assertTrue(all(e['target_check'] == 'deferred_until_settled'
+                            for e in samples))
+        self.assertFalse(any(e['event'] == 'target_lost_hold' for e in events))
         snapshots = [e for e in events if e['event'] == 'motor_state']
         self.assertEqual([e['stage'] for e in snapshots],
-                         ['before_command', 'after_target_lost_hold'])
+                         ['before_command', 'after_settled_hold'])
         for snapshot in snapshots:
             self.assertEqual(set(snapshot['goals']), set(names))
             self.assertTrue(all(v == 1 for v in snapshot['torque_enabled'].values()))

@@ -6,7 +6,10 @@ import time
 from eai_robot.policy.agents.context import ContextSnapshot
 from eai_robot.policy.agents.contracts import ToolResult
 
-TOOLS = ("get_robot_state", "list_poses", "move_to_pose", "get_task_status", "stop_motion")
+TOOLS = ("get_robot_state", "list_poses", "move_to_pose", "detect_object",
+         "start_tracking", "get_task_status", "stop_tracking", "stop_motion")
+HARDWARE_VISUAL_TOOLS = ("get_robot_state", "detect_object", "start_tracking",
+                         "get_task_status", "stop_tracking", "stop_motion")
 
 
 @dataclass(frozen=True)
@@ -14,13 +17,17 @@ class RobotCapabilities:
     allowed_tools: tuple[str, ...] = TOOLS
     mode: str = "dry_run"
     physical_execution: bool = False
-    evidence: str = "Validated reference poses; no physical task acceptance"
+    evidence: str = "Validated reference poses and visual fixture; no physical task acceptance"
 
     def __post_init__(self):
-        if (self.mode != "dry_run" or self.physical_execution is not False
-                or not set(self.allowed_tools) <= set(TOOLS)
-                or "stop_motion" not in self.allowed_tools):
-            raise ValueError("Only supported dry-run capabilities are implemented")
+        dry_run = (self.mode == "dry_run" and self.physical_execution is False
+                   and set(self.allowed_tools) <= set(TOOLS))
+        visual_hardware = (self.mode == "aruco_center_hardware"
+                           and self.physical_execution is True
+                           and set(self.allowed_tools) <= set(HARDWARE_VISUAL_TOOLS))
+        if (not (dry_run or visual_hardware) or "stop_motion" not in self.allowed_tools
+                or (visual_hardware and "stop_tracking" not in self.allowed_tools)):
+            raise ValueError("Unsupported robot capability set")
 
     def describe(self):
         return {**asdict(self), "physical_limits": {

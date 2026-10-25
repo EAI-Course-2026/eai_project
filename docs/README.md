@@ -23,6 +23,7 @@
 - [三层 Agent 运行指南](agent_runtime.md)
 - [多服务 API 配置](agent_providers.md)
 - [聊天 API 接入与验收](agent_api_acceptance.md)
+- [Agent ArUco 真实机械臂验收](agent_hardware_acceptance.md)
 - [多模态 Agent 与动作模仿开发规划](agent_development_plan.md)（规划/待验收）
 
 ## 机械臂、感知与实验
@@ -81,6 +82,10 @@
 - [Agent 标准协议与官方 SDK 修正](reports/2026-10-22-agent-standard-sdk.md)
 - [Conda 薄适配与 Quick start](reports/2026-10-22-conda-adapter.md)
 - [2026-10-24 文档与运行输出血缘审查](reports/2026-10-24-artifact-lineage.md)
+- [2026-10-24 Agent 视觉工具与外部 LLM 验收](reports/2026-10-24-agent-visual-tools.md)
+- [2026-10-24 Agent ArUco 真机适配层软件记录](reports/2026-10-24-agent-hardware-adapter.md)
+- [Windows 上位机 Agent 麦克风与停止人工验收](reports/2026-10-24-windows-agent-microphone.md)
+- [2026-10-25 网页真机 Agent 模式](reports/2026-10-25-web-hardware-agent.md)
 
 ### archive
 

@@ -10,6 +10,7 @@ import time
 from eai_robot.applications.agent.cli import reference_poses
 from eai_robot.applications.agent.session import create_robot_session
 from eai_robot.applications.agent.skills import DryRunSkills
+from eai_robot.applications.agent.capabilities import HARDWARE_VISUAL_TOOLS, RobotCapabilities
 from eai_robot.applications.agent.speech import CloudSpeech, SpeechEndpoint
 from eai_robot.control.planning.poses import POSES_PATH
 from eai_robot.policy.model_io.providers import ChatCompletionsProvider, ProviderConfig
@@ -53,13 +54,20 @@ def seed_from_files(chat_path, chat_env=None, speech_path=None, speech_env=None)
 
 
 class AgentRecord:
-    def __init__(self, on_stop=None, initial=None):
+    def __init__(self, on_stop=None, initial=None, hardware_skills=None):
         self._lock, self._on_stop = RLock(), on_stop
+        self._hardware_skills = hardware_skills
         self._settings, self._keys = {}, {}
-        self.agent = DeskAgent(on_stop=on_stop)
+        self.agent = self._blank_agent()
         self.touched = time.monotonic()
         if initial:
             self.configure(initial)
+
+    def _blank_agent(self):
+        if self._hardware_skills:
+            return DeskAgent(on_stop=self._on_stop, mode='aruco_center_hardware',
+                             hardware_state=self._hardware_skills.backend.snapshot)
+        return DeskAgent(on_stop=self._on_stop)
 
     def public_settings(self):
         with self._lock:
@@ -118,7 +126,8 @@ class AgentRecord:
                         raise ValueError('tts_voice_required')
                     values[spec['credential_env']] = keys[stage]
             speech = CloudSpeech(profiles, values) if profiles else None
-            runtime = DeskAgent(speech=speech, on_stop=self._on_stop)
+            runtime = self._blank_agent()
+            runtime.speech = speech
             if 'chat' in settings:
                 spec = dict(settings['chat'])
                 spec.pop('provider', None)  # Display label; routing comes from the explicit URL.
@@ -129,7 +138,18 @@ class AgentRecord:
                 name = 'EAI_DESK_' + secrets.token_hex(12).upper()
                 spec['credential_env'] = name
                 provider = provider_class(ProviderConfig(**spec), credential_values={name: keys['chat']})
-                runtime.session = create_robot_session(provider, DryRunSkills(reference_poses(POSES_PATH)), emit=runtime.model_event)
+                if self._hardware_skills:
+                    capabilities = RobotCapabilities(
+                        allowed_tools=HARDWARE_VISUAL_TOOLS,
+                        mode='aruco_center_hardware', physical_execution=True,
+                        evidence='Operator-armed validated ArUco centre MVP profile')
+                    runtime.session = create_robot_session(
+                        provider, self._hardware_skills, capabilities=capabilities,
+                        hardware_visual=True, emit=runtime.model_event)
+                else:
+                    runtime.session = create_robot_session(
+                        provider, DryRunSkills(reference_poses(POSES_PATH)),
+                        emit=runtime.model_event)
             return runtime
         except Exception:
             if provider:
@@ -142,7 +162,7 @@ class AgentRecord:
     def clear(self):
         with self._lock:
             self.agent.close()
-            self.agent = DeskAgent(on_stop=self._on_stop)
+            self.agent = self._blank_agent()
             self._settings, self._keys = {}, {}
 
     def close(self):
@@ -151,8 +171,9 @@ class AgentRecord:
 
 class AgentHub:
     """Bounded, HttpOnly-cookie sessions. No credentials in browser storage."""
-    def __init__(self, on_stop=None, initial=None):
+    def __init__(self, on_stop=None, initial=None, hardware_skills=None):
         self._on_stop, self._initial = on_stop, initial
+        self.hardware_skills = hardware_skills
         self._lock, self._records = RLock(), {}
 
     def get(self, token=None):
@@ -166,7 +187,8 @@ class AgentHub:
                 if len(self._records) >= 16:
                     raise ValueError('session_limit')
                 token = secrets.token_hex(24)
-                self._records[token] = AgentRecord(self._on_stop, self._initial)
+                self._records[token] = AgentRecord(self._on_stop, self._initial,
+                                                   self.hardware_skills)
             record = self._records[token]
             record.touched = now
             return token, record
@@ -176,9 +198,32 @@ class AgentHub:
             for record in self._records.values():
                 record.agent.stop(stop_robot=False)
 
+    def hardware_snapshot(self):
+        return self.hardware_skills.backend.snapshot() if self.hardware_skills else None
+
+    def hardware_frame(self):
+        return self.hardware_skills.backend.frame() if self.hardware_skills else (None, 0)
+
+    def preview(self, enabled):
+        if not self.hardware_skills:
+            raise ValueError('hardware_mode_not_enabled')
+        backend = self.hardware_skills.backend
+        return backend.start_preview() if enabled else backend.stop_preview()
+
+    def release(self, confirmation):
+        if not self.hardware_skills:
+            raise ValueError('hardware_mode_not_enabled')
+        if confirmation != 'RELEASE TORQUE':
+            raise ValueError('confirmation_required')
+        self.stop()
+        return self.hardware_skills.release()
+
     def close(self):
         with self._lock:
             for record in self._records.values():
                 record.close()
             self._records.clear()
             self._initial = None
+        if self.hardware_skills:
+            self.hardware_skills.backend.stop_preview()
+            self.hardware_skills.release()

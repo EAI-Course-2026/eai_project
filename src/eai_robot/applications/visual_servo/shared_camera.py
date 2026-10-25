@@ -29,24 +29,39 @@ class SharedPreviewCamera:
         if not self.is_connected:
             raise RuntimeError("shared preview camera is disconnected")
         deadline = time.monotonic() + timeout_ms / 1000
+        unavailable_reason = None
         while time.monotonic() < deadline:
             try:
                 payload = self.path.read_bytes()
-            except FileNotFoundError as exc:
-                raise PreviewFrameUnavailable('shared camera frame is not available') from exc
+            except (FileNotFoundError, PermissionError):
+                # Atomic publication can briefly hide or lock the destination
+                # on Windows. Retry within the existing freshness lease; never
+                # return an older frame to work around the sharing violation.
+                unavailable_reason = 'shared camera frame is not available'
+                time.sleep(.005)
+                continue
             if len(payload) <= 8:
-                raise PreviewFrameUnavailable("invalid shared camera frame")
+                unavailable_reason = "invalid shared camera frame"
+                time.sleep(.005)
+                continue
             stamp, = struct.unpack("!d", payload[:8])
             age = time.monotonic() - stamp
             if not 0 <= age <= .25:
-                raise PreviewFrameUnavailable("persistent camera preview stopped or frame is stale")
+                unavailable_reason = "persistent camera preview stopped or frame is stale"
+                time.sleep(.005)
+                continue
             if stamp > self.last_stamp:
                 bgr = cv2.imdecode(np.frombuffer(payload[8:], dtype=np.uint8), cv2.IMREAD_COLOR)
                 if bgr is None:
-                    raise PreviewFrameUnavailable("shared frame JPEG could not be decoded")
+                    unavailable_reason = "shared frame JPEG could not be decoded"
+                    time.sleep(.005)
+                    continue
                 self.last_stamp = stamp
                 return cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
+            unavailable_reason = None
             time.sleep(.005)
+        if unavailable_reason is not None:
+            raise PreviewFrameUnavailable(unavailable_reason)
         raise TimeoutError("no new frame from persistent preview")
 
     def disconnect(self):

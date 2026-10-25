@@ -1,8 +1,8 @@
 # 上位机 Agent
 
-2026-10-24。Agent 嵌入机械臂上位机；文字和语音是同一 Agent 的交互模式，
-共用 AgentSession、prompt、OpenAI 标准工具与停止机制。当前技能全部 dry-run。
-无需连接机械臂即可对话。腕部相机、跟踪/IK 工具与 Agent 实物执行尚未接入。
+2026-10-25。Agent 嵌入机械臂上位机；文字和语音是同一 Agent 的交互模式，
+共用 AgentSession、prompt、OpenAI 标准工具与停止机制。普通启动仍是 dry-run；显式提供真机参数、
+运动开关和确认短语后，网页可显示腕部相机，并让外部 LLM 调用 ArUco 检测、追踪、查询和停止工具。
 
 ![上位机 Agent：模型选择、页面 API 接入与文字/语音输入](assets/agent-desktop.jpg)
 
@@ -42,6 +42,50 @@ ASR/TTS 当前只有官方 DashScope SDK 适配，可分别使用不同账号/Ke
 点击「保存并使用」会验证配置并开始新对话，第一次发送才请求模型。
 已有 Key 留空可保留；改变服务或地址时必须重新填写 Key，避免把旧凭据带给其他服务。
 失败配置不会替换当前可用配置；处理中的回合需先停止并等待排空。
+
+## 网页真机 Agent（ArUco 0）
+
+推荐让独立前台进程持续拥有相机并显示画面，网页和追踪后端只读取共享帧。第一个终端运行：
+
+```powershell
+& ".\.venv\Scripts\eai-course.exe" aruco-preview `
+  --camera-index N --marker-id 0 `
+  --stream-file local_artifacts/tmp/agent-visual/latest.frame
+```
+
+保持窗口运行。第二个终端启动网页真机 Agent：
+
+```powershell
+& ".\.venv\Scripts\python.exe" scripts/arm_desk.py `
+  --http-port 8765 `
+  --device-port COMX `
+  --visual-hardware-profile configs/visual_servo/aruco_center_mvp.toml `
+  --camera-index N `
+  --shared-frame local_artifacts/tmp/agent-visual/latest.frame `
+  --hardware-max-runtime 30 `
+  --enable-visual-motion `
+  --acknowledge ARUCO_CENTER_MVP_WITH_OPERATOR_STOP
+```
+
+`COMX` 与 `N` 必须替换为现场只读检查得到的串口和相机编号；不要把本机值写回共享文档。
+
+然后按以下顺序操作：
+
+1. 打开 `http://127.0.0.1:8765/#agent`，在「API 接入」配置支持 function calling 的外部 LLM。
+2. 点击「打开相机」。网页会持续显示腕部画面；让 ArUco 0 清晰、完整地出现在画面中即可，
+   不要求先放在中央半区。
+3. 输入：「先查看状态，检测 ArUco marker ID 0，启动追踪，查询任务状态。」模型会自行选择工具；
+   页面下方显示调用过的工具，画面会在追踪开始后由同一后端继续更新。
+4. 随时点方形停止按钮可取消模型回合并停止追踪。停止只进入扭矩保持。
+5. 用手托住机械臂，点击「托住后释放扭矩」，按提示输入 `RELEASE TORQUE`。
+6. 验收结束后回到启动终端按 Ctrl+C；服务关闭时也会执行停止与释放流程。
+
+网页中能看到画面不代表已启用电机；只有 LLM 实际调用 `start_tracking` 后才进入真机运动。
+页面真机状态会分别显示共享相机、追踪阶段、运动命令数、编码器确认数和扭矩。`detect_object`
+与 `start_tracking` 都只读取共享帧，不会关闭独立相机窗口。只有同时出现 `running`、至少一条
+运动命令和至少一次编码器确认，才能说明真机追踪确实启动。
+该启动方式把当前服务实例专用于真机 Agent，网页里的手动关节/末端控制会被拒绝；需要手动控制时
+先结束服务，再用普通上位机启动命令运行，避免同一串口出现两个控制入口。
 
 网页配置只放在该浏览器会话对应的服务端内存，Key 不回显、不写文件、URL 或浏览器存储。
 同一会话的标签页共享配置；独立浏览器会话各自隔离。刷新页面仍可使用当前会话；
@@ -115,8 +159,10 @@ uv run --locked --extra speech eai-course speech --config configs/agent/speech.l
 另有 `tts --text TEXT --output FILE.wav` 与 `asr --audio FILE.wav`，显式选择文件才上传。
 已有 Conda 环境的操作见下文；依赖仍由同一锁文件管理，不要求使用 uv 的合作者安装 Conda。
 
-真实测试记录见[云语音报告](reports/2026-10-24-cloud-speech.md)。合成语音通过不代表麦克风噪声、
-相机理解、真实双工或实物任务验收。音频和本机完整日志不提交。
+真实测试记录见[云语音报告](reports/2026-10-24-cloud-speech.md)和
+[Windows 麦克风与停止人工验收](reports/2026-10-24-windows-agent-microphone.md)。单次真实麦克风链路通过
+不代表噪声/回声覆盖、相机理解、真实双工或实物任务验收；固定 ArUco 真机范围另见
+[网页真机 Agent 报告](reports/2026-10-25-web-hardware-agent.md)。音频和本机完整日志不提交。
 
 
 ## 新协作者从零接入
@@ -183,8 +229,9 @@ Base URL 是 SDK 根地址，例如百炼北京常规接入为
 `https://dashscope.aliyuncs.com/compatible-mode/v1`，不在后面重复添加 `/chat/completions`。
 业务空间专属地址以自己的控制台配置为准；不要复制其他账号的地址或把 Key 放进 URL。
 
-只启用聊天即可保存、发送「先查看状态，再列出可用姿态」。
-成功应看到 `get_robot_state` 和 `list_poses` 的 simulated 结果，再出现自然语言回答。
+只启用聊天即可保存、发送「先查看状态，再列出可用姿态」。视觉工具演练可发送：
+「先查看状态，检测 ArUco marker，启动追踪，查询任务状态后停止追踪；明确说明是否操作了硬件。」
+成功应看到相应工具的 simulated 结果，再出现明确未操作硬件的自然语言回答。
 这证明外部模型选择了工具；`--demo` 的固定 fixture 不能代替此证据。
 
 ### 添加云 ASR / TTS

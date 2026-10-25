@@ -1,5 +1,6 @@
 """Refresh live preview while awaiting an explicit retry or supported release."""
 from __future__ import annotations
+import os
 import select
 import sys
 import time
@@ -21,9 +22,42 @@ def overlay_label(reason, width=20):
     return text[:width].rstrip() or 'CONTROL PAUSED'
 
 
+def _use_windows_console(stream, poll):
+    """Use the console API because Windows select() accepts sockets only."""
+    return os.name == 'nt' and stream is sys.stdin and poll is None
+
+
+def _read_windows_console_line(buffer):
+    """Return one non-blocking console line, or None while it is incomplete."""
+    import msvcrt
+
+    while msvcrt.kbhit():
+        key = msvcrt.getwch()
+        if key in ('\r', '\n'):
+            command = ''.join(buffer).strip().lower()
+            buffer.clear()
+            return command
+        if key == '\b':
+            if buffer:
+                buffer.pop()
+            continue
+        # Consume the scan code paired with a Windows extended key. It is not
+        # a hold/release command and must not leak into the next input line.
+        if key in ('\x00', '\xe0'):
+            if msvcrt.kbhit():
+                msvcrt.getwch()
+            continue
+        if key.isprintable():
+            buffer.append(key)
+    return None
+
+
 def wait_while_holding(runtime, detector, preview, stop, stream=None, poll=None):
     stream = sys.stdin if stream is None else stream
-    poll = select.select if poll is None else poll
+    windows_console = _use_windows_console(stream, poll)
+    if poll is None and not windows_console:
+        poll = select.select
+    console_buffer = []
     print('\n已暂停 · 扭矩保持（PAUSED - TORQUE HOLD）', flush=True)
     print('  预览窗口或终端按 R 重试；托住机械臂后在终端按 ENTER 释放扭矩。', flush=True)
     print('  R in preview/terminal retries; support arm then terminal ENTER releases.', flush=True)
@@ -48,7 +82,14 @@ def wait_while_holding(runtime, detector, preview, stop, stream=None, poll=None)
             return 'emergency'
         if stop.resume_requested.is_set():
             return 'r'
-        if stream is not None and poll([stream],[],[],.02)[0]:
+        if stream is not None and windows_console:
+            command = _read_windows_console_line(console_buffer)
+            if command in ('', 'r'):
+                return command
+            if command is not None:
+                print('按 R 重试；或托住机械臂后按 ENTER 释放。'
+                      ' (Use R to retry, or support the arm then ENTER to release.)',flush=True)
+        elif stream is not None and poll([stream],[],[],.02)[0]:
             line = stream.readline()
             if line == '':
                 # Losing terminal stdin is not authorization to release torque.
